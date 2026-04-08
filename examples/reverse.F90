@@ -1,0 +1,20 @@
+module reverse
+  implicit none
+
+contains
+
+  subroutine reverse(arr)
+    integer, intent(inout) :: arr(:)
+    integer :: i, n, tmp
+    n = size(arr)
+    !$omp parallel &
+    !$omp private(tmp)
+    !$omp do
+    do i = 1, n/2
+      tmp = arr(i)
+      arr(i) = arr(n+1-i)
+      arr(n+1-i) = tmp
+    end do
+    !$omp end parallel
+  end subroutine
+end module

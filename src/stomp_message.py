@@ -1,0 +1,113 @@
+# SPDX-License-Identifier: BSD-3-Clause
+
+'''This module provides a class to represent messages reported by the
+tool to the user.
+'''
+
+import re
+from enum import Enum
+from typing import Optional
+from textwrap import fill
+from psyclone.psyir.nodes import Node
+from psyclone.psyir.backend.fortran import FortranWriter
+from colours import red, blue
+
+
+class StompMessageCode(Enum):
+    '''A unique message code capturing the kind of issue found.'''
+    # TODO: rename to drop OpenMP prefix, which is implicit
+    OpenMPParseError = 1
+    OpenMPLoopDirectiveHasNoLoop = 2
+    OpenMPUnmatchedEnd = 3
+    OpenMPTooManyStatements = 4
+    OpenMPSingletonDirEmpty = 5
+    OpenMPEndStandalone = 6
+    OpenMPUnrecognisedDirective = 7
+    InvalidCollapseClause = 8
+    LoopArrayConflict = 10
+
+
+class StompMessage:
+    '''A message to report to the user.'''
+
+    def __init__(self,
+                 code: StompMessageCode,
+                 description: Optional[str] = None,
+                 suggestions: list[str] = [],
+                 node: Optional[Node] = None,
+                 routine_name: Optional[str] = None):
+        self.code = code
+        self.description = description
+        self.suggestions = suggestions
+        self.node = node
+        self.routine_name = routine_name
+
+    def render(self,
+               filename: Optional[str] = None,
+               line_num: Optional[int] = None,
+               enable_colours: bool = True
+               ):
+        '''Render the message as a string.'''
+
+        # Helper function to display field header in colour
+        def header(text: str):
+            if enable_colours:
+                text = blue(text)
+            text += ": "
+            return text
+
+        # Message code
+        if enable_colours:
+            out = red(self.code.name)
+        else:
+            out = self.code.name
+        out += "\n"
+
+        # Location
+        if filename:
+            out += header("File") + filename + "\n"
+        if line_num:
+            out += header("Line") + str(line_num) + "\n"
+        else:
+            if self.routine_name:
+                out += header("Routine") + self.routine_name + "\n"
+            if self.node:
+                try:
+                    writer = FortranWriter()
+                    text = writer(self.node)
+                    text = text.strip()
+                    re.sub(" +", " ", text)
+                    text = repr(text[:60])
+                    out += header("Near") + text + "\n"
+                except Exception:
+                    pass
+
+        # Description
+        if self.description:
+            out += fill(self.description,
+                        initial_indent=header("Description"))
+
+        # Suggestions
+        if len(self.suggestions) > 1:
+            for (idx, suggestion) in enumerate(self.suggestions):
+                hdr = header(f"Suggestion {idx+1}")
+                out += fill(suggestion, initial_indent=hdr)
+        else:
+            for suggestion in self.suggestions:
+                out += fill(suggestion,
+                            initial_indent=header("Suggestion"))
+
+        return out
+
+
+class StompLogger:
+    '''Global logger class for recording messages'''
+    messages: StompMessage = []
+
+    @classmethod
+    def add_message(cls, msg: StompMessage):
+        cls.messages.append(msg)
+
+    @classmethod
+    def get_messages(cls):
+        return cls.messages

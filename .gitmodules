@@ -1,0 +1,3 @@
+[submodule "PSyclone"]
+	path = PSyclone
+	url = https://github.com/stfc/PSyclone

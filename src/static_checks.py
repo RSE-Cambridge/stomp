@@ -1,0 +1,184 @@
+# SPDX-License-Identifier: BSD-3-Clause
+
+'''This module implements static checks.'''
+
+import re
+from typing import List
+from psyclone.psyir.nodes import Node, Statement, Routine, Loop
+from openmp_directives import OpenMPDirective, recognised_directives_set
+from stomp_message import StompMessage, StompMessageCode, StompLogger
+from array_index_analysis import ArrayIndexAnalysis
+
+
+# Basic checks that apply to every directive
+# ==========================================
+
+
+def check_loose_end(d: OpenMPDirective):
+    '''Check that an "end" directive has a matching starting directive.'''
+    if "end" in d.clauses and d.started_by is None:
+        StompLogger.add_message(
+            StompMessage(
+                StompMessageCode.OpenMPUnmatchedEnd,
+                description = "Could not find associated starting "
+                    "directive for this OpenMP 'end' directive.",
+                node = d.original_directive))
+
+
+def check_loop_directive_is_followed_by_loop(d: OpenMPDirective):
+    '''Check that a loop directive is followed by a loop.'''
+    if "end" not in d.clauses:
+        if d.is_loop():
+            is_loop = d.position+1 < len(d.siblings) and \
+                      isinstance(d.siblings[d.position+1], Loop)
+            if not is_loop:
+                StompLogger.add_message(
+                    StompMessage(
+                        StompMessageCode.OpenMPLoopDirectiveHasNoLoop,
+                        description = "OpenMP loop directive is not "
+                                      "followed by a loop.",
+                        node = d.original_directive))
+
+
+def check_singleton_directive_too_many_stmts(d: OpenMPDirective):
+    '''Check that singleton directives do not have more than one statement.'''
+    if "end" not in d.clauses:
+        if d.is_singleton():
+            if (d.ended_by is not None and
+                    d.ended_by.position > d.position+2):
+                StompLogger.add_message(
+                    StompMessage(
+                        StompMessageCode.OpenMPTooManyStatements,
+                        description = "OpenMP directive covers multiple "
+                            "statements where a single statement is "
+                            "expected.",
+                        node = d.original_directive))
+
+
+def check_singleton_directive_not_empty(d: OpenMPDirective):
+    '''Check that singleton directives are followed by a statement.'''
+    if "end" not in d.clauses:
+        if d.is_singleton():
+            if len(d.siblings[d.position+1:]) == 0:
+                StompLogger.add_message(
+                    StompMessage(
+                        StompMessageCode.OpenMPSingletonDirEmpty,
+                        description = "OpenMP singleton directive has "
+                            "no associated statement.",
+                        node = d.original_directive))
+
+
+def check_standalone_directive_not_end(d: OpenMPDirective):
+    '''Check that standalone directives are not end directives.'''
+    if "end" in d.clauses and d.is_standalone():
+        StompLogger.add_message(
+            StompMessage(
+                StompMessageCode.OpenMPEndStandalone,
+                description = "Standalone OpenMP directive should not "
+                    "have an associated 'end' directive.",
+                node = d.original_directive))
+
+
+def check_directive_is_recognised(d: OpenMPDirective):
+    '''Check that directives are recognised OpenMP directives.'''
+    kws = d.get_directive_keywords()
+    if kws and kws[0] == "end":
+        del kws[0]
+    if tuple(kws) not in recognised_directives_set:
+        StompLogger.add_message(
+            StompMessage(
+                StompMessageCode.OpenMPUnrecognisedDirective,
+                description = "This is not a recognised OpenMP directive.",
+                node = d.original_directive))
+
+
+# Collapsed loop checks
+# =====================
+
+
+def get_nested_loops(node: Node) -> List[Loop]:
+    '''Return a list of immediately nested loops'''
+    loops = []
+    while True:
+        if isinstance(node, Loop):
+            loops.append(node)
+            if len(node.loop_body.children) == 1:
+                node = node.loop_body.children[0]
+            else:
+                return loops
+        else:
+            return loops
+
+
+def check_collapse_clause(d: OpenMPDirective):
+    '''Check that all OpenMP loops with a collapse(n) clause preceed an
+       n-element loop nest, and the loop variables are not data dependent.'''
+    if d.is_loop() and d.is_singleton() and "collapse" in d.clauses:
+        # Check that collapse clause is non-zero
+        if d.clauses["collapse"] == 0:
+            StompLogger.add_message(
+                StompMessage(
+                    StompMessageCode.InvalidCollapseClause,
+                    description = "A 'collapse' clause with a value of 0 "
+                        "is not allowed.",
+                    node = d.original_directive))
+        # Check that num loops are consistent with collapse clause
+        loop = d.get_singleton_body()
+        loops = get_nested_loops(loop)
+        expected = d.clauses["collapse"]
+        got = len(loops)
+        if got < expected:
+            StompLogger.add_message(
+                StompMessage(
+                    StompMessageCode.InvalidCollapseClause,
+                    description = f"Collapse clause suggests "
+                        f"{expected} nested loops but only {got} found.",
+                    node = d.original_directive))
+
+
+# Parallel array access checks
+# ============================
+
+
+def check_loop_array_accesses(psyir: Node):
+    '''Check all OpenMP loops for parallel array access conflicts, where at
+    least two accesses (one of which is a write) access the same indices of
+    the same array in different loop iterations.'''
+
+    for routine in psyir.walk(Routine):
+        for d in routine.walk(OpenMPDirective):
+            if d.is_loop() and d.is_singleton():
+                # Is loop executed by a single thread?
+                single = False
+                enclosing = d.get_enclosing_directives()
+                enclosing.insert(0, d)
+                for enc in enclosing:
+                    if "parallel" in enc.clauses:
+                        break
+                    if ("master" in enc.clauses or
+                            "single" in enc.clauses):
+                        single = True
+                        break
+                if single:
+                    return
+
+                # Analyse loops not executed by a single thread
+                num_loops = 1
+                if "collapse" in d.clauses:
+                    num_loops = d.clauses["collapse"]
+                outer_loop = d.get_singleton_body()
+                loops = get_nested_loops(outer_loop)[1:num_loops]
+                for loop in loops:
+                    (private, shared) = d.get_private_shared_vars()
+                    analysis = ArrayIndexAnalysis()
+                    conflicts = analysis.get_loop_conflicts(
+                                    loop, private=private, shared=shared)
+                    for (sig, msg) in conflicts:
+                        if msg is None:
+                            continue
+                        StompLogger.add_message(
+                            StompMessage(
+                                StompMessageCode.LoopArrayConflict,
+                                description = "Array access conflict in "
+                                    "parallel loop. " + msg + ".",
+                                node = d.original_directive))
