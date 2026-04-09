@@ -23,8 +23,9 @@ class StompMessageCode(Enum):
     EndStandaloneDir = 6
     UnrecognisedDirective = 7
     InvalidCollapseClause = 8
-    DataSharingConflict = 9
-    LoopArrayConflict = 10
+    NonRectangularLoop = 9
+    DataSharingConflict = 10
+    LoopArrayConflict = 20
 
 
 class StompMessage:

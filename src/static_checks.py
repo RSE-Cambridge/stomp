@@ -108,7 +108,7 @@ def get_nested_loops(node: Node) -> List[Loop]:
 
 def check_collapse_clause(d: OpenMPDirective):
     '''Check that all OpenMP loops with a collapse(n) clause preceed an
-    n-element loop nest, and the loop variables are not data dependent.'''
+    n-element loop nest, and the loop ranges are not data dependent.'''
     if d.is_loop() and d.is_singleton() and "collapse" in d.clauses:
         # Check that collapse clause is non-zero
         if d.clauses["collapse"] == 0:
@@ -128,6 +128,36 @@ def check_collapse_clause(d: OpenMPDirective):
                  description = f"Collapse clause suggests "
                      f"{expected} nested loops but only {got} found.",
                  node = d.original_directive)
+        # Check for data dependencies between the variable of an outer loop
+        # and the ranges of its inner loops
+        found = False
+        loop = loops.pop(0)
+        while loops:
+            loop_exprs = []
+            loop_exprs.extend([loop.start_expr for loop in loops])
+            loop_exprs.extend([loop.stop_expr for loop in loops])
+            loop_exprs.extend([loop.step_expr for loop in loops])
+            for expr in loop_exprs:
+                if expr is None: continue
+                for sig in expr.reference_accesses().all_data_accesses:
+                    if loop.variable.name == str(sig):
+                        found = True
+                        break
+                if found: break
+            if found: break
+            loop = loops.pop(0)
+        if found:
+            StompLogger.add_message(
+                StompMessageCode.NonRectangularLoop,
+                description = f"Found a non-rectangular collapsed loop nest: "
+                    f"the range of an inner loop depends on an outer loop "
+                    f"variable, namely '{loop.variable.name}'. This may not "
+                    f"be supported by your OpenMP implementation.",
+                node = d.original_directive)
+                        
+
+# Data sharing checks
+# ===================
 
 
 def check_data_sharing_clauses(d: OpenMPDirective):

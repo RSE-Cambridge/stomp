@@ -1,0 +1,5 @@
+[91mNonRectangularLoop[0m
+[94mNear[0m: '!$omp parallel do collapse(2)'
+[94mDescription[0m: Found a non-rectangular collapsed loop nest: the
+range of an inner loop depends on an outer loop variable, namely 'j'.
+This may not be supported by your OpenMP implementation.
