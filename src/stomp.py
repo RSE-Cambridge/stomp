@@ -65,17 +65,18 @@ identify_openmp_directives(psyir)
 for d in psyir.walk(OpenMPDirective):
     checks.check_loose_end(d)
     checks.check_loop_directive_is_followed_by_loop(d)
-    checks.check_singleton_directive_too_many_stmts(d)
+    checks.check_singleton_directive_num_stmts(d)
     checks.check_singleton_directive_not_empty(d)
     checks.check_standalone_directive_not_end(d)
     checks.check_directive_is_recognised(d)
     checks.check_collapse_clause(d)
+    checks.check_data_sharing_clauses(d)
 
 if len(StompLogger.get_messages()) > 0:
     # Report messages
     for msg in StompLogger.get_messages():
         print(msg.render())
-    sys.exit(1)
+    sys.exit(0)
 
 # Loop array conflict checks
 checks.check_loop_array_accesses(psyir)

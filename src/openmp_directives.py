@@ -248,7 +248,7 @@ class OpenMPDirective(Statement):
         private within the body of a directive.'''
         stmts = self.get_body()
         if stmts is None:
-            return []
+            return set()
         loop_vars = [loop.variable.name for stmt in stmts
                                         for loop in stmt.walk(Loop)]
         return set(loop_vars)
@@ -273,6 +273,11 @@ class OpenMPDirective(Statement):
         private.update(self.get_always_private())
         # Explicitly shared variables
         shared = self.get_vars_with_explicit_sharing_attribute(["shared"])
+        # Removed shared vars that are declared as inner private vars
+        for attribute in private_attributes:
+            if attribute in self.clauses:
+                for var in self.clauses[attribute]:
+                    shared.discard(var)
         # Handle "default" clause
         defaults = self.get_inherited_clauses("default")
         if defaults and defaults[0] == "shared":
@@ -282,6 +287,11 @@ class OpenMPDirective(Statement):
             private.update(self.get_all_vars())
             private.remove(shared)
         return (private, shared)
+
+    def get_reduction_clauses(self) -> Set[Tuple[str, str]]:
+        '''Get the reduction clauses for the directive.'''
+        return self.get_vars_with_explicit_sharing_attribute(["reduction"])
+
 
 # Partial OpenMP parser
 # =====================

@@ -674,7 +674,7 @@ class ArrayIndexAnalysis:
                 if vals:
                     components.append(field + '(' + ','.join(vals) + ')')
             access_str = '%'.join(components)
-            msg = (f"Iterations {i_val} and {j_val} can have conflicting "
+            msg = (f"Iterations {i_val} and {j_val} have conflicting "
                    f"accesses to {access_str}")
             return (sig, msg)
         elif result == z3.unknown:  # pragma: no cover

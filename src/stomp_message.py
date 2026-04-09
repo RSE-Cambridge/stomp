@@ -15,15 +15,15 @@ from colours import red, blue
 
 class StompMessageCode(Enum):
     '''A unique message code capturing the kind of issue found.'''
-    # TODO: rename to drop OpenMP prefix, which is implicit
     OpenMPParseError = 1
-    OpenMPLoopDirectiveHasNoLoop = 2
-    OpenMPUnmatchedEnd = 3
-    OpenMPTooManyStatements = 4
-    OpenMPSingletonDirEmpty = 5
-    OpenMPEndStandalone = 6
-    OpenMPUnrecognisedDirective = 7
+    LoopDirectiveHasNoLoop = 2
+    UnmatchedEnd = 3
+    SingleStatementExpected = 4
+    SingletonDirEmpty = 5
+    EndStandaloneDir = 6
+    UnrecognisedDirective = 7
     InvalidCollapseClause = 8
+    DataSharingConflict = 9
     LoopArrayConflict = 10
 
 
@@ -105,8 +105,8 @@ class StompLogger:
     messages: StompMessage = []
 
     @classmethod
-    def add_message(cls, msg: StompMessage):
-        cls.messages.append(msg)
+    def add_message(cls, *args, **kw_args):
+        cls.messages.append(StompMessage(*args, **kw_args))
 
     @classmethod
     def get_messages(cls):

@@ -1,0 +1,4 @@
+[91mInvalidCollapseClause[0m
+[94mNear[0m: '!$omp parallel do collapse(0)'
+[94mDescription[0m: A 'collapse' clause with a value of 0 is not
+allowed.

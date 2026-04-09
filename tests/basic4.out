@@ -1,0 +1,7 @@
+[91mLoopDirectiveHasNoLoop[0m
+[94mNear[0m: '!$omp parallel do'
+[94mDescription[0m: OpenMP loop directive is not followed by a loop.
+[91mSingleStatementExpected[0m
+[94mNear[0m: '!$omp parallel do'
+[94mDescription[0m: OpenMP directive should hold a single statement
+but 0 statements have been provided.

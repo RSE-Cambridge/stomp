@@ -1,0 +1,4 @@
+[91mDataSharingConflict[0m
+[94mNear[0m: '!$omp parallel do shared(i)'
+[94mDescription[0m: Variable 'i' must be private but occurs in a
+'shared' clause.

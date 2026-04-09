@@ -54,6 +54,7 @@ RUN printf "\
 \nalias grep='grep --color'\n" >> /home/dev-user/.bashrc
 
 RUN printf "\
+\nlet g:markdown_fenced_languages = ['fortran', 'python', 'cpp'] \
 \nset nowrapscan \
 \nnmap <C-Up> k?^\! ===<CR>kzt \
 \nnmap <C-Down> jj/^\! ===<CR>kzt \
