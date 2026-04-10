@@ -78,6 +78,9 @@ if len(StompLogger.get_messages()) > 0:
         print(msg.render())
     sys.exit(0)
 
+# Scalar conflict checks
+checks.check_loop_scalar_accesses(psyir)
+
 # Loop array conflict checks
 checks.check_loop_array_accesses(psyir)
 

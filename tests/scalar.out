@@ -1,0 +1,4 @@
+[91mLoopScalarConflict[0m
+[94mNear[0m: '!$omp parallel do'
+[94mDescription[0m: Parallel loop writes to shared variable 's'
+outside critical/atomic region.

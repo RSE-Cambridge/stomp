@@ -9,6 +9,7 @@ from typing import Optional, Dict, Any, List, Union, Tuple, Set
 from parser_lib import lift, char, many, token, \
   ParseError, sepby, choice, many1, optional, space, natural
 from psyclone.psyir.nodes import Node, Statement, UnknownDirective, Loop
+from psyclone.core import VariablesAccessMap
 from stomp_message import StompMessage, StompMessageCode, StompLogger
 
 # Recognised OpenMP directives
@@ -186,66 +187,20 @@ class OpenMPDirective(Statement):
             return self.siblings[pos+1:self.ended_by.position]
         return None
 
-    def get_enclosing_directives(self) -> List[OpenMPDirective]:
-        '''Get the stack of OpenMP directives that enlose this directive,
-        innermost first.'''
-        # Return empty list for an 'end' directive
-        if self.started_by is not None:
-            return []
-        enclosing = []
-        cursor = self
-        pos = cursor.position - 1
-        while pos >= 0:
-            node = cursor.siblings[pos]
-            if isinstance(node, OpenMPDirective):
-                if node.started_by is not None:
-                    pos = node.started_by.position
-                elif not (node.is_standalone() or node.is_singleton()):
-                    enclosing.append(node)
-            pos -= 1
-            if pos < 0 and cursor.parent is not None \
-                       and isinstance(cursor.parent, Statement):
-                cursor = cursor.parent
-                pos = cursor.position
-        return enclosing
-
-    def get_inherited_clauses(self,
-                              clause: str,
-                              inherits_from: List[Tuple[str, str]] = \
-                                  [("do", "parallel"),
-                                   ("distribute", "teams")]
-                             ) -> List[Any]:
-        '''Get requested clause from the directive and its parent
-        directive if clauses are inherited from the parent directive.'''
-        clauses = []
-        if clause in self.clauses and self.clauses[clause] is not None:
-            clauses.append(self.clauses[clause])
-        # Look for parent directive
-        for (child, parent) in inherits_from:
-            if child in self.clauses and parent not in self.clauses:
-                enclosing = self.get_enclosing_directives()
-                for d in enclosing:
-                    if parent in d.clauses:
-                        if (clause in d.clauses and
-                                d.clauses[clause] is not None):
-                            clauses.append(d.clauses[clause])
-                        break
-        return clauses
-
     def get_all_vars(self) -> Set[str]:
         '''Get all variables referenced in the directive body.'''
         stmts = self.get_body()
         if stmts is None:
-            return []
+            return set()
         accesses = VariablesAccessMap()
         for stmt in stmts:
             accs = stmt.reference_accesses()
             accesses.update(accs)
-        var_set = set([sig.var_name for sig in accesses.all_data_accesses()])
+        return set([sig.var_name for sig in accesses.all_data_accesses])
 
     def get_always_private(self) -> Set[str]:
         '''Determine variables, such as loop variables, that are always
-        private within the body of a directive.'''
+        private within the body of the directive.'''
         stmts = self.get_body()
         if stmts is None:
             return set()
@@ -253,44 +208,126 @@ class OpenMPDirective(Statement):
                                         for loop in stmt.walk(Loop)]
         return set(loop_vars)
 
-    def get_vars_with_explicit_sharing_attribute(
-            self,
-            attributes: List[str]) -> Set[str]:
-        '''Get variables with the given explicit sharing attribute.'''
-        explicit_set = set()
-        for attribute in attributes:
-            for var_list in self.get_inherited_clauses(attribute):
-                if isinstance(var_list, list):
-                    explicit_set.update(var_list)
-        return explicit_set
+    def is_always_private(self, v: str) -> bool:
+        '''Determine if given variable must be private within the body
+        of the directive.'''
+        return v in self.get_always_private()
 
-    def get_private_shared_vars(self) -> Tuple[Set[str], Set[str]]:
-        '''Get the set of private variables and the set of shared variables.'''
-        # Explicitly private variables
-        private_attributes = ["private", "firstprivate", "lastprivate"]
-        private = \
-            self.get_vars_with_explicit_sharing_attribute(private_attributes)
-        private.update(self.get_always_private())
-        # Explicitly shared variables
-        shared = self.get_vars_with_explicit_sharing_attribute(["shared"])
-        # Removed shared vars that are declared as inner private vars
-        for attribute in private_attributes:
-            if attribute in self.clauses:
-                for var in self.clauses[attribute]:
-                    shared.discard(var)
-        # Handle "default" clause
-        defaults = self.get_inherited_clauses("default")
-        if defaults and defaults[0] == "shared":
-            shared.update(self.get_all_vars())
-            shared.remove(private)
-        elif defaults and defaults[0] in ["private", "firstprivate"]:
-            private.update(self.get_all_vars())
-            private.remove(shared)
-        return (private, shared)
+    def is_private_var(self, v: str) -> bool:
+        '''Determine if the given variable is private within the
+        scope of the directive.'''
+        # Check immediate clauses
+        if v in self.clauses.get("private", []): return True
+        if v in self.clauses.get("firstprivate", []): return True
+        if v in self.clauses.get("lastprivate", []): return True
+        if v in self.clauses.get("shared", []): return False
+        reduction_vars = [x for (op, x) in self.clauses.get("reduction", [])]
+        if v in reduction_vars: return False
+        if self.is_always_private(v): return True
+        # For some directives, we need to look at enclosing directives
+        inherits_from = [("do", "parallel"),
+                         ("distribute", "teams")]
+        for (child, parent) in inherits_from:
+            if child in self.clauses and parent not in self.clauses:
+                enclosing = get_enclosing_directives(self)
+                for d in enclosing:
+                    if parent in d.clauses:
+                        return parent.is_private_var(v)
+                # If we reach here, we must be in a subroutine/function that
+                # is called from a parallel/teams region, in which case
+                # the variable is private iff it is a local variable, i.e.
+                # not an argument or global.
+                try:
+                    symbol_table = self.scope.symbol_table
+                    symbol = symbol_table.lookup(v)
+                    return symbol.is_automatic
+                except Exception:
+                    return False
+        # If we are a parent directive, we need to resolve the default clause
+        for (child, parent) in inherits_from:
+            if parent in self.clauses:
+                default = self.clauses.get("default", "shared")
+                return default.strip() in ["private", "firstprivate"]
+        return False
 
-    def get_reduction_clauses(self) -> Set[Tuple[str, str]]:
-        '''Get the reduction clauses for the directive.'''
-        return self.get_vars_with_explicit_sharing_attribute(["reduction"])
+    def is_reduction_var(self, v: str) -> Optional[str]:
+        '''Determine if given variable is a reduction variable within
+        the scope of the directive. If not, return None, otherwise
+        return the assoicated reduction operator.'''
+        for (op, x) in self.clauses.get("reduction", []):
+            if v == x:
+                return op
+        # For some directives, we need to look at enclosing directives
+        inherits_from = [("do", "parallel"),
+                         ("distribute", "teams")]
+        for (child, parent) in inherits_from:
+            if child in self.clauses and parent not in self.clauses:
+                enclosing = get_enclosing_directives(self)
+                for d in enclosing:
+                    if parent in d.clauses:
+                        return parent.is_reduction_var(v)
+        return None
+
+    def get_private_shared_red(self) \
+            -> Tuple[Set[str], Set[str], Set[Tuple[str, str]]]:
+        '''Get the set of private variables, shared variables, and reduction
+        clauses for the scope of the directive.'''
+        all_vars = self.get_all_vars()
+        private = set([])
+        shared = set([])
+        red = set([])
+        for v in all_vars:
+            if self.is_private_var(v):
+                private.add(v)
+            else:
+                red_op = self.is_reduction_var(v)
+                if red_op:
+                    red.add((op, v))
+                else:
+                    shared.add(v)
+        return (private, shared, red)
+
+def get_enclosing_directives(origin: Node) -> List[OpenMPDirective]:
+    '''Get the stack of OpenMP directives that enlose the given node,
+    innermost first. If the node itself is a directive, it will not
+    be counted as an enclosing directive.'''
+    enclosing = []
+    cursor = origin
+    pos = cursor.position
+    while pos >= 0:
+        node = cursor.siblings[pos]
+        if isinstance(node, OpenMPDirective):
+            if node.started_by is not None:
+                pos = node.started_by.position
+            elif not (node.is_standalone() or node.is_singleton()):
+                if node is not origin:
+                    enclosing.append(node)
+        pos -= 1
+        if pos < 0 and cursor.parent is not None \
+                   and isinstance(cursor.parent, Statement):
+            cursor = cursor.parent
+            pos = cursor.position
+    return enclosing
+
+
+def is_within_directive(node: Node,
+                        within: List[List[str]],
+                        not_within: List[List[str]] = []) -> bool:
+    '''Determine if the given node is enslosed by one of a list of directives
+    (within) before being enclosed by one of a list of other directives
+    (not_within). If the node itself is a directive, it will be considered
+    as an enclosing directive.'''
+    enclosing = []
+    if isinstance(node, OpenMPDirective):
+        enclosing.append(node)
+    enclosing.extend(get_enclosing_directives(node))
+    for enc in enclosing:
+        for dir_list in not_within:
+            if all([d in enc.clauses for d in dir_list]):
+                return False
+        for dir_list in within:
+            if all([d in enc.clauses for d in dir_list]):
+                return True
 
 
 # Partial OpenMP parser

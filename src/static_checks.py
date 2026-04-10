@@ -4,8 +4,12 @@
 
 import re
 from typing import List
-from psyclone.psyir.nodes import Node, Statement, Routine, Loop
-from openmp_directives import OpenMPDirective, recognised_directives_set
+from psyclone.psyir.nodes import Node, Statement, Routine, Loop, Reference
+from psyclone.core import AccessInfo
+from psyclone.psyir.symbols import ArrayType
+from openmp_directives import \
+    OpenMPDirective, recognised_directives_set, get_enclosing_directives, \
+    is_within_directive
 from stomp_message import StompMessage, StompMessageCode, StompLogger
 from array_index_analysis import ArrayIndexAnalysis
 
@@ -164,7 +168,7 @@ def check_data_sharing_clauses(d: OpenMPDirective):
     '''Basic checks for variables mentioned in data sharing clauses.'''
     # Check that loop variables are not declared as shared
     must_be_private = d.get_always_private()
-    (private, shared) = d.get_private_shared_vars()
+    (private, shared, red) = d.get_private_shared_red()
     contradiction = must_be_private & shared
     if contradiction:
         StompLogger.add_message(
@@ -172,6 +176,53 @@ def check_data_sharing_clauses(d: OpenMPDirective):
             description = f"Variable '{contradiction.pop()}' "
                 f"must be private but occurs in a 'shared' clause.",
             node = d.original_directive)
+
+
+# Parallel scalar access checks
+# =============================
+
+
+def is_array_access(info: AccessInfo) -> bool:
+    '''Determine if given access is an array access.'''
+    if isinstance(info.node, Reference):
+        if info.is_data_access:
+            (s, indices) = info.node.get_signature_and_indices()
+            has_indices = [i for inds in indices for i in inds] != []
+            if has_indices or isinstance(info.node.datatype, ArrayType):
+                return True
+    return False
+
+
+def check_loop_scalar_accesses(psyir: Node):
+    '''Various checks for scalar acccesses in parallel loops.'''
+    # Check that shared scalars in parallel loops are only written
+    # inside atomic/critical regions
+    for routine in psyir.walk(Routine):
+        for d in routine.walk(OpenMPDirective):
+            if d.is_loop() and d.is_singleton():
+                # Ignore loops executed by a single thread
+                single = is_within_directive(
+                             d, [["master"], ["single"]],
+                             not_within=["parallel"])
+                if single:
+                    continue
+
+                # Looked for write to shared variable
+                (private, shared, red) = d.get_private_shared_red()
+                body = d.get_singleton_body()
+                for (sig, seq) in body.reference_accesses().items():
+                    if sig.var_name in shared:
+                        for info in seq.all_write_accesses:
+                            bad = not is_array_access(info) and \
+                                  not is_within_directive(
+                                      info.node, [["critical"], ["atomic"]])
+                            if bad:
+                                StompLogger.add_message(
+                                    StompMessageCode.LoopScalarConflict,
+                                    description = f"Parallel loop writes to "
+                                        f"shared variable '{sig.var_name}' "
+                                        f"outside critical/atomic region.",
+                                    node = d.original_directive)
 
 
 # Parallel array access checks
@@ -187,18 +238,11 @@ def check_loop_array_accesses(psyir: Node):
         for d in routine.walk(OpenMPDirective):
             if d.is_loop() and d.is_singleton():
                 # Ignore loops executed by a single thread
-                single = False
-                enclosing = d.get_enclosing_directives()
-                enclosing.insert(0, d)
-                for enc in enclosing:
-                    if "parallel" in enc.clauses:
-                        break
-                    if ("master" in enc.clauses or
-                            "single" in enc.clauses):
-                        single = True
-                        break
+                single = is_within_directive(
+                             d, [["master"], ["single"]],
+                             not_within=["parallel"])
                 if single:
-                    return
+                    continue
 
                 # Analyse loops executed by a multiple threads
                 num_loops = 1
@@ -207,8 +251,8 @@ def check_loop_array_accesses(psyir: Node):
                 outer_loop = d.get_singleton_body()
                 loops = get_nested_loops(outer_loop)[0:num_loops]
                 for loop in loops:
-                    (private, shared) = d.get_private_shared_vars()
-                    reduction_vars = {c[1] for c in d.get_reduction_clauses()}
+                    (private, shared, red) = d.get_private_shared_red()
+                    reduction_vars = {c[1] for c in red}
                     analysis = ArrayIndexAnalysis()
                     conflicts = analysis.get_loop_conflicts(
                                     loop,
