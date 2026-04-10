@@ -174,7 +174,7 @@ def check_data_sharing_clauses(d: OpenMPDirective):
         StompLogger.add_message(
             StompMessageCode.DataSharingConflict,
             description = f"Variable '{contradiction.pop()}' "
-                f"must be private but occurs in a 'shared' clause.",
+                f"must be private but is declared as 'shared'.",
             node = d.original_directive)
 
 

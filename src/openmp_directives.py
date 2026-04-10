@@ -232,7 +232,7 @@ class OpenMPDirective(Statement):
                 enclosing = get_enclosing_directives(self)
                 for d in enclosing:
                     if parent in d.clauses:
-                        return parent.is_private_var(v)
+                        return d.is_private_var(v)
                 # If we reach here, we must be in a subroutine/function that
                 # is called from a parallel/teams region, in which case
                 # the variable is private iff it is a local variable, i.e.
@@ -265,7 +265,7 @@ class OpenMPDirective(Statement):
                 enclosing = get_enclosing_directives(self)
                 for d in enclosing:
                     if parent in d.clauses:
-                        return parent.is_reduction_var(v)
+                        return d.is_reduction_var(v)
         return None
 
     def get_private_shared_red(self) \
