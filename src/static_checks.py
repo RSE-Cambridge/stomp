@@ -194,24 +194,24 @@ def is_array_access(info: AccessInfo) -> bool:
     return False
 
 
-def check_loop_scalar_accesses(psyir: Node):
-    '''Various checks for scalar acccesses in parallel loops.'''
+def check_parallel_scalar_accesses(psyir: Node):
+    '''Various checks for scalar acccesses in parallel regions.'''
     # Check that shared scalars in parallel loops are only written
     # inside atomic/critical regions
     for routine in psyir.walk(Routine):
         for d in routine.walk(OpenMPDirective):
-            if d.is_loop() and d.is_singleton():
+            if d.is_loop(isolated=True) or d.is_parallel_region():
                 # Ignore loops executed by a single thread
-                single = is_within_directive(
+                single = d.is_loop() and is_within_directive(
                              d, [["master"], ["single"]],
                              not_within=["parallel"])
-                if single:
-                    continue
+                if single: continue
 
                 # The following checks will use this info
+                body = d.get_body()
+                if body is None: continue
+                accesses = d.body_reference_accesses()
                 (private, shared, red) = d.get_private_shared_red()
-                body = d.get_singleton_body()
-                accesses = body.reference_accesses()
 
                 # Look for non-atomic write to shared variable
                 for (sig, seq) in accesses.items():

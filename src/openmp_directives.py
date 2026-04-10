@@ -143,12 +143,26 @@ class OpenMPDirective(Statement):
                    if kw in recognised_directive_keywords
                    if self.clauses[kw] is None]
 
-    def is_loop(self) -> bool:
-        '''Is it a loop directive?'''
+    def is_loop(self, isolated: bool = False) -> bool:
+        '''Is it a loop directive? If the isolated flag is provided, 
+        the loop must not be enclosed within a parallel region.'''
+        if "end" in self.clauses:
+            return False
+        inherits_from = [("do", "parallel"),
+                         ("distribute", "teams")]
+        for (child, parent) in inherits_from:
+            if child in self.clauses:
+                if isolated and is_within_directive(self, [[parent]]):
+                   return False
+                return True
+        return False
+
+    def is_parallel_region(self) -> bool:
+        '''Is it a parallel-region directive?'''
         if "end" in self.clauses.keys():
             return False
         for kw in self.clauses.keys():
-            if kw in ["loop", "do", "distribute"]:
+            if kw in ["parallel", "teams"]:
                return True
         return False
 
@@ -197,6 +211,16 @@ class OpenMPDirective(Statement):
             accs = stmt.reference_accesses()
             accesses.update(accs)
         return set([sig.var_name for sig in accesses.all_data_accesses])
+
+    def body_reference_accesses(self) -> VariablesAccessMap:
+        accesses = VariablesAccessMap()
+        stmts = self.get_body()
+        if stmts is None:
+            return accesses
+        for stmt in stmts:
+            accs = stmt.reference_accesses()
+            accesses.update(accs)
+        return accesses
 
     def get_always_private(self) -> Set[str]:
         '''Determine variables, such as loop variables, that are always
