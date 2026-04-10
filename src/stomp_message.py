@@ -25,6 +25,7 @@ class StompMessageCode(Enum):
     InvalidCollapseClause = 8
     NonRectangularLoop = 9
     DataSharingConflict = 10
+    ReadUninitialisedPrivate = 11
     LoopArrayConflict = 20
     LoopScalarConflict = 21
 
@@ -36,12 +37,14 @@ class StompMessage:
                  code: StompMessageCode,
                  description: Optional[str] = None,
                  suggestions: list[str] = [],
+                 directive_node: Optional[Node] = None,
                  node: Optional[Node] = None,
                  routine_name: Optional[str] = None):
         self.code = code
         self.description = description
         self.suggestions = suggestions
         self.node = node
+        self.directive_node = directive_node
         self.routine_name = routine_name
 
     def render(self,
@@ -73,14 +76,32 @@ class StompMessage:
         else:
             if self.routine_name:
                 out += header("Routine") + self.routine_name + "\n"
-            if self.node:
+            if self.directive_node:
                 try:
                     writer = FortranWriter()
-                    text = writer(self.node)
+                    text = writer(self.directive_node)
                     text = text.strip()
                     re.sub(" +", " ", text)
                     text = repr(text[:60])
-                    out += header("Near") + text + "\n"
+                    out += header("Directive") + text + "\n"
+                except Exception:
+                    pass
+            if self.node:
+                try:
+                    writer = FortranWriter()
+                    node = self.node
+                    # Look at node's ancestors for more detail 
+                    for i in range(0, 3):
+                        text = writer(node)
+                        text = text.strip()
+                        re.sub(" +", " ", text)
+                        if self.node.parent and len(text) < 60:
+                            node = node.parent
+                        else:
+                            print(len(text))
+                            break
+                    text = repr(text[:60])
+                    out += header("Node") + text + "\n"
                 except Exception:
                     pass
 

@@ -25,7 +25,7 @@ def check_loose_end(d: OpenMPDirective):
             StompMessageCode.UnmatchedEnd,
             description = "Could not find associated starting "
                 "directive for this OpenMP 'end' directive.",
-            node = d.original_directive)
+            directive_node = d.original_directive)
 
 
 def check_loop_directive_is_followed_by_loop(d: OpenMPDirective):
@@ -39,7 +39,7 @@ def check_loop_directive_is_followed_by_loop(d: OpenMPDirective):
                     StompMessageCode.LoopDirectiveHasNoLoop,
                     description = "OpenMP loop directive is not "
                                   "followed by a loop.",
-                    node = d.original_directive)
+                    directive_node = d.original_directive)
 
 
 def check_singleton_directive_num_stmts(d: OpenMPDirective):
@@ -55,7 +55,7 @@ def check_singleton_directive_num_stmts(d: OpenMPDirective):
                         description = f"OpenMP directive should hold a "
                             f"single statement but {num_stmts} statements "
                             f"have been provided.",
-                        node = d.original_directive)
+                        directive_node = d.original_directive)
 
 
 def check_singleton_directive_not_empty(d: OpenMPDirective):
@@ -67,7 +67,7 @@ def check_singleton_directive_not_empty(d: OpenMPDirective):
                     StompMessageCode.SingletonDirEmpty,
                     description = "OpenMP singleton directive has "
                         "no associated statement.",
-                    node = d.original_directive)
+                    directive_node = d.original_directive)
 
 
 def check_standalone_directive_not_end(d: OpenMPDirective):
@@ -77,7 +77,7 @@ def check_standalone_directive_not_end(d: OpenMPDirective):
             StompMessageCode.EndStandaloneDir,
             description = "Standalone OpenMP directive should not "
                 "have an associated 'end' directive.",
-            node = d.original_directive)
+            directive_node = d.original_directive)
 
 
 def check_directive_is_recognised(d: OpenMPDirective):
@@ -89,7 +89,7 @@ def check_directive_is_recognised(d: OpenMPDirective):
         StompLogger.add_message(
             StompMessageCode.UnrecognisedDirective,
             description = "This is not a recognised OpenMP directive.",
-            node = d.original_directive)
+            directive_node = d.original_directive)
 
 
 # Collapsed loop checks
@@ -120,7 +120,7 @@ def check_collapse_clause(d: OpenMPDirective):
                 StompMessageCode.InvalidCollapseClause,
                 description = "A 'collapse' clause with a value of 0 "
                     "is not allowed.",
-                node = d.original_directive)
+                directive_node = d.original_directive)
         # Check that num loops are consistent with collapse clause
         loop = d.get_singleton_body()
         loops = get_nested_loops(loop)
@@ -131,7 +131,7 @@ def check_collapse_clause(d: OpenMPDirective):
                  StompMessageCode.InvalidCollapseClause,
                  description = f"Collapse clause suggests "
                      f"{expected} nested loops but only {got} found.",
-                 node = d.original_directive)
+                 directive_node = d.original_directive)
         # Check for data dependencies between the variable of an outer loop
         # and the ranges of its inner loops
         found = False
@@ -157,7 +157,8 @@ def check_collapse_clause(d: OpenMPDirective):
                     f"the range of an inner loop depends on an outer loop "
                     f"variable, namely '{loop.variable.name}'. This may not "
                     f"be supported by your OpenMP implementation.",
-                node = d.original_directive)
+                directive_node = d.original_directive,
+                node = loop)
                         
 
 # Data sharing checks
@@ -175,7 +176,7 @@ def check_data_sharing_clauses(d: OpenMPDirective):
             StompMessageCode.DataSharingConflict,
             description = f"Variable '{contradiction.pop()}' "
                 f"must be private but is declared as 'shared'.",
-            node = d.original_directive)
+            directive_node = d.original_directive)
 
 
 # Parallel scalar access checks
@@ -207,10 +208,13 @@ def check_loop_scalar_accesses(psyir: Node):
                 if single:
                     continue
 
-                # Looked for write to shared variable
+                # The following checks will use this info
                 (private, shared, red) = d.get_private_shared_red()
                 body = d.get_singleton_body()
-                for (sig, seq) in body.reference_accesses().items():
+                accesses = body.reference_accesses()
+
+                # Look for non-atomic write to shared variable
+                for (sig, seq) in accesses.items():
                     if sig.var_name in shared:
                         for info in seq.all_write_accesses:
                             bad = not is_array_access(info) and \
@@ -222,7 +226,26 @@ def check_loop_scalar_accesses(psyir: Node):
                                     description = f"Parallel loop writes to "
                                         f"shared variable '{sig.var_name}' "
                                         f"outside critical/atomic region.",
-                                    node = d.original_directive)
+                                    node = info.node,
+                                    directive_node = d.original_directive,
+                                    routine_name = routine.name)
+
+                # Look for uninitialised read of non-firstprivate variable
+                for sig, seq in accesses.items():
+                    bad = sig.var_name in private and \
+                          not d.is_always_private(sig.var_name) and \
+                          len(seq) >= 1 and \
+                          seq[0].is_any_read() and \
+                          not d.is_firstprivate_var(sig.var_name)
+                    if bad:
+                         StompLogger.add_message(
+                            StompMessageCode.ReadUninitialisedPrivate,
+                            description = f"Parallel loop reads "
+                                f"uninitialised private variable "
+                                f"'{sig.var_name}'.",
+                            node = seq[0].node,
+                            directive_node = d.original_directive,
+                            routine_name = routine.name)
 
 
 # Parallel array access checks
@@ -265,4 +288,5 @@ def check_loop_array_accesses(psyir: Node):
                             StompMessageCode.LoopArrayConflict,
                             description = "Array access conflict in "
                                 "parallel loop. " + msg + ".",
-                            node = d.original_directive)
+                            directive_node = d.original_directive,
+                            routine_name = routine.name)

@@ -1,4 +1,5 @@
 [91mLoopArrayConflict[0m
-[94mNear[0m: '!$omp parallel do private(tmp)'
+[94mRoutine[0m: reverse
+[94mDirective[0m: '!$omp parallel do private(tmp)'
 [94mDescription[0m: Array access conflict in parallel loop.
 Iterations 1 and 2 have conflicting accesses to arr(1).

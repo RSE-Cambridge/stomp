@@ -1,4 +1,4 @@
-subroutine scalar(arr)
+subroutine sub(arr)
   integer, intent(inout) :: arr(:)
   integer :: i, s
   s = 0

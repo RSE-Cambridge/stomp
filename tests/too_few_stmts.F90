@@ -1,4 +1,4 @@
-subroutine basic(arr)
+subroutine sub(arr)
   integer, intent(inout) :: arr(:)
   arr = 0
   !$omp parallel do

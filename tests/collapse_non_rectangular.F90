@@ -1,4 +1,4 @@
-subroutine collapse(arr)
+subroutine sub(arr)
   integer, intent(inout) :: arr(:,:)
   integer :: i, j
   !$omp parallel do collapse(2)

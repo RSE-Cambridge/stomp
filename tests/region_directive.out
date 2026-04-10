@@ -1,4 +1,4 @@
 [91mUnmatchedEnd[0m
-[94mNear[0m: '!$omp end parallel'
+[94mDirective[0m: '!$omp end parallel'
 [94mDescription[0m: Could not find associated starting directive for
 this OpenMP 'end' directive.

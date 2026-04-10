@@ -1,3 +1,3 @@
 [91mUnrecognisedDirective[0m
-[94mNear[0m: '!$omp wibble'
+[94mDirective[0m: '!$omp wibble'
 [94mDescription[0m: This is not a recognised OpenMP directive.

@@ -93,3 +93,4 @@ else:
                     print(red("FAILED"))
                     print("Got:")
                     print(got)
+                    sys.exit(1)

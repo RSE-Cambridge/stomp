@@ -213,17 +213,20 @@ class OpenMPDirective(Statement):
         of the directive.'''
         return v in self.get_always_private()
 
-    def is_private_var(self, v: str) -> bool:
+    def is_private_var(
+            self,
+            v: str,
+            kinds: List[str] = ["private", "firstprivate", "lastprivate"]
+            ) -> bool:
         '''Determine if the given variable is private within the
         scope of the directive.'''
         # Check immediate clauses
-        if v in self.clauses.get("private", []): return True
-        if v in self.clauses.get("firstprivate", []): return True
-        if v in self.clauses.get("lastprivate", []): return True
+        for kind in kinds:
+            if v in self.clauses.get(kind, []): return True
         if v in self.clauses.get("shared", []): return False
         reduction_vars = [x for (op, x) in self.clauses.get("reduction", [])]
         if v in reduction_vars: return False
-        if self.is_always_private(v): return True
+        if "private" in kinds and self.is_always_private(v): return True
         # For some directives, we need to look at enclosing directives
         inherits_from = [("do", "parallel"),
                          ("distribute", "teams")]
@@ -232,23 +235,27 @@ class OpenMPDirective(Statement):
                 enclosing = get_enclosing_directives(self)
                 for d in enclosing:
                     if parent in d.clauses:
-                        return d.is_private_var(v)
+                        return d.is_private_var(v, kinds)
                 # If we reach here, we must be in a subroutine/function that
                 # is called from a parallel/teams region, in which case
                 # the variable is private iff it is a local variable, i.e.
                 # not an argument or global.
-                try:
-                    symbol_table = self.scope.symbol_table
-                    symbol = symbol_table.lookup(v)
-                    return symbol.is_automatic
-                except Exception:
-                    return False
+                if "private" in kinds:
+                    try:
+                        symbol_table = self.scope.symbol_table
+                        symbol = symbol_table.lookup(v)
+                        return symbol.is_automatic
+                    except Exception:
+                        return False
         # If we are a parent directive, we need to resolve the default clause
         for (child, parent) in inherits_from:
             if parent in self.clauses:
                 default = self.clauses.get("default", "shared")
-                return default.strip() in ["private", "firstprivate"]
+                return default.strip() in kinds
         return False
+
+    def is_firstprivate_var(self, v: str) -> bool:
+        return self.is_private_var(v, kinds=["firstprivate"])
 
     def is_reduction_var(self, v: str) -> Optional[str]:
         '''Determine if given variable is a reduction variable within
