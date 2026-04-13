@@ -7,5 +7,5 @@ subroutine sub(arr)
   do i = 1, size(arr)
     arr(i) = arr(i) + tmp
   end do
-  !$omp end parallel do
+  !$omp end parallel
 end subroutine

@@ -180,7 +180,7 @@ class OpenMPDirective(Statement):
         if "end" in self.clauses.keys():
             return False
         for kw in self.clauses.keys():
-            if kw in ["loop", "do", "distribute"]:
+            if kw in ["loop", "do", "distribute", "atomic"]:
                return True
         return False
 
@@ -299,6 +299,13 @@ class OpenMPDirective(Statement):
                         return d.is_reduction_var(v)
         return None
 
+    def is_shared_var(self, v: str) -> bool:
+        '''Determine if the given variable is shared within the
+        scope of the directive.'''
+        if self.is_private_var(v) or self.is_reduction_var(v):
+            return False
+        return True
+
     def get_private_shared_red(self) \
             -> Tuple[Set[str], Set[str], Set[Tuple[str, str]]]:
         '''Get the set of private variables, shared variables, and reduction
@@ -324,26 +331,32 @@ def get_enclosing_directives(origin: Node) -> List[OpenMPDirective]:
     be counted as an enclosing directive.'''
     enclosing = []
     cursor = origin
-    pos = cursor.position
-    while pos >= 0:
-        node = cursor.siblings[pos]
-        if isinstance(node, OpenMPDirective):
-            if node.started_by is not None:
-                pos = node.started_by.position
-            elif not (node.is_standalone() or node.is_singleton()):
-                if node is not origin:
-                    enclosing.append(node)
-        pos -= 1
-        if pos < 0 and cursor.parent is not None \
-                   and isinstance(cursor.parent, Statement):
-            cursor = cursor.parent
-            pos = cursor.position
+    while cursor:
+        if isinstance(cursor, Statement):
+            start_pos = cursor.position
+            pos = start_pos
+            while pos >= 0:
+                node = cursor.siblings[pos]
+                if isinstance(node, OpenMPDirective):
+                    if node.started_by is not None:
+                        # Skip over directive body
+                        pos = node.started_by.position
+                    elif node.is_standalone():
+                        # Ignore standalone directives
+                        pass
+                    elif node.is_singleton() and pos+1 != start_pos:
+                        # Skip singleton directives
+                        pass
+                    else:
+                        if node is not origin:
+                            enclosing.append(node)
+                pos -= 1
+        cursor = cursor.parent
     return enclosing
-
 
 def is_within_directive(node: Node,
                         within: List[List[str]],
-                        not_within: List[List[str]] = []) -> bool:
+                        not_within: List[List[str]] = []) -> OpenMPDirective:
     '''Determine if the given node is enslosed by one of a list of directives
     (within) before being enclosed by one of a list of other directives
     (not_within). If the node itself is a directive, it will be considered
@@ -355,10 +368,21 @@ def is_within_directive(node: Node,
     for enc in enclosing:
         for dir_list in not_within:
             if all([d in enc.clauses for d in dir_list]):
-                return False
+                return None
         for dir_list in within:
             if all([d in enc.clauses for d in dir_list]):
-                return True
+                return enc
+    return None
+
+
+def is_child_directive(child: Node, parent: OpenMPDirective) -> bool:
+    '''Determine if the given node is enslosed by the parent directive node.'''
+    if child is parent:
+        return True
+    for enc in get_enclosing_directives(child):
+        if enc is parent:
+            return True
+    return False
 
 
 # Partial OpenMP parser

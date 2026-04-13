@@ -9,7 +9,7 @@ from psyclone.core import AccessInfo
 from psyclone.psyir.symbols import ArrayType
 from openmp_directives import \
     OpenMPDirective, recognised_directives_set, get_enclosing_directives, \
-    is_within_directive
+    is_within_directive, is_child_directive
 from stomp_message import StompMessage, StompMessageCode, StompLogger
 from array_index_analysis import ArrayIndexAnalysis
 
@@ -195,58 +195,59 @@ def is_array_access(info: AccessInfo) -> bool:
 
 
 def check_parallel_scalar_accesses(psyir: Node):
-    '''Various checks for scalar acccesses in parallel regions.'''
-    # Check that shared scalars in parallel loops are only written
-    # inside atomic/critical regions
+    '''Various checks for scalar accesses within parallel directives.'''
+    # Iterate over all accesses that are enclosed by parallel directive
+    par_region = [["parallel"], ["teams"]]
+    par_loop = [["do"], ["distribute"]]
+    par = par_region + par_loop
+    safe = [["critical"], ["atomic"], ["single"], ["master"]]
     for routine in psyir.walk(Routine):
-        for d in routine.walk(OpenMPDirective):
-            if d.is_loop(isolated=True) or d.is_parallel_region():
-                # Ignore loops executed by a single thread
-                single = d.is_loop() and is_within_directive(
-                             d, [["master"], ["single"]],
-                             not_within=["parallel"])
-                if single: continue
+        accesses = routine.reference_accesses()
+        for (sig, seq) in accesses.items():
+            for (i, info) in enumerate(seq):
+                d = is_within_directive(info.node, par)
 
-                # The following checks will use this info
-                body = d.get_body()
-                if body is None: continue
-                accesses = d.body_reference_accesses()
-                (private, shared, red) = d.get_private_shared_red()
+                # Write access to a shared variable must be protected
+                bad = d and \
+                      info.is_any_write() and \
+                      not is_array_access(info) and \
+                      d.is_shared_var(sig.var_name) and \
+                      not is_within_directive(info.node, safe)
+                if bad:
+                    StompLogger.add_message(
+                        StompMessageCode.LoopScalarConflict,
+                        description = f"Unprotected parallel write to shared "
+                            f"variable '{sig.var_name}'.",
+                        node = info.node,
+                        directive_node = d.original_directive,
+                        routine_name = routine.name)
 
-                # Look for non-atomic write to shared variable
-                for (sig, seq) in accesses.items():
-                    if sig.var_name in shared:
-                        for info in seq.all_write_accesses:
-                            bad = not is_array_access(info) and \
-                                  not is_within_directive(
-                                      info.node, [["critical"], ["atomic"]])
-                            if bad:
-                                StompLogger.add_message(
-                                    StompMessageCode.LoopScalarConflict,
-                                    description = f"Parallel loop writes to "
-                                        f"shared variable '{sig.var_name}' "
-                                        f"outside critical/atomic region.",
-                                    node = info.node,
-                                    directive_node = d.original_directive,
-                                    routine_name = routine.name)
-
-                # Look for uninitialised read of non-firstprivate variable
-                for sig, seq in accesses.items():
-                    bad = sig.var_name in private and \
-                          not d.is_always_private(sig.var_name) and \
-                          len(seq) >= 1 and \
-                          seq[0].is_any_read() and \
-                          not d.is_firstprivate_var(sig.var_name)
-                    if bad:
-                         StompLogger.add_message(
+                # Read of private (not firstprivate) scalar must be initialised
+                region = is_within_directive(info.node, par_region)
+                bad = d and \
+                      info.is_any_read() and \
+                      not is_array_access(info) and \
+                      d.is_private_var(sig.var_name) and \
+                      not d.is_firstprivate_var(sig.var_name) and \
+                      not d.is_always_private(sig.var_name)
+                if bad:
+                    # Look for preceeding initialiser
+                    ok = False
+                    for pre in reversed(seq[0:i]):
+                        ok = pre.is_any_write() and \
+                                 (region is None or
+                                  is_child_directive(pre.node, region))
+                        if ok: break
+                    if not ok:
+                        StompLogger.add_message(
                             StompMessageCode.ReadUninitialisedPrivate,
                             description = f"Parallel loop reads "
                                 f"uninitialised private variable "
                                 f"'{sig.var_name}'.",
-                            node = seq[0].node,
+                            node = info.node,
                             directive_node = d.original_directive,
                             routine_name = routine.name)
-
+                    
 
 # Parallel array access checks
 # ============================
