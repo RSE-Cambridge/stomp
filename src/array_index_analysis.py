@@ -303,9 +303,10 @@ class ArrayIndexAnalysis:
         # calls on that array.
         self.array_intrins_vars = {}
         # Accesses to private arrays will not be considered as conflicts
-        self.private_vars = set()
-        # Accesses to shared scalars will not be used for information gathering
-        self.shared_vars = set()
+        self.private_vars = None
+        # Accesses to shared scalars inside the loop of interest will not
+        # be used for information gathering
+        self.shared_vars = None
 
     def _init_array_intrins_vars(self, routine: Routine):
         '''Initialise the 'array_intrins_vars' dict so that, for each
@@ -401,7 +402,10 @@ class ArrayIndexAnalysis:
 
     def _add_integer_assignment(self, var: str, smt_expr: z3.ExprRef):
         '''Add an integer assignment constraint to the constraint set.'''
-        if var in self.shared_vars:
+        ignore = self.in_loop_to_parallelise and \
+                 self.shared_vars and \
+                 var in self.shared_vars
+        if ignore:
             return
         # Create a fresh symbol
         fresh_sym = self._fresh_integer_var()
@@ -490,7 +494,7 @@ class ArrayIndexAnalysis:
 
     def _add_array_access(self, array_name: str, access: ArrayAccess):
         '''Add an array access to the current access dict.'''
-        if array_name in self.private_vars:
+        if self.private_vars and array_name in self.private_vars:
             return
         if array_name in self.access_dict:
             self.access_dict[array_name].append(access)
@@ -539,8 +543,8 @@ class ArrayIndexAnalysis:
 
     def get_loop_conflicts(self,
                            loop: Loop,
-                           private: Set[str] = set(),
-                           shared: Set[str] = set(),
+                           private: Optional[Set[str]] = None,
+                           shared: Optional[Set[str]] = None,
                            all_conflicts: bool = False) -> \
             list[Tuple[Signature, Optional[str]]]:
         '''Determine whether or not distinct iterations of the given loop
