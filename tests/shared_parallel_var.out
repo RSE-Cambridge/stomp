@@ -1,4 +1,3 @@
 [91mDataSharingConflict[0m
 [94mDirective[0m: '!$omp parallel shared(i)'
-[94mDescription[0m: Variable 'i' must be private but is declared as
-'shared'.
+[94mDescription[0m: Variable 'i' must be private but is declared as 'shared'.

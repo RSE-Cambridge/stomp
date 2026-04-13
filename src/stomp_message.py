@@ -7,7 +7,6 @@ tool to the user.
 import re
 from enum import Enum
 from typing import Optional
-from textwrap import fill
 from psyclone.psyir.nodes import Node
 from psyclone.psyir.backend.fortran import FortranWriter
 from colours import red, blue
@@ -98,7 +97,6 @@ class StompMessage:
                         if self.node.parent and len(text) < 60:
                             node = node.parent
                         else:
-                            print(len(text))
                             break
                     text = repr(text[:60])
                     out += header("Node") + text + "\n"
@@ -107,18 +105,15 @@ class StompMessage:
 
         # Description
         if self.description:
-            out += fill(self.description,
-                        initial_indent=header("Description"))
+            out += header("Description") + self.description + "\n"
 
         # Suggestions
         if len(self.suggestions) > 1:
             for (idx, suggestion) in enumerate(self.suggestions):
-                hdr = header(f"Suggestion {idx+1}")
-                out += fill(suggestion, initial_indent=hdr)
+                out += header(f"Suggestion {idx+1}") + suggestion + "\n"
         else:
             for suggestion in self.suggestions:
-                out += fill(suggestion,
-                            initial_indent=header("Suggestion"))
+                out += header(f"Suggestion") + suggestion + "\n"
 
         return out
 

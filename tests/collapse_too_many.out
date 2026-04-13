@@ -1,4 +1,3 @@
 [91mInvalidCollapseClause[0m
 [94mDirective[0m: '!$omp parallel do collapse(2)'
-[94mDescription[0m: Collapse clause suggests 2 nested loops but only
-1 found.
+[94mDescription[0m: Collapse clause suggests 2 nested loops but only 1 found.

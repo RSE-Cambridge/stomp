@@ -75,7 +75,7 @@ for d in psyir.walk(OpenMPDirective):
 if len(StompLogger.get_messages()) > 0:
     # Report messages
     for msg in StompLogger.get_messages():
-        print(msg.render())
+        print(msg.render(), end="")
     sys.exit(0)
 
 # Scalar conflict checks
