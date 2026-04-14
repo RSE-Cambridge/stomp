@@ -25,8 +25,9 @@ class StompMessageCode(Enum):
     NonRectangularLoop = 9
     DataSharingConflict = 10
     ReadUninitialisedPrivate = 11
-    LoopArrayConflict = 20
-    LoopScalarConflict = 21
+    LoopArrayConflict = 100
+    LoopScalarConflict = 101
+    FoundParallelisableLoop = 200
 
 
 class StompMessage:

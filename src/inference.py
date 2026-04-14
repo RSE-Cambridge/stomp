@@ -1,0 +1,88 @@
+# SPDX-License-Identifier: BSD-3-Clause
+
+'''This module infers parallel loops.'''
+
+from psyclone.psyir.nodes import Node, Routine, Loop
+from psyclone.psyir.tools import ReductionInferenceTool
+from psyclone.psyir.nodes.omp_directives import MAP_REDUCTION_OP_TO_OMP
+from openmp_directives import MAP_REDUCTION_OP_TO_STR, get_enclosing_directives
+from stomp_message import StompMessageCode, StompLogger
+from array_index_analysis import ArrayIndexAnalysis
+from liveness_analysis import is_live_out
+from misc import is_array_access
+
+
+# Infer parallel loops
+# ====================
+
+
+def infer_parallel_loops(psyir: Node):
+    '''Look for loops not enclosed by OpenMP directives which don't
+    contain any conflicts between iterations.'''
+    for routine in psyir.walk(Routine):
+        for loop in routine.walk(Loop):
+            # Skip loops nested within OpenMP directives
+            if get_enclosing_directives(loop): continue
+
+            loop_vars = [loop.variable.name for loop in loop.walk(Loop)]
+            accesses = loop.reference_accesses()
+
+            # Initialisation
+            red_infer = ReductionInferenceTool(MAP_REDUCTION_OP_TO_OMP.keys())
+            red_clauses = []
+            private_vars = []
+
+            # Check for scalar conflicts
+            scalar_conflict = False
+            for (sig, seq) in accesses.items():
+                # Is it scalar access?
+                is_scalar = not any([is_array_access(info) for info in seq])
+
+                if is_scalar:
+                    # Ignore loop variables
+                    if sig.var_name in loop_vars: continue
+
+                    # Allow reduction variables
+                    red_clause = red_infer.attempt_reduction(sig, seq)
+                    if red_clause:
+                        red_clauses.append(red_clause)
+                        continue
+
+                    # Allow non-read-before-write that are not live-out
+                    read_before_write = seq and \
+                                        seq[0].is_any_read() and \
+                                        seq.is_written()
+                    ok = not read_before_write and \
+                         not is_live_out(sig.var_name, loop)
+                    if seq.is_written():
+                        private_vars.append(sig.var_name)
+                    if ok: continue
+
+                    scalar_conflict = True
+                    break
+
+            if scalar_conflict:
+                break
+
+            # Check for array conflicts
+            analysis = ArrayIndexAnalysis()
+            conflicts = analysis.get_loop_conflicts(loop)
+            if not conflicts:
+                clauses = []
+                if private_vars:
+                    clauses.append("private(" + ", ".join(private_vars) + ")")
+                for (red_op, ref) in red_clauses:
+                    op = MAP_REDUCTION_OP_TO_STR[red_op]
+                    clauses.append("reduction(" + op + ": " + ref.name + ")")
+                desc = f"Loop over variable '{loop.variable.name}' " \
+                       f"is parallelisable"
+                if clauses:
+                    clause_text = " ".join(clauses)
+                    desc += f" using the following clauses: '{clause_text}'."
+                else:
+                    desc += "."
+                StompLogger.add_message(
+                    StompMessageCode.FoundParallelisableLoop,
+                    description = desc,
+                    node = loop,
+                    routine_name = routine.name)

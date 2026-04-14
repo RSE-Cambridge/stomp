@@ -557,7 +557,7 @@ class ArrayIndexAnalysis:
               will not be used for information gathering.
            :param all_conflicts: if True, enumerate all conflicts, otherwise
               stop after the first conflict. Defaults to False.
-           :return: a list of pairs array-name/message pairs. If the list
+           :return: a list pairs array-name/message pairs. If the list
               is empty, the loop is conflict free. If the solver times out,
               the message is None.
         '''

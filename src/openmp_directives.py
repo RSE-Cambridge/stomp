@@ -7,8 +7,9 @@ from __future__ import annotations
 import re
 from typing import Optional, Dict, Any, List, Union, Tuple, Set
 from parser_lib import lift, char, many, token, \
-  ParseError, sepby, choice, many1, optional, space, natural
-from psyclone.psyir.nodes import Node, Statement, UnknownDirective, Loop
+    ParseError, sepby, choice, many1, optional, space, natural
+from psyclone.psyir.nodes import Node, Statement, UnknownDirective, Loop, \
+    BinaryOperation, IntrinsicCall
 from psyclone.core import VariablesAccessMap
 from stomp_message import StompMessage, StompMessageCode, StompLogger
 
@@ -598,3 +599,22 @@ def associate_end_directives(psyir: Node):
                     else:
                        # Add directive to those that are open
                        open_dirs.append(succ)
+
+# OpenMP reduction operators
+# ==========================
+
+# Mapping from PSyIR reduction operator to string.
+MAP_REDUCTION_OP_TO_STR = {
+    BinaryOperation.Operator.ADD: "+",
+    BinaryOperation.Operator.SUB: "-",
+    BinaryOperation.Operator.MUL: "*",
+    BinaryOperation.Operator.AND: ".and.",
+    BinaryOperation.Operator.OR: ".or.",
+    BinaryOperation.Operator.EQV: ".eqv.",
+    BinaryOperation.Operator.NEQV: ".neqv.",
+    IntrinsicCall.Intrinsic.MAX: "max",
+    IntrinsicCall.Intrinsic.MIN: "min",
+    IntrinsicCall.Intrinsic.IAND: "iand",
+    IntrinsicCall.Intrinsic.IOR: "ior",
+    IntrinsicCall.Intrinsic.IEOR: "ieor",
+}

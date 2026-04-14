@@ -12,6 +12,7 @@ from openmp_directives import \
     is_within_directive, is_child_directive
 from stomp_message import StompMessage, StompMessageCode, StompLogger
 from array_index_analysis import ArrayIndexAnalysis
+from misc import is_array_access
 
 
 # Basic checks that apply to every directive
@@ -181,17 +182,6 @@ def check_data_sharing_clauses(d: OpenMPDirective):
 
 # Parallel scalar access checks
 # =============================
-
-
-def is_array_access(info: AccessInfo) -> bool:
-    '''Determine if given access is an array access.'''
-    if isinstance(info.node, Reference):
-        if info.is_data_access:
-            (s, indices) = info.node.get_signature_and_indices()
-            has_indices = [i for inds in indices for i in inds] != []
-            if has_indices or isinstance(info.node.datatype, ArrayType):
-                return True
-    return False
 
 
 def check_parallel_scalar_accesses(psyir: Node):

@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import sys
+import argparse
 from psyclone.parse import ModuleManager
 from psyclone.errors import InternalError
 from psyclone.psyir.nodes import Directive, UnknownDirective
@@ -10,14 +11,19 @@ from openmp_directives import OpenMPDirective, \
                               merge_multiline_directives
 from stomp_message import StompLogger
 import static_checks as checks
+import inference
 
 # Arguments
 # =========
 
-if len(sys.argv) != 2:
-    print("Usage: stomp.py <filename>")
-    sys.exit(1)
-input_file = sys.argv[1]
+arg_parser = argparse.ArgumentParser("stomp.py")
+arg_parser.add_argument("input_file")
+arg_parser.add_argument(
+    "--infer",
+    help="Infer parallel loops",
+    action="store_true")
+
+args = arg_parser.parse_args()
 
 # Frontend
 # ========
@@ -32,12 +38,12 @@ free_form_exts = (".f90", ".f95", ".f03", ".f08",
                   ".x90", ".xu90")
 fixed_form_exts = (".f", ".for", ".fpp", ".ftn",
                    ".F", ".FOR", ".FPP", ".FTN")
-if input_file.endswith(free_form_exts):
+if args.input_file.endswith(free_form_exts):
     free_form = True
-elif input_file.endswith(fixed_form_exts):
+elif args.input_file.endswith(fixed_form_exts):
     free_form = False
 else:
-    print(f"Uncrecognised file extension in '{input_file}'")
+    print(f"Uncrecognised file extension in '{args.input_file}'")
     sys.exit(1)
 
 # Load Fortran code
@@ -49,9 +55,9 @@ fortran_reader = FortranReader(
                      free_form=free_form
                  )
 try:
-    psyir = fortran_reader.psyir_from_file(input_file)
+    psyir = fortran_reader.psyir_from_file(args.input_file)
 except (InternalError, ValueError, IOError) as err:
-    print(f"Failed to create PSyIR from file '{input_file}'"
+    print(f"Failed to create PSyIR from file '{args.input_file}'"
           f"due to: {str(err)}", file=sys.stderr)
     sys.exit(1)
 
@@ -61,7 +67,6 @@ merge_multiline_directives(psyir)
 # Identify OpenMP directives
 identify_openmp_directives(psyir)
 
-# Basic checks
 for d in psyir.walk(OpenMPDirective):
     checks.check_loose_end(d)
     checks.check_loop_directive_is_followed_by_loop(d)
@@ -84,6 +89,10 @@ checks.check_parallel_scalar_accesses(psyir)
 # Loop array conflict checks
 checks.check_loop_array_accesses(psyir)
 
+# Parallel loop inference
+if args.infer:
+    inference.infer_parallel_loops(psyir)
+
 # Report messages
 for msg in StompLogger.get_messages():
-    print(msg.render())
+    print(msg.render(), end="")
