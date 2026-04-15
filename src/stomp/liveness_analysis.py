@@ -4,7 +4,7 @@
 
 from typing import List, Set, Optional
 from psyclone.psyir.nodes import \
-    Node, Statement, Loop, WhileLoop, IfBlock, Schedule
+    Node, Statement, Loop, WhileLoop, IfBlock, Schedule, Routine
 
 
 def use(node: Node) -> Set[str]:
@@ -18,19 +18,19 @@ def use(node: Node) -> Set[str]:
 
 
 def next_statement(stmt: Statement) -> List[Statement]:
-    '''Return the list of statements that may execute after the given one.'''
+    '''Return the of statements that may execute after the given one.'''
     next_list = []
-    if isinstance(stmt, Statement):
-        while stmt:
+    while stmt.parent:
+        if (isinstance(stmt.parent, Schedule) or
+                isinstance(stmt.parent, Routine)):
             if stmt.position + 1 < len(stmt.siblings):
                 next_list.append(stmt.siblings[stmt.position + 1])
                 return next_list
-            else:
-                if isinstance(stmt.parent, Loop):
-                    next_list.append(stmt)
-                elif isinstance(stmt.parent, WhileLoop):
-                    next_list.append(stmt)
-                stmt = stmt.parent
+        elif isinstance(stmt.parent, Loop):
+            next_list.append(stmt)
+        elif isinstance(stmt.parent, WhileLoop):
+            next_list.append(stmt)
+        stmt = stmt.parent
     return next_list
 
 
@@ -82,12 +82,14 @@ def is_live_in(var_name: str, stmt: Statement) -> bool:
     # Explore all execution paths from given statement
     stack = [stmt]
     while stack:
-        s = stack.pop()
+        s = stack.pop(0)
         result = step(s)
         if result is True:
             return True
         if result is None:
-            stack.extend(next_statement(s))
+            for succ in next_statement(s):
+                if id(succ) not in visited:
+                   stack.append(succ)
     return False
 
 

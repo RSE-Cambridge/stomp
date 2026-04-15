@@ -215,7 +215,7 @@ class ArrayIndexAnalysis:
     When the recursive descent is complete, we are left with two array
     access lists representing two different iterations of the same loop.
     A conflict occurs if there is an access to an array in the first
-    list that can have the same loop indices as an access to the same
+    list that can have the same array indices as an access to the same
     array in the second list, and one of which is a write.  This is
     determined by asserting an equality constraint between each access's
     indices which, when combined with the current condition of each
