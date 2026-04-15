@@ -18,7 +18,7 @@ def use(node: Node) -> Set[str]:
 
 
 def next_statement(stmt: Statement) -> List[Statement]:
-    '''Return the of statements that may execute after the given one.'''
+    '''Return the statements that may execute after the given one.'''
     next_list = []
     while stmt.parent:
         if (isinstance(stmt.parent, Schedule) or
@@ -35,8 +35,8 @@ def next_statement(stmt: Statement) -> List[Statement]:
 
 
 def is_live_in(var_name: str, stmt: Statement) -> bool:
-    '''Inefficient function to determine if given variable is live-in
-    to the given statement.'''
+    '''Function to determine if given variable is live-in to the
+    given statement. Not very efficient.'''
     visited = set()
 
     # Is the variable live-in the to given statement?
@@ -94,8 +94,8 @@ def is_live_in(var_name: str, stmt: Statement) -> bool:
 
 
 def is_live_out(var_name: str, stmt: Statement) -> bool:
-    '''Inefficient function to determine if given variable is live-out
-    from the given statement.'''
+    '''Function to determine if given variable is live-out from the
+    given statement. Not very efficient.'''
     for s in next_statement(stmt):
         if is_live_in(var_name, s):
             return True
