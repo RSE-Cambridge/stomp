@@ -151,6 +151,7 @@ end subroutine my_transpose
 '''
     stomp_test(code, [Msg.FoundParallelisableLoop] * 4, infer=True)
 
+
 def test_parallel_prefix_infer():
     code = '''
 subroutine parallel_prefix_sum(arr, chunk_size)
@@ -187,6 +188,7 @@ subroutine parallel_prefix_sum(arr, chunk_size)
 end subroutine
 '''
     stomp_test(code, [Msg.FoundParallelisableLoop] * 3, infer=True)
+
 
 def test_oemsort_infer():
     code = '''

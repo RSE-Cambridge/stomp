@@ -2,7 +2,7 @@
 
 '''This module provides miscelaneous functions.'''
 
-from psyclone.psyir.nodes import Reference, IfBlock, Node, Schedule
+from psyclone.psyir.nodes import Reference, IfBlock, Schedule
 from psyclone.core import AccessInfo
 from psyclone.psyir.symbols import ArrayType
 
@@ -19,19 +19,19 @@ def is_array_access(info: AccessInfo) -> bool:
 
 
 def if_else_chain(node: IfBlock):
-        '''This method allows a chain of 'if'/'else if'/.../'else'
-        statements to be viewed in its flattened form, without nesting.
+    '''This method allows a chain of 'if'/'else if'/.../'else'
+    statements to be viewed in its flattened form, without nesting.
 
-        :returns: a list of condition/body pairs. Nested 'else if' chains
-           (if there are any) are recursively gathered. The condition for
-           the final 'else' in the chain (if there is one) is 'None'.
-        '''
-        branches = [(node.condition, node.if_body)]
-        if node.else_body:
-            if (isinstance(node.else_body, Schedule) and
-                    len(node.else_body.children) == 1 and
-                    isinstance(node.else_body.children[0], IfBlock)):
-                branches.extend(if_else_chain(node.else_body.children[0]))
-            else:
-                branches.append((None, node.else_body))
-        return branches
+    :returns: a list of condition/body pairs. Nested 'else if' chains
+       (if there are any) are recursively gathered. The condition for
+       the final 'else' in the chain (if there is one) is 'None'.
+    '''
+    branches = [(node.condition, node.if_body)]
+    if node.else_body:
+        if (isinstance(node.else_body, Schedule) and
+                len(node.else_body.children) == 1 and
+                isinstance(node.else_body.children[0], IfBlock)):
+            branches.extend(if_else_chain(node.else_body.children[0]))
+        else:
+            branches.append((None, node.else_body))
+    return branches

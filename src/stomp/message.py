@@ -90,7 +90,7 @@ class StompMessage:
                 try:
                     writer = FortranWriter()
                     node = self.node
-                    # Look at node's ancestors for more detail 
+                    # Look at node's ancestors for more detail
                     for i in range(0, 3):
                         text = writer(node)
                         text = text.strip()
@@ -114,7 +114,7 @@ class StompMessage:
                 out += header(f"Suggestion {idx+1}") + suggestion + "\n"
         else:
             for suggestion in self.suggestions:
-                out += header(f"Suggestion") + suggestion + "\n"
+                out += header("Suggestion") + suggestion + "\n"
 
         return out
 

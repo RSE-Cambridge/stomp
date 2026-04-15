@@ -117,6 +117,7 @@ recognised_directive_keywords = set([
 # Abstract syntax for OpenMP directives
 # =====================================
 
+
 class OpenMPDirective(Statement):
     '''Abstract syntax node for parsed OpenMP directives.'''
 
@@ -146,7 +147,7 @@ class OpenMPDirective(Statement):
                    if self.clauses[kw] is None]
 
     def is_loop(self, isolated: bool = False) -> bool:
-        '''Is it a loop directive? If the isolated flag is provided, 
+        '''Is it a loop directive? If the isolated flag is provided,
         the loop must not be enclosed within a parallel region.'''
         if "end" in self.clauses:
             return False
@@ -155,7 +156,7 @@ class OpenMPDirective(Statement):
         for (child, parent) in inherits_from:
             if child in self.clauses:
                 if isolated and is_within_directive(self, [[parent]]):
-                   return False
+                    return False
                 return True
         return False
 
@@ -165,7 +166,7 @@ class OpenMPDirective(Statement):
             return False
         for kw in self.clauses.keys():
             if kw in ["parallel", "teams"]:
-               return True
+                return True
         return False
 
     def is_standalone(self) -> bool:
@@ -174,7 +175,7 @@ class OpenMPDirective(Statement):
             return False
         for kw in self.clauses.keys():
             if kw in ["barrier", "update"]:
-               return True
+                return True
         return False
 
     def is_singleton(self) -> bool:
@@ -183,7 +184,7 @@ class OpenMPDirective(Statement):
             return False
         for kw in self.clauses.keys():
             if kw in ["loop", "do", "distribute", "atomic"]:
-               return True
+                return True
         return False
 
     def get_singleton_body(self) -> Statement:
@@ -322,10 +323,11 @@ class OpenMPDirective(Statement):
             else:
                 red_op = self.is_reduction_var(v)
                 if red_op:
-                    red.add((op, v))
+                    red.add((red_op, v))
                 else:
                     shared.add(v)
         return (private, shared, red)
+
 
 def get_enclosing_directives(origin: Node) -> List[OpenMPDirective]:
     '''Get the stack of OpenMP directives that enlose the given node,
@@ -355,6 +357,7 @@ def get_enclosing_directives(origin: Node) -> List[OpenMPDirective]:
                 pos -= 1
         cursor = cursor.parent
     return enclosing
+
 
 def is_within_directive(node: Node,
                         within: List[List[str]],
@@ -434,6 +437,7 @@ def clause_contents():
         return ParseError(txt, pos)
     return parse
 
+
 # Parser for reduction operators
 def omp_reduction_op():
     '''Parse an OpenMP reduction operator'''
@@ -441,6 +445,7 @@ def omp_reduction_op():
            "max", "min", "iand", "ior", "ieor"]
     toks = [token(op) for op in ops]
     return choice(*toks)
+
 
 # OpenMP clause parser
 def omp_clause():
@@ -460,7 +465,7 @@ def omp_clause():
     # Parser for reduction clauses
     reduction_clause = lift(
         lambda keyword, _l, op, _c, ids, _r:
-            (keyword, [(op, i) for i in ids]), 
+            (keyword, [(op, i) for i in ids]),
         token("reduction"),
         token("("),
         omp_reduction_op(),
@@ -470,7 +475,7 @@ def omp_clause():
 
     # Parser for collapse clauses
     collapse_clause = lift(
-        lambda keyword, _l, n, _r: (keyword, n), 
+        lambda keyword, _l, n, _r: (keyword, n),
         token("collapse"),
         token("("),
         natural(),
@@ -491,8 +496,8 @@ def omp_clause():
 # OpenMP directive parser
 def omp_directive():
     return lift(lambda _, cs: cs,
-               token("omp"),
-               many(omp_clause()))
+                token("omp"),
+                many(omp_clause()))
 
 
 # Top-level parser
@@ -576,7 +581,7 @@ def identify_openmp_directives(psyir: Node):
 
 
 def associate_end_directives(psyir: Node):
-    '''Associate each directive with its corresponding "end" directive, 
+    '''Associate each directive with its corresponding "end" directive,
     if it has one.'''
     for omp_dir in psyir.walk(OpenMPDirective):
         if "end" not in omp_dir.clauses:
@@ -598,8 +603,9 @@ def associate_end_directives(psyir: Node):
                         if open_dirs == []:
                             break
                     else:
-                       # Add directive to those that are open
-                       open_dirs.append(succ)
+                        # Add directive to those that are open
+                        open_dirs.append(succ)
+
 
 # OpenMP reduction operators
 # ==========================

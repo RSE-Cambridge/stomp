@@ -2,15 +2,12 @@
 
 '''This module implements static checks.'''
 
-import re
 from typing import List
-from psyclone.psyir.nodes import Node, Statement, Routine, Loop, Reference
-from psyclone.core import AccessInfo
-from psyclone.psyir.symbols import ArrayType
+from psyclone.psyir.nodes import Node, Routine, Loop
 from stomp.openmp_directives import \
-    OpenMPDirective, recognised_directives_set, get_enclosing_directives, \
+    OpenMPDirective, recognised_directives_set, \
     is_within_directive, is_child_directive
-from stomp.message import StompMessage, StompMessageCode, StompLogger
+from stomp.message import StompMessageCode, StompLogger
 from stomp.array_index_analysis import ArrayIndexAnalysis
 from stomp.misc import is_array_access
 
@@ -160,7 +157,7 @@ def check_collapse_clause(d: OpenMPDirective):
                     f"be supported by your OpenMP implementation.",
                 directive_node = d.original_directive,
                 node = loop)
-                        
+
 
 # Data sharing checks
 # ===================
@@ -237,7 +234,7 @@ def check_parallel_scalar_accesses(psyir: Node):
                             node = info.node,
                             directive_node = d.original_directive,
                             routine_name = routine.name)
-                    
+
 
 # Parallel array access checks
 # ============================
