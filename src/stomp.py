@@ -4,14 +4,9 @@ import sys
 import argparse
 from psyclone.parse import ModuleManager
 from psyclone.errors import InternalError
-from psyclone.psyir.nodes import Directive, UnknownDirective
 from psyclone.psyir.frontend.fortran import FortranReader
-from openmp_directives import OpenMPDirective, \
-                              identify_openmp_directives, \
-                              merge_multiline_directives
-from stomp_message import StompLogger
-import static_checks as checks
-import inference
+from stomp.message import StompLogger
+from stomp.main import main
 
 # Arguments
 # =========
@@ -48,12 +43,12 @@ else:
 
 # Load Fortran code
 fortran_reader = FortranReader(
-                     resolve_modules=True,
-                     ignore_comments=False,
-                     ignore_directives=False,
-                     conditional_openmp_statements=True,
-                     free_form=free_form
-                 )
+    resolve_modules=True,
+    ignore_comments=False,
+    ignore_directives=False,
+    conditional_openmp_statements=True,
+    free_form=free_form
+)
 try:
     psyir = fortran_reader.psyir_from_file(args.input_file)
 except (InternalError, ValueError, IOError) as err:
@@ -61,38 +56,9 @@ except (InternalError, ValueError, IOError) as err:
           f"due to: {str(err)}", file=sys.stderr)
     sys.exit(1)
 
-# Merge multiline directives into a single line
-merge_multiline_directives(psyir)
+# Invoke the tool
+main(psyir, infer=args.infer)
 
-# Identify OpenMP directives
-identify_openmp_directives(psyir)
-
-for d in psyir.walk(OpenMPDirective):
-    checks.check_loose_end(d)
-    checks.check_loop_directive_is_followed_by_loop(d)
-    checks.check_singleton_directive_num_stmts(d)
-    checks.check_singleton_directive_not_empty(d)
-    checks.check_standalone_directive_not_end(d)
-    checks.check_directive_is_recognised(d)
-    checks.check_collapse_clause(d)
-    checks.check_data_sharing_clauses(d)
-
-if len(StompLogger.get_messages()) > 0:
-    # Report messages
-    for msg in StompLogger.get_messages():
-        print(msg.render(), end="")
-    sys.exit(0)
-
-# Scalar conflict checks
-checks.check_parallel_scalar_accesses(psyir)
-
-# Loop array conflict checks
-checks.check_loop_array_accesses(psyir)
-
-# Parallel loop inference
-if args.infer:
-    inference.infer_parallel_loops(psyir)
-
-# Report messages
+# Emit messages
 for msg in StompLogger.get_messages():
     print(msg.render(), end="")

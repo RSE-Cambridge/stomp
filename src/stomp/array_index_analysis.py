@@ -42,7 +42,6 @@ are passed to the Z3 solver.'''
 
 import z3
 from typing import Optional, Tuple, Set
-from fortran_to_z3 import FortranToZ3
 from psyclone.psyir.nodes import Loop, DataNode, Literal, Assignment, \
     Reference, IntrinsicCall, \
     Routine, Node, IfBlock, Schedule, Range, WhileLoop, \
@@ -51,6 +50,8 @@ from psyclone.core import Signature
 from psyclone.psyir.symbols import DataType, ScalarType, ArrayType, \
     INTEGER_TYPE
 from fparser.two import Fortran2003, Fortran2008
+from stomp.fortran_to_z3 import FortranToZ3
+from stomp.misc import if_else_chain
 
 # Analysis Options
 # ================
@@ -726,7 +727,7 @@ class ArrayIndexAnalysis:
         # IfBlock
         if isinstance(stmt, IfBlock):
             # Loop over each condition/body pair in the list of branches
-            for (if_cond, if_body) in stmt.flat():
+            for (if_cond, if_body) in if_else_chain(stmt):
                 # Translate condition to SMT
                 if if_cond is None:
                     smt_cond = z3.BoolVal(True)
@@ -741,7 +742,7 @@ class ArrayIndexAnalysis:
                 # Accumulate the condition for the next branch
                 cond = z3.And(cond, z3.Not(smt_cond))
             # Kill vars written by each branch
-            for (_, if_body) in stmt.flat():
+            for (_, if_body) in if_else_chain(stmt):
                 self._kill_all_written_vars(if_body)
             return
 

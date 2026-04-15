@@ -6,12 +6,13 @@ directives.'''
 from __future__ import annotations
 import re
 from typing import Optional, Dict, Any, List, Union, Tuple, Set
-from parser_lib import lift, char, many, token, \
-    ParseError, sepby, choice, many1, optional, space, natural
 from psyclone.psyir.nodes import Node, Statement, UnknownDirective, Loop, \
     BinaryOperation, IntrinsicCall
 from psyclone.core import VariablesAccessMap
-from stomp_message import StompMessage, StompMessageCode, StompLogger
+from stomp.parser_lib import lift, char, many, token, \
+    ParseError, sepby, choice, many1, optional, space, natural
+from stomp.message import StompMessage, StompMessageCode, StompLogger
+
 
 # Recognised OpenMP directives
 # ============================

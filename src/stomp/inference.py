@@ -5,11 +5,12 @@
 from psyclone.psyir.nodes import Node, Routine, Loop
 from psyclone.psyir.tools import ReductionInferenceTool
 from psyclone.psyir.nodes.omp_directives import MAP_REDUCTION_OP_TO_OMP
-from openmp_directives import MAP_REDUCTION_OP_TO_STR, get_enclosing_directives
-from stomp_message import StompMessageCode, StompLogger
-from array_index_analysis import ArrayIndexAnalysis
-from liveness_analysis import is_live_out
-from misc import is_array_access
+from stomp.openmp_directives import \
+    MAP_REDUCTION_OP_TO_STR, get_enclosing_directives
+from stomp.message import StompMessageCode, StompLogger
+from stomp.array_index_analysis import ArrayIndexAnalysis
+from stomp.liveness_analysis import is_live_out
+from stomp.misc import is_array_access
 
 
 # Infer parallel loops
@@ -42,6 +43,9 @@ def infer_parallel_loops(psyir: Node):
                     # Ignore loop variables
                     if sig.var_name in loop_vars: continue
 
+                    # Ignore read-only variables
+                    if seq.is_read_only(): continue
+
                     # Allow reduction variables
                     red_clause = red_infer.attempt_reduction(sig, seq)
                     if red_clause:
@@ -62,7 +66,7 @@ def infer_parallel_loops(psyir: Node):
                     break
 
             if scalar_conflict:
-                break
+                continue
 
             # Check for array conflicts
             analysis = ArrayIndexAnalysis()

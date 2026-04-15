@@ -7,12 +7,12 @@ from typing import List
 from psyclone.psyir.nodes import Node, Statement, Routine, Loop, Reference
 from psyclone.core import AccessInfo
 from psyclone.psyir.symbols import ArrayType
-from openmp_directives import \
+from stomp.openmp_directives import \
     OpenMPDirective, recognised_directives_set, get_enclosing_directives, \
     is_within_directive, is_child_directive
-from stomp_message import StompMessage, StompMessageCode, StompLogger
-from array_index_analysis import ArrayIndexAnalysis
-from misc import is_array_access
+from stomp.message import StompMessage, StompMessageCode, StompLogger
+from stomp.array_index_analysis import ArrayIndexAnalysis
+from stomp.misc import is_array_access
 
 
 # Basic checks that apply to every directive

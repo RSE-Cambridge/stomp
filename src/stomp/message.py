@@ -9,7 +9,7 @@ from enum import Enum
 from typing import Optional
 from psyclone.psyir.nodes import Node
 from psyclone.psyir.backend.fortran import FortranWriter
-from colours import red, blue
+from stomp.colours import red, blue
 
 
 class StompMessageCode(Enum):
@@ -130,3 +130,7 @@ class StompLogger:
     @classmethod
     def get_messages(cls):
         return cls.messages
+
+    @classmethod
+    def clear(cls):
+        cls.messages = []

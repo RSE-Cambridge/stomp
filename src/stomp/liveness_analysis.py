@@ -76,7 +76,7 @@ def is_live_in(var_name: str, stmt: Statement) -> bool:
                     if seq.is_read(): return True
             for (sig, seq) in accesses.items():
                 if sig.var_name == var_name:
-                    if seq.is_write(): return False
+                    if seq.is_written(): return False
         return None
 
     # Explore all execution paths from given statement
