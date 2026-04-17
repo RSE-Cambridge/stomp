@@ -89,7 +89,7 @@ def is_live_in(var_name: str, stmt: Statement) -> bool:
         if result is None:
             for succ in next_statement(s):
                 if id(succ) not in visited:
-                   stack.append(succ)
+                    stack.append(succ)
     return False
 
 

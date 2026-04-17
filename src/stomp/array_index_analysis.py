@@ -303,11 +303,8 @@ class ArrayIndexAnalysis:
         # set of integer variable names holding the results of intrinsic
         # calls on that array.
         self.array_intrins_vars = {}
-        # Accesses to private arrays will not be considered as conflicts
-        self.private_vars = None
-        # Accesses to shared scalars inside the loop of interest will not
-        # be used for information gathering
-        self.shared_vars = None
+        # Accesses to arrays in this set will be ignored.
+        self.ignore_arrays = {}
 
     def _init_array_intrins_vars(self, routine: Routine):
         '''Initialise the 'array_intrins_vars' dict so that, for each
@@ -403,11 +400,6 @@ class ArrayIndexAnalysis:
 
     def _add_integer_assignment(self, var: str, smt_expr: z3.ExprRef):
         '''Add an integer assignment constraint to the constraint set.'''
-        ignore = self.in_loop_to_parallelise and \
-                 self.shared_vars and \
-                 var in self.shared_vars
-        if ignore:
-            return
         # Create a fresh symbol
         fresh_sym = self._fresh_integer_var()
         # Assert equality between this symbol and the given SMT expression
@@ -418,8 +410,6 @@ class ArrayIndexAnalysis:
 
     def _add_logical_assignment(self, var: str, smt_expr: z3.BoolRef):
         '''Add a logical assignment constraint to the constraint set.'''
-        if var in self.shared_vars:
-            return
         # Create a fresh symbol
         fresh_sym = z3.FreshBool()
         # Assert equality between this symbol and the given SMT expression
@@ -495,7 +485,7 @@ class ArrayIndexAnalysis:
 
     def _add_array_access(self, array_name: str, access: ArrayAccess):
         '''Add an array access to the current access dict.'''
-        if self.private_vars and array_name in self.private_vars:
+        if array_name in self.ignore_arrays:
             return
         if array_name in self.access_dict:
             self.access_dict[array_name].append(access)
@@ -544,8 +534,7 @@ class ArrayIndexAnalysis:
 
     def get_loop_conflicts(self,
                            loop: Loop,
-                           private: Optional[Set[str]] = None,
-                           shared: Optional[Set[str]] = None,
+                           private: Set[str] = set(),
                            all_conflicts: bool = False) -> \
             list[Tuple[Signature, Optional[str]]]:
         '''Determine whether or not distinct iterations of the given loop
@@ -554,8 +543,6 @@ class ArrayIndexAnalysis:
            :param loop: loop to be analysed.
            :param private: any access to an array variable in this set
               will not be considered as a potential conflict.
-           :param shared: any access to a scalar variable in this set
-              will not be used for information gathering.
            :param all_conflicts: if True, enumerate all conflicts, otherwise
               stop after the first conflict. Defaults to False.
            :return: a list pairs array-name/message pairs. If the list
@@ -578,8 +565,7 @@ class ArrayIndexAnalysis:
         # Start with an empty constraint set and substitution
         self._init_analysis()
         self.loop_to_parallelise = loop
-        self.private_vars = private
-        self.shared_vars = shared
+        self.ignore_arrays = private
 
         # Resolve choice of integers v. bit vectors
         if self.opts.use_bv is None:

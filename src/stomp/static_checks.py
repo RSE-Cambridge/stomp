@@ -267,8 +267,7 @@ def check_loop_array_accesses(psyir: Node):
                     analysis = ArrayIndexAnalysis()
                     conflicts = analysis.get_loop_conflicts(
                                     loop,
-                                    private = private | reduction_vars,
-                                    shared = shared)
+                                    private = private | reduction_vars)
                     for (sig, msg) in conflicts:
                         if msg is None:
                             continue

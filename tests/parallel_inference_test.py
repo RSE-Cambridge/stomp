@@ -37,11 +37,11 @@ end subroutine
 
 def test_matmul_infer():
     code = '''
-subroutine my_matmul(a, b, c)
-  integer, dimension(:,:), intent(in) :: a
-  integer, dimension(:,:), intent(in) :: b
-  integer, dimension(:,:), intent(out) :: c
-  integer :: x, y, k, k_tile, x_tile, y_tile, chunk_size
+subroutine my_matmul(a, b, c, chunk_size)
+  integer, intent(in) :: a(:,:), b(:,:)
+  integer, intent(out) :: c(:,:)
+  integer, intent(in) :: chunk_size
+  integer :: x, y, k, k_tile, x_tile, y_tile
 
   c(:,:) = 0
   do y_tile = 1, size(a, 2), chunk_size
