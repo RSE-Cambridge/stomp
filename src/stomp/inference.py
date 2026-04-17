@@ -8,7 +8,7 @@ from psyclone.psyir.nodes.omp_directives import MAP_REDUCTION_OP_TO_OMP
 from stomp.openmp_directives import \
     MAP_REDUCTION_OP_TO_STR, get_enclosing_directives
 from stomp.message import StompMessageCode, StompLogger
-from stomp.array_index_analysis import ArrayIndexAnalysis
+from stomp.loop_conflict_analysis import LoopConflictAnalysis
 from stomp.liveness_analysis import is_live_out
 from stomp.misc import is_array_access
 
@@ -69,7 +69,7 @@ def infer_parallel_loops(psyir: Node):
                 continue
 
             # Check for array conflicts
-            analysis = ArrayIndexAnalysis()
+            analysis = LoopConflictAnalysis()
             conflicts = analysis.get_loop_conflicts(loop)
             if not conflicts:
                 clauses = []

@@ -40,6 +40,7 @@ supports translation of scalar integer and scalar logical expressions.'''
 import z3
 import random
 import threading
+from typing import Optional
 from psyclone.psyir.nodes import \
     Literal, Reference, UnaryOperation, BinaryOperation, \
     IntrinsicCall, Node, ArrayReference
@@ -56,9 +57,6 @@ class FortranToZ3:
        :param int_width: the bit width of Fortran integers when interpreted
           as bit vectors. This is 32 by default.
 
-       :param smt_timeout_ms: the time limit (in milliseconds) given to
-          the SMT solver to find a solution.
-
        :param prohibit_overflow: if True, the translation functions will
           ignore the possibility of integer overflow by generating constraints
           to prohibit it. Integer overflow is undefined behaviour in Fortran
@@ -69,30 +67,16 @@ class FortranToZ3:
           'ubound(<arr>,<dim>)' will be translated to Z3 integer variables
           of the form '#size_<arr>_<dim>', '#lbound_<arr>_<dim>', and
           '#ubound_<arr>_<dim>'.
-
-       :param num_sweep_threads: when larger than one, this option enables the
-          sweeper, which runs multiple solvers across multiple threads with
-          each one using a different constraint ordering. This reduces the
-          solver's sensitivity to the order of constraints.
-
-       :param sweep_seed: the seed for the random number generator used
-          by the sweeper.
     '''
     def __init__(self,
                  use_bv: bool = False,
                  int_width: int = 32,
-                 smt_timeout_ms: int = 5000,
                  prohibit_overflow: bool = False,
-                 handle_array_intrins: bool = False,
-                 num_sweep_threads: int = 4,
-                 sweep_seed: int = 1):
+                 handle_array_intrins: bool = False):
         self.use_bv = use_bv
         self.int_width = int_width
-        self.smt_timeout = smt_timeout_ms
         self.prohibit_overflow = prohibit_overflow
         self.handle_array_intrins = handle_array_intrins
-        self.num_sweep_threads = num_sweep_threads
-        self.sweep_seed = sweep_seed
 
     def translate_integer_expr(self, expr_root: Node) \
             -> (z3.ExprRef, list[z3.BoolRef]):
@@ -421,7 +405,10 @@ class FortranToZ3:
     def solve(self,
               constraints: list[z3.BoolRef],
               sum_of_prods: list[list[z3.BoolRef]] = [[z3.BoolVal(True)]],
-              exprs_to_eval: list[z3.ExprRef] = []) \
+              exprs_to_eval: list[z3.ExprRef] = [],
+              smt_timeout_ms: Optional[int] = 5000,
+              num_sweep_threads: int = 4,
+              sweep_seed: int = 1) \
             -> (z3.CheckSatResult, list[z3.ExprRef]):
         '''Invoke the solver on the given constraints. If the constraints
         are satisfiable then the given expressions are evaluated and
@@ -443,13 +430,21 @@ class FortranToZ3:
            randomly shuffled by each solver thread.
         :param exprs_to_eval: a list of expressions to evaluate, assuming
            the constraints are satisfiable.
+        :param smt_timeout_ms: the time limit (in milliseconds) given to
+           the SMT solver to find a solution.
+        :param num_sweep_threads: when larger than one, this option enables the
+           sweeper, which runs multiple solvers across multiple threads with
+           each one using a different constraint ordering. This reduces the
+           solver's sensitivity to the order of constraints.
+        :param sweep_seed: the seed for the random number generator used
+           by the sweeper.
         :return: the result of the solver and a list of evaluated expressions
            (the list is empty if the constraints were not satisifiable)
         '''
-        if self.num_sweep_threads <= 1:
+        if num_sweep_threads <= 1:
             s = z3.Solver()
-            if self.smt_timeout is not None:
-                s.set("timeout", self.smt_timeout)
+            if smt_timeout_ms is not None:
+                s.set("timeout", smt_timeout_ms)
             s.add(z3.And(constraints))
             s.add(z3.Or([z3.And(prod) for prod in sum_of_prods]))
             result = s.check()
@@ -461,13 +456,22 @@ class FortranToZ3:
                                                 model_completion=True))
             return (result, result_values)
         else:
-            return self.sweep_solve(constraints, sum_of_prods, exprs_to_eval)
+            return self.sweep_solve(
+                      constraints,
+                      sum_of_prods,
+                      exprs_to_eval,
+                      smt_timeout_ms,
+                      num_sweep_threads,
+                      sweep_seed)
 
     def sweep_solve(self,
                     constraints: list[z3.BoolRef],
                     sum_of_prods: list[list[z3.BoolRef]] =
                                       [[z3.BoolVal(True)]],
-                    exprs_to_eval: list[z3.ExprRef] = []) \
+                    exprs_to_eval: list[z3.ExprRef] = [],
+                    smt_timeout_ms: Optional[int] = 5000,
+                    num_sweep_threads: int = 4,
+                    sweep_seed: int = 1) \
             -> (z3.CheckSatResult, list[z3.ExprRef]):
         '''The interface to this method is identical to that of the
         'solve()' method. This method implements the sweeper.'''
@@ -490,17 +494,17 @@ class FortranToZ3:
                     done_event.set()
 
         # Random number generator for shuffling constraints
-        rnd = random.Random(self.sweep_seed)
+        rnd = random.Random(sweep_seed)
 
         # Create a solver per thread
         solvers = []
         threads = []
-        for i in range(0, self.num_sweep_threads):
+        for i in range(0, num_sweep_threads):
             # Create a solver for the problem
             ctx = z3.Context()
             s = z3.Solver(ctx=ctx)
-            if self.smt_timeout is not None:
-                s.set("timeout", self.smt_timeout)
+            if smt_timeout_ms is not None:
+                s.set("timeout", smt_timeout_ms)
             s.add(z3.And(constraints).translate(ctx))
             sum_constraint = z3.Or([z3.And(prod) for prod in sum_of_prods])
             s.add(sum_constraint.translate(ctx))

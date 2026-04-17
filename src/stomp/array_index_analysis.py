@@ -34,23 +34,20 @@
 # Author: M. Naylor, University of Cambridge, UK
 # -----------------------------------------------------------------------------
 
-'''This module provides a class to determine whether or not distinct
-iterations of a given loop can generate conflicting array accesses (if
-not, the loop can potentially be parallelised). It formulates the
-problem as a set of SMT constraints over array indices which are then
-are passed to the Z3 solver.'''
+'''This module provides a base class to support analysis of array accesses in a
+given block of code. For each array access, it provides a list of array
+indices represented as SMT formulae and a condition represented as an SMT
+constraint. This allows the use of an SMT solver to answer questions about
+array accesses, such as whether or they can safely execute in parallel.'''
 
 import z3
-from typing import Optional, Tuple, Set
 from psyclone.psyir.nodes import Loop, DataNode, Literal, Assignment, \
     Reference, IntrinsicCall, \
     Routine, Node, IfBlock, Schedule, Range, WhileLoop, \
     CodeBlock
-from psyclone.core import Signature
 from psyclone.psyir.symbols import DataType, ScalarType, ArrayType, \
     INTEGER_TYPE
 from fparser.two import Fortran2003, Fortran2008
-from stomp.fortran_to_z3 import FortranToZ3
 from stomp.misc import if_else_chain
 
 # Analysis Options
@@ -72,12 +69,6 @@ class ArrayIndexAnalysisOptions:
        currently only gathers information about Fortran integer values of
        unspecified width.)
 
-    :param smt_timeout_ms: the time limit (in milliseconds) given to
-       the SMT solver to find a solution. If the solver does not
-       return within this time, the analysis will conservatively return
-       that a conflict exists even though it has not yet found one.
-       This can be set to 'None' to disable the timeout.
-
     :param prohibit_overflow: if True, the analysis will tell the solver
        to ignore the possibility of integer overflow. Integer overflow is
        undefined behaviour in Fortran so this is safe.
@@ -87,58 +78,73 @@ class ArrayIndexAnalysisOptions:
        occurrences of 'size(arr)' will be assumed to return the same value,
        provided that those occurrences are not separated by a statement
        that may modify the size/bounds of 'arr'.
-
-    :param num_sweep_threads: when larger than one, this option enables the
-       sweeper, which runs multiple solvers across multiple threads with each
-       one using a different constraint ordering (and potentially different
-       solver parameters in future). This reduces the solver's sensitivity
-       to the order of constraints.
-
-    :param sweep_seed: the seed for the random number generator used
-       by the sweeper.
-
-    :param succeed_on_timeout: interpret a timeout as a non-conflict.
-       This means that analysis may report no conflicts when there is one,
-       but it will have tried to find one.
     '''
     def __init__(self,
                  int_width: int = 32,
                  use_bv: bool = None,
-                 smt_timeout_ms: int = 5000,
                  prohibit_overflow: bool = False,
-                 handle_array_intrins: bool = True,
-                 num_sweep_threads: int = 4,
-                 sweep_seed: int = 1,
-                 succeed_on_timeout: bool = False):
-        self.smt_timeout = smt_timeout_ms
+                 handle_array_intrins: bool = True):
         self.int_width = int_width
         self.use_bv = use_bv
         self.prohibit_overflow = prohibit_overflow
         self.handle_array_intrins = handle_array_intrins
-        self.num_sweep_threads = num_sweep_threads
-        self.sweep_seed = sweep_seed
-        self.succeed_on_timeout = succeed_on_timeout
+
+
+# Array access type
+# =================
+
+
+class ArrayAccess:
+    '''This class is used to record details of each array access
+    encountered during the analysis.
+
+    :param cond: a boolean SMT expression representing the current
+       condition at the point the array access is made.
+    :param is_write: whether the access is a read or a write.
+    :param indices: SMT integer expressions representing the
+      indices of the array access.
+    :param psyir_node: PSyIR node for the access (useful for reporting
+       conflict messages / errors).
+    '''
+    def __init__(self,
+                 cond:       z3.BoolRef,
+                 is_write:   bool,
+                 indices:    list[list[z3.ExprRef]],
+                 psyir_node: Node):
+        self._cond = cond
+        self._is_write = is_write
+        self._indices = indices
+        self._psyir_node = psyir_node
+
+    @property
+    def cond(self):
+        return self._cond
+
+    @property
+    def is_write(self):
+        return self._is_write
+
+    @property
+    def indices(self):
+        return self._indices
+
+    @property
+    def psyir_node(self):
+        return self._psyir_node
 
 
 # Analysis
 # ========
 
 class ArrayIndexAnalysis:
-    '''The analysis class provides a method 'get_loop_conflicts()' to
-    determine whether or not the array accesses in a given loop are
-    conflicting between iterations. Two array accesses are conflicting
-    if they access the same element of the same array in different loop
-    iterations, and at least one is a write.
+    '''This base class supports analysing array accesses in the given code.
+    For each array access, it provides a list of array indices represented
+    as SMT formulae and a condition represented as an SMT constraint. This
+    allows the use of an SMT solver to answer questions about array accesses,
+    such as whether or they can safely execute in parallel.
 
-    The analysis assumes that any scalar integer or scalar logical
-    variables written by the loop can safely be considered as private
-    to each iteration. This should be validated by the callee and is
-    typically done by DependencyTools.
-
-    The analysis algorithm operates, broadly, as follows.
-
-    Given a loop, we find its enclosing routine, and start analysing the
-    routine statement-by-statement in a recursive-descent fashion.
+    Given a block of code, we step through the code statement-by-statement
+    in a recursive-descent fashion.
 
     As we proceed, we maintain a set of SMT constraints and a
     substitution that maps Fortran variable names to SMT variable names.
@@ -191,79 +197,17 @@ class ArrayIndexAnalysis:
     For each access, we record various information including the name of
     the array, whether it is a read or a write, the current condition at
     the point the access is made, and its list of indices (translated to
-    SMT). When we are analysing code that is inside the loop of
-    interest, we add all array accesses encountered to the list.
+    SMT).
 
-    When we encounter the loop of interest, we perform a couple of steps
+    When we encounter a loop, we perform a couple of steps
     before recursing into the loop body. First, we kill all variables
     written by the loop body, because we don't know whether we are
     entering the loop (at run time) for the first time or not. Second,
-    we create two SMT variables to represent the loop variables of two
-    arbitary but distinct iterations of the loop. Each of these two
-    variables is constrained to the start, stop, and step of the loop,
-    and the two variables are constrained to be not equal. After that,
-    we analyse the loop body twice, each time mapping the loop variable
-    in the substitution to each of the SMT loop variables. After
-    analysing the loop body for the first time, we save the array access
-    list and start afresh with a new one. Therefore, once the analysis
-    is complete, we have two array access lists, one for each iteration.
+    we constrain the loop variable to the start, stop, and step of the loop.
 
-    When we encounter a loop that is not the loop of interest, we follow
-    a similar approach but only consider a single arbitrary iteration of
-    the loop.
-
-    When the recursive descent is complete, we are left with two array
-    access lists representing two different iterations of the same loop.
-    A conflict occurs if there is an access to an array in the first
-    list that can have the same array indices as an access to the same
-    array in the second list, and one of which is a write.  This is
-    determined by asserting an equality constraint between each access's
-    indices which, when combined with the current condition of each
-    access and the global constraint set, will be satisfiable if and
-    only if there is a conflict.  In this way, we check every access
-    pair and determine whether or not the loop contains conflicts.
+    When the recursive descent is complete, we are left with a list of
+    array access in a form that can be reasoned about using an SMT solver.
     '''
-
-    class ArrayAccess:
-        '''This class is used to record details of each array access
-        encountered during the analysis.
-
-        :param cond: a boolean SMT expression representing the current
-           condition at the point the array access is made.
-
-        :param is_write: whether the access is a read or a write.
-
-        :param indices: SMT integer expressions representing the
-          indices of the array access.
-
-        :param psyir_node: PSyIR node for the access (useful for reporting
-           conflict messages / errors).
-        '''
-        def __init__(self,
-                     cond:       z3.BoolRef,
-                     is_write:   bool,
-                     indices:    list[list[z3.ExprRef]],
-                     psyir_node: Node):
-            self._cond = cond
-            self._is_write = is_write
-            self._indices = indices
-            self._psyir_node = psyir_node
-
-        @property
-        def cond(self):
-            return self._cond
-
-        @property
-        def is_write(self):
-            return self._is_write
-
-        @property
-        def indices(self):
-            return self._indices
-
-        @property
-        def psyir_node(self):
-            return self._psyir_node
 
     def __init__(self, options=ArrayIndexAnalysisOptions()):
         '''This class provides a method 'get_loop_conflicts()' to
@@ -288,14 +232,6 @@ class ArrayIndexAnalysis:
         self.constraints = []
         # The access dict maps each array name to a list of array accesses
         self.access_dict = {}
-        # We record two access dicts, representing two arbitrary but distinct
-        # iterations of the loop to parallelise
-        self.saved_access_dicts = []
-        # Are we currently analysing the loop to parallelise?
-        self.in_loop_to_parallelise = False
-        # The SMT variables representing each loop iteration variable
-        self.smt_loop_var_i = None
-        self.smt_loop_var_j = None
         # Has the analaysis finished?
         self.finished = False
         # We map array intrinsic calls (e.g. size, lbound, ubound) to SMT
@@ -312,8 +248,8 @@ class ArrayIndexAnalysis:
         representing the results of intrinsics (such as size,
         lbound, ubound) applied to that array.
 
-        :param routine: the Routine holding the Loop that we are
-           analysing for conflicts.
+        :param routine: the Routine holding the code that we are
+           analysing.
         '''
         if self.opts.handle_array_intrins:
             for stmt in routine.children:
@@ -522,159 +458,9 @@ class ArrayIndexAnalysis:
                             smt_indices.append(smt_inds)
                         self._add_array_access(
                             str(s),
-                            ArrayIndexAnalysis.ArrayAccess(
+                            ArrayAccess(
                               cond, access_info.is_any_write(),
                               smt_indices, access_info.node))
-
-    def _save_access_dict(self):
-        '''Move the current access dict to the stack, and proceed with
-        an empty one.'''
-        self.saved_access_dicts.append(self.access_dict)
-        self.access_dict = {}
-
-    def get_loop_conflicts(self,
-                           loop: Loop,
-                           private: Set[str] = set(),
-                           all_conflicts: bool = False) -> \
-            list[Tuple[Signature, Optional[str]]]:
-        '''Determine whether or not distinct iterations of the given loop
-           can generate conflicting array accesses.
-
-           :param loop: loop to be analysed.
-           :param private: any access to an array variable in this set
-              will not be considered as a potential conflict.
-           :param all_conflicts: if True, enumerate all conflicts, otherwise
-              stop after the first conflict. Defaults to False.
-           :return: a list pairs array-name/message pairs. If the list
-              is empty, the loop is conflict free. If the solver times out,
-              the message is None.
-        '''
-
-        # Type checking
-        if not isinstance(loop, Loop):
-            raise TypeError("ArrayIndexAnalysis: Loop argument expected")
-        self.loop = loop
-
-        # Find the enclosing routine
-        routine = loop.ancestor(Routine)
-        if not routine:
-            raise ValueError(
-                    "ArrayIndexAnalysis: loop has no enclosing routine")
-        self.routine = routine
-
-        # Start with an empty constraint set and substitution
-        self._init_analysis()
-        self.loop_to_parallelise = loop
-        self.ignore_arrays = private
-
-        # Resolve choice of integers v. bit vectors
-        if self.opts.use_bv is None:
-            for call in routine.walk(IntrinsicCall):
-                i = call.intrinsic
-                if i in [IntrinsicCall.Intrinsic.SHIFTL,
-                         IntrinsicCall.Intrinsic.SHIFTR,
-                         IntrinsicCall.Intrinsic.SHIFTA,
-                         IntrinsicCall.Intrinsic.IAND,
-                         IntrinsicCall.Intrinsic.IOR,
-                         IntrinsicCall.Intrinsic.IEOR]:
-                    self.opts.use_bv = True
-                    break
-
-        # Create Fortran-to-Z3 translator
-        self.trans = FortranToZ3(
-                         use_bv=self.opts.use_bv,
-                         int_width=self.opts.int_width,
-                         smt_timeout_ms=self.opts.smt_timeout,
-                         prohibit_overflow=self.opts.prohibit_overflow,
-                         handle_array_intrins=self.opts.handle_array_intrins,
-                         num_sweep_threads=self.opts.num_sweep_threads,
-                         sweep_seed=self.opts.sweep_seed)
-
-        # Initialise array intrinsic variables
-        self._init_array_intrins_vars(routine)
-
-        # Step through body of the enclosing routine, statement by statement
-        for stmt in routine.children:
-            self._step(stmt, z3.BoolVal(True))
-
-        # Check that we have found and analysed the loop to parallelise
-        if not (self.finished and len(self.saved_access_dicts) == 2):
-            return None  # pragma: no cover
-
-        # A list of conflicts to return
-        conflicts = []
-
-        # Forumlate constraints for solving, considering the two iterations
-        iter_i = self.saved_access_dicts[0]
-        iter_j = self.saved_access_dicts[1]
-        for (i_arr_name, i_accesses) in iter_i.items():
-            for (j_arr_name, j_accesses) in iter_j.items():
-                if (i_arr_name == j_arr_name or
-                        i_arr_name.startswith(j_arr_name + "%") or
-                        j_arr_name.startswith(i_arr_name + "%")):
-                    # For each write access in the i iteration
-                    for i_access in i_accesses:
-                        if i_access.is_write:
-                            conflict = self._get_conflict(i_access, j_accesses)
-                            if conflict:
-                                conflicts.append(conflict)
-                                if not all_conflicts:
-                                    return conflicts
-
-        return conflicts
-
-    def _get_conflict(self, write: ArrayAccess, accs: list[ArrayAccess]) -> \
-            Optional[Tuple[Signature, Optional[str]]]:
-        '''Get the conflict between the write access 'write' and
-           any access in 'accs', if there is one.
-
-           :param write: a write access from one iteration.
-           :param accs: a list of accesses from another iteration.
-           :return: a pair containing an array name and a message string,
-              if a conflict exists, and None otherwise. If the solver
-              times out, the message is None.
-        '''
-        sum_of_prods = []
-        for acc in accs:
-            indices_equal = []
-            for (i_idxs, j_idxs) in zip(write.indices, acc.indices):
-                for (i_idx, j_idx) in zip(i_idxs, j_idxs):
-                    indices_equal.append(i_idx == j_idx)
-            sum_of_prods.append(indices_equal + [write.cond, acc.cond])
-
-        # Invoke solver
-        (result, result_values) = self.trans.solve(
-            self.constraints,
-            sum_of_prods,
-            [self.smt_loop_var_i, self.smt_loop_var_j] +
-            [ind for inds in write.indices for ind in inds])
-
-        # Determine return value
-        (sig, sig_inds) = write.psyir_node.get_signature_and_indices()
-        if result == z3.sat:
-            # Produce message
-            i_val = str(result_values.pop(0))
-            j_val = str(result_values.pop(0))
-            components = []
-            sig_fields = [sig[i] for i in range(len(sig))]
-            for (field, inds) in zip(sig_fields, sig_inds):
-                vals = []
-                for ind in inds:
-                    if result_values:
-                        vals.append(str(result_values.pop(0)))
-                if vals:
-                    components.append(field + '(' + ','.join(vals) + ')')
-            access_str = '%'.join(components)
-            msg = (f"Iterations {i_val} and {j_val} have conflicting "
-                   f"accesses to {access_str}")
-            return (sig, msg)
-        elif result == z3.unknown:  # pragma: no cover
-            if self.opts.succeed_on_timeout:
-                return None
-            else:
-                return (sig, None)
-        else:
-            return None
 
     def _step(self, stmt: Node, cond: z3.BoolRef):
         '''Analyse the given statement in recursive-descent fashion.'''
@@ -693,15 +479,13 @@ class ArrayIndexAnalysis:
                         rhs_smt = self._translate_integer_expr_with_subst(
                                     stmt.rhs)
                         self._add_integer_assignment(sig.var_name, rhs_smt)
-                        if self.in_loop_to_parallelise:
-                            self._add_all_array_accesses(stmt.rhs, cond)
+                        self._add_all_array_accesses(stmt.rhs, cond)
                         return
                     elif _is_scalar_logical(stmt.lhs.datatype):
                         rhs_smt = self._translate_logical_expr_with_subst(
                                     stmt.rhs)
                         self._add_logical_assignment(sig.var_name, rhs_smt)
-                        if self.in_loop_to_parallelise:
-                            self._add_all_array_accesses(stmt.rhs, cond)
+                        self._add_all_array_accesses(stmt.rhs, cond)
                         return
 
         # Schedule
@@ -719,8 +503,7 @@ class ArrayIndexAnalysis:
                     smt_cond = z3.BoolVal(True)
                 else:
                     smt_cond = self._translate_cond_expr_with_subst(if_cond)
-                    if self.in_loop_to_parallelise:
-                        self._add_all_array_accesses(if_cond, cond)
+                    self._add_all_array_accesses(if_cond, cond)
                 # Recursively step into body
                 self._save_subst()
                 self._step(if_body, z3.And(cond, smt_cond))
@@ -738,36 +521,16 @@ class ArrayIndexAnalysis:
             self._kill_all_written_vars(stmt.loop_body)
             # Kill loop variable
             self._kill_integer_var(stmt.variable.name)
-            # Have we reached the loop we'd like to parallelise?
-            if stmt is self.loop_to_parallelise:
-                self.in_loop_to_parallelise = True
-                # Consider two arbitary but distinct iterations
-                i_var = self._fresh_integer_var()
-                j_var = self._fresh_integer_var()
-                self._add_constraint(i_var != j_var)
-                iteration_vars = [i_var, j_var]
-                self.smt_loop_var_i = i_var
-                self.smt_loop_var_j = j_var
-            else:
-                # Consider a single, arbitrary iteration
-                i_var = self._fresh_integer_var()
-                iteration_vars = [i_var]
-            # Analyse loop body for each iteration variable separately
-            for var in iteration_vars:
-                self._save_subst()
-                smt_loop_var = self._integer_var(stmt.variable.name)
-                self.subst[smt_loop_var] = var
-                # Introduce constraints on loop variable
-                self._constrain_loop_var(
-                    var, stmt.start_expr, stmt.stop_expr, stmt.step_expr)
-                # Analyse loop body
-                self._step(stmt.loop_body, cond)
-                if stmt is self.loop_to_parallelise:
-                    self._save_access_dict()
-                self._restore_subst()
-            # Record whether the analysis has finished
-            if stmt is self.loop_to_parallelise:
-                self.finished = True
+            # Introduce constraints on loop variable
+            var = self._fresh_integer_var()
+            self._save_subst()
+            smt_loop_var = self._integer_var(stmt.variable.name)
+            self.subst[smt_loop_var] = var
+            self._constrain_loop_var(
+                var, stmt.start_expr, stmt.stop_expr, stmt.step_expr)
+            # Analyse loop body
+            self._step(stmt.loop_body, cond)
+            self._restore_subst()
             return
 
         # WhileLoop
@@ -775,8 +538,7 @@ class ArrayIndexAnalysis:
             # Kill variables written by loop body
             self._kill_all_written_vars(stmt.loop_body)
             # Add array accesses in condition
-            if self.in_loop_to_parallelise:
-                self._add_all_array_accesses(stmt.condition, cond)
+            self._add_all_array_accesses(stmt.condition, cond)
             # Translate condition to SMT
             smt_condition = self._translate_cond_expr_with_subst(
               stmt.condition)
@@ -794,9 +556,9 @@ class ArrayIndexAnalysis:
             return
 
         # Fall through
-        if self.in_loop_to_parallelise:
-            self._add_all_array_accesses(stmt, cond)
+        self._add_all_array_accesses(stmt, cond)
         self._kill_all_written_vars(stmt)
+
 
 # Helper functions
 # ================

@@ -8,7 +8,7 @@ from stomp.openmp_directives import \
     OpenMPDirective, recognised_directives_set, \
     is_within_directive, is_child_directive
 from stomp.message import StompMessageCode, StompLogger
-from stomp.array_index_analysis import ArrayIndexAnalysis
+from stomp.loop_conflict_analysis import LoopConflictAnalysis
 from stomp.misc import is_array_access
 
 
@@ -264,7 +264,7 @@ def check_loop_array_accesses(psyir: Node):
                 for loop in loops:
                     (private, shared, red) = d.get_private_shared_red()
                     reduction_vars = {c[1] for c in red}
-                    analysis = ArrayIndexAnalysis()
+                    analysis = LoopConflictAnalysis()
                     conflicts = analysis.get_loop_conflicts(
                                     loop,
                                     private = private | reduction_vars)
