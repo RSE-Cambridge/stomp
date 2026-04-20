@@ -195,11 +195,6 @@ class LoopConflictAnalysis(ArrayIndexAnalysis):
         self.saved_access_dicts.append(self.access_dict)
         self.access_dict = {}
 
-    def _add_array_access(self, array_name: str, access: ArrayAccess):
-        '''Add an array access to the current access dict.'''
-        if self.in_loop_to_parallelise:
-            super()._add_array_access(array_name, access)
-
     def _add_all_array_accesses(self, node: Node, cond: z3.BoolRef):
         '''Add all array accesses in the given node to the current
         access dict.'''
