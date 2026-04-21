@@ -7,11 +7,13 @@ from __future__ import annotations
 import re
 from typing import Optional, Dict, Any, List, Union, Tuple, Set
 from psyclone.psyir.nodes import Node, Statement, UnknownDirective, Loop, \
-    BinaryOperation, IntrinsicCall
+    BinaryOperation, IntrinsicCall, Routine
 from psyclone.core import VariablesAccessMap
+from psyclone.psyir.symbols import SymbolTable
 from stomp.parser_lib import lift, char, many, token, \
     ParseError, sepby, choice, many1, optional, space, natural
 from stomp.message import StompMessage, StompMessageCode, StompLogger
+from stomp.misc import parse_fortran_expr
 
 
 # Recognised OpenMP directives
@@ -404,11 +406,11 @@ def identifier():
 
 
 # OpenMP keyword parser
-# (For now, just any non-empty string of letters)
+# (For now, just any non-empty string of letters and underscores)
 def keyword():
     '''Parse an OpenMP keyword'''
     return lift(lambda chars, _: "".join(chars),
-                many1(char(lambda x: x.isalpha())),
+                many1(char(lambda x: x.isalpha() or x == "_")),
                 space())
 
 
@@ -438,6 +440,20 @@ def clause_contents():
     return parse
 
 
+# Fortran expression parser
+def fortran_expr(symbol_table: Optional[SymbolTable] = None):
+    '''Parse Fortran expression in parenthesis'''
+    def parse(txt, pos):
+        result = clause_contents()(txt, pos)
+        if isinstance(result, ParseError):
+            return result
+        node = parse_fortran_expr(result[0], symbol_table)
+        if isinstance(node, str):
+            return ParseError(txt, pos)
+        return (node, result[1])
+    return parse
+
+
 # Parser for reduction operators
 def omp_reduction_op():
     '''Parse an OpenMP reduction operator'''
@@ -448,7 +464,7 @@ def omp_reduction_op():
 
 
 # OpenMP clause parser
-def omp_clause():
+def omp_clause(symbol_table: Optional[SymbolTable] = None):
     '''Parse an OpenMP clause'''
 
     # Parser for data sharing clauses
@@ -481,6 +497,18 @@ def omp_clause():
         natural(),
         token(")"))
 
+    # Parser for num_threads clause
+    num_threads_clause = lift(
+        lambda keyword, expr: (keyword, expr),
+        token("num_threads"),
+        fortran_expr(symbol_table))
+
+    # Parser for thread_limit clause
+    thread_limit_clause = lift(
+        lambda keyword, expr: (keyword, expr),
+        token("thread_limit"),
+        fortran_expr(symbol_table))
+
     # Generic clause parser
     other_clause = lift(
         lambda keyword, contents: (keyword, contents),
@@ -490,22 +518,29 @@ def omp_clause():
     return choice(data_sharing_clause,
                   reduction_clause,
                   collapse_clause,
+                  num_threads_clause,
+                  thread_limit_clause,
                   other_clause)
 
 
 # OpenMP directive parser
-def omp_directive():
+def omp_directive(symbol_table: Optional[SymbolTable] = None):
     return lift(lambda _, cs: cs,
                 token("omp"),
-                many(omp_clause()))
+                many(omp_clause(symbol_table)))
 
 
 # Top-level parser
 def parse_omp_directive(directive: UnknownDirective) -> \
         Union[OpenMPDirective, StompMessage]:
+    # Get symbol table
+    symbol_table = None
+    routine = directive.ancestor(Routine)
+    if routine:
+        symbol_table = routine.symbol_table
     # Create and apply parser
     txt = directive.directive_string
-    parser = omp_directive()
+    parser = omp_directive(symbol_table)
     result = parser(txt, 0)
     if isinstance(result, ParseError):
         remaining = result.txt[result.pos:]
@@ -574,7 +609,7 @@ def identify_openmp_directives(psyir: Node):
     for unknown in psyir.walk(UnknownDirective):
         d = parse_omp_directive(unknown)
         if isinstance(d, StompMessage):
-            StompLogger.add_message(d)
+            StompLogger.add_msg(d)
         else:
             unknown.replace_with(d)
     associate_end_directives(psyir)

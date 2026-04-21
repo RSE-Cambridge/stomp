@@ -2,9 +2,12 @@
 
 '''This module provides miscelaneous functions.'''
 
-from psyclone.psyir.nodes import Reference, IfBlock, Schedule
+from typing import Union, Optional
+from psyclone.psyir.nodes import Reference, IfBlock, Schedule, Node
 from psyclone.core import AccessInfo
-from psyclone.psyir.symbols import ArrayType
+from psyclone.psyir.symbols import ArrayType, SymbolTable
+from psyclone.psyir.frontend.fortran import FortranReader
+from psyclone.errors import InternalError
 
 
 def is_array_access(info: AccessInfo) -> bool:
@@ -35,3 +38,21 @@ def if_else_chain(node: IfBlock):
         else:
             branches.append((None, node.else_body))
     return branches
+
+
+def parse_fortran_expr(code: str,
+                       symbol_table: Optional[SymbolTable] = None) \
+                           -> Union[str, Node]:
+    '''Parse a Fortran expression.'''
+    fortran_reader = FortranReader(
+        resolve_modules=False,
+        ignore_comments=True,
+        ignore_directives=True,
+        conditional_openmp_statements=False,
+        free_form=True
+    )
+    try:
+        psyir = fortran_reader.psyir_from_expression(code, symbol_table)
+    except (InternalError, ValueError, IOError) as err:
+        return str(err)
+    return psyir

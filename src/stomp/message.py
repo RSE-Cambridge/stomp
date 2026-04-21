@@ -124,6 +124,10 @@ class StompLogger:
     messages: StompMessage = []
 
     @classmethod
+    def add_msg(cls, msg):
+        cls.messages.append(msg)
+
+    @classmethod
     def add_message(cls, *args, **kw_args):
         cls.messages.append(StompMessage(*args, **kw_args))
 
