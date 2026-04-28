@@ -2,14 +2,14 @@
 
 '''This module implements static checks.'''
 
-from typing import List
 from psyclone.psyir.nodes import Node, Routine, Loop
 from stomp.openmp_directives import \
     OpenMPDirective, recognised_directives_set, \
-    is_within_directive, is_child_directive
+    is_within_directive, is_child_directive, \
+    get_enclosing_directives
 from stomp.message import StompMessageCode, StompLogger
-from stomp.loop_conflict_analysis import LoopConflictAnalysis
-from stomp.misc import is_array_access
+from stomp.region_conflict_analysis import RegionConflictAnalysis
+from stomp.misc import is_array_access, get_nested_loops
 
 
 # Basic checks that apply to every directive
@@ -92,20 +92,6 @@ def check_directive_is_recognised(d: OpenMPDirective):
 
 # Collapsed loop checks
 # =====================
-
-
-def get_nested_loops(node: Node) -> List[Loop]:
-    '''Return a list of immediately nested loops'''
-    loops = []
-    while True:
-        if isinstance(node, Loop):
-            loops.append(node)
-            if len(node.loop_body.children) == 1:
-                node = node.loop_body.children[0]
-            else:
-                return loops
-        else:
-            return loops
 
 
 def check_collapse_clause(d: OpenMPDirective):
@@ -240,40 +226,33 @@ def check_parallel_scalar_accesses(psyir: Node):
 # ============================
 
 
-def check_loop_array_accesses(psyir: Node):
-    '''Check all OpenMP loops for parallel array access conflicts, where at
-    least two accesses (one of which is a write) access the same indices of
-    the same array in different loop iterations.'''
+def check_parallel_array_accesses(psyir: Node):
+    '''Check all OpenMP teams/parallel regions for array access
+    conflicts, where at least two accesses (one of which is a write)
+    access the same indices of the same array in different threads.'''
 
     for routine in psyir.walk(Routine):
         for d in routine.walk(OpenMPDirective):
-            if d.is_loop() and d.is_singleton():
-                # Ignore loops executed by a single thread
-                single = is_within_directive(
-                             d, [["master"], ["single"]],
-                             not_within=["parallel"])
-                if single:
-                    continue
+            if "end" in d.clauses: continue
+            # Look for "teams" directives, or parallel directives not
+            # enclosed by a "teams" directive
+            ok = False
+            if "teams" in d.clauses:
+                ok = True
+            elif "parallel" in d.clauses:
+                enclosing = get_enclosing_directives(d)
+                ok = all(["teams" not in e.clauses for e in enclosing])
+            if not ok: continue
 
-                # Analyse loops executed by a multiple threads
-                num_loops = 1
-                if "collapse" in d.clauses:
-                    num_loops = d.clauses["collapse"]
-                outer_loop = d.get_singleton_body()
-                loops = get_nested_loops(outer_loop)[0:num_loops]
-                for loop in loops:
-                    (private, shared, red) = d.get_private_shared_red()
-                    reduction_vars = {c[1] for c in red}
-                    analysis = LoopConflictAnalysis()
-                    conflicts = analysis.get_loop_conflicts(
-                                    loop,
-                                    private = private | reduction_vars)
-                    for (sig, msg) in conflicts:
-                        if msg is None:
-                            continue
-                        StompLogger.add_message(
-                            StompMessageCode.LoopArrayConflict,
-                            description = "Array access conflict in "
-                                "parallel loop. " + msg + ".",
-                            directive_node = d.original_directive,
-                            routine_name = routine.name)
+            # Apply the region conflict analysis
+            analysis = RegionConflictAnalysis()
+            conflicts = analysis.get_region_conflicts(d)
+            for (sig, msg) in conflicts:
+                if msg is None:
+                    continue
+                StompLogger.add_message(
+                    StompMessageCode.ParallelArrayConflict,
+                    description = "Array access conflict in "
+                        "parallel region. " + msg + ".",
+                    directive_node = d.original_directive,
+                    routine_name = routine.name)

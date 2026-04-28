@@ -2,8 +2,8 @@
 
 '''This module provides miscelaneous functions.'''
 
-from typing import Union, Optional
-from psyclone.psyir.nodes import Reference, IfBlock, Schedule, Node
+from typing import Union, Optional, List
+from psyclone.psyir.nodes import Reference, IfBlock, Schedule, Node, Loop
 from psyclone.core import AccessInfo
 from psyclone.psyir.symbols import ArrayType, SymbolTable
 from psyclone.psyir.frontend.fortran import FortranReader
@@ -19,6 +19,20 @@ def is_array_access(info: AccessInfo) -> bool:
             if has_indices or isinstance(info.node.datatype, ArrayType):
                 return True
     return False
+
+
+def get_nested_loops(node: Node) -> List[Loop]:
+    '''Return a list of immediately nested loops'''
+    loops = []
+    while True:
+        if isinstance(node, Loop):
+            loops.append(node)
+            if len(node.loop_body.children) == 1:
+                node = node.loop_body.children[0]
+            else:
+                return loops
+        else:
+            return loops
 
 
 def if_else_chain(node: IfBlock):

@@ -1,7 +1,7 @@
 from stomp.test_helpers import stomp_test, Msg
 
 
-def test_reverse_correct():
+def test_reverse_ok():
     code = '''
 subroutine reverse(arr)
   integer, intent(inout) :: arr(:)
@@ -18,7 +18,7 @@ end subroutine
     stomp_test(code, [])
 
 
-def test_reverse_incorrect():
+def test_reverse_bad():
     code = '''
 subroutine reverse(arr)
   integer, intent(inout) :: arr(:)
@@ -32,4 +32,304 @@ subroutine reverse(arr)
   end do
 end subroutine
 '''
-    stomp_test(code, [Msg.LoopArrayConflict])
+    stomp_test(code, [Msg.ParallelArrayConflict])
+
+
+def test_transpose_untiled_ok():
+    code = '''
+subroutine trans_simple(mat_in, mat_out)
+  integer, intent(in) :: mat_in(:,:)
+  integer, intent(out) :: mat_out(:,:)
+  integer :: x, y
+  !$omp target teams &
+  !$omp&       distribute parallel do collapse(2)
+  do y = 1, size(mat_in, 2)
+    do x = 1, size(mat_in, 1)
+      mat_out(y, x) = mat_in(x, y)
+    end do
+  end do
+  !$omp end target teams distribute parallel do
+end subroutine
+'''
+    stomp_test(code, [])
+
+
+def test_transpose_untiled_bad():
+    code = '''
+subroutine trans_simple(mat)
+  integer, intent(inout) :: mat(:,:)
+  integer :: x, y
+  !$omp target teams &
+  !$omp&       distribute parallel do collapse(2)
+  do y = 1, size(mat, 2)
+    do x = 1, size(mat, 1)
+      mat(y, x) = mat(x, y)
+    end do
+  end do
+  !$omp end target teams distribute parallel do
+end subroutine
+'''
+    stomp_test(code, [Msg.ParallelArrayConflict])
+
+
+def test_transpose_tiled_ok():
+    code = '''
+subroutine trans_cl(mat_in, mat_out, tile_size)
+  integer, intent(in) :: mat_in(:,:), tile_size
+  integer, intent(out) :: mat_out(:,:)
+  integer :: blk(0:tile_size, 0:tile_size-1)
+  integer :: originX, originY, x, y
+  
+  !$omp target teams &
+  !$omp&       distribute collapse(2) &
+  !$omp&       private(blk)
+  do originY = 1, size(mat_in, 2), tile_size
+    do originX = 1, size(mat_in, 1), tile_size
+      !$omp parallel num_threads(tile_size) private(x)
+      x = omp_get_thread_num()
+
+      do y = 0, tile_size-1
+        blk(x, y) = mat_in(originX+x, originY+y)
+      end do
+
+      !$omp barrier
+
+      do y = 0, tile_size-1
+        mat_out(originY+x, originX+y) = blk(y, x)
+      end do
+      !$omp end parallel
+    end do
+  end do
+  !$omp end target teams distribute
+end subroutine
+'''
+    stomp_test(code, [])
+
+
+def test_transpose_tiled_bad():
+    code = '''
+subroutine trans_cl(mat_in, mat_out, tile_size)
+  integer, intent(in) :: mat_in(:,:), tile_size
+  integer, intent(out) :: mat_out(:,:)
+  integer :: blk(0:tile_size, 0:tile_size-1)
+  integer :: originX, originY, x, y
+  
+  !$omp target teams &
+  !$omp&       distribute collapse(2) &
+  !$omp&       private(blk)
+  do originY = 1, size(mat_in, 2), tile_size
+    do originX = 1, size(mat_in, 1), tile_size
+      !$omp parallel num_threads(tile_size) private(x)
+      x = omp_get_thread_num()
+
+      do y = 0, tile_size-1
+        blk(x, y) = mat_in(originX+x, originY+y)
+      end do
+
+      ! Missing barrier
+      ! !$omp barrier
+
+      do y = 0, tile_size-1
+        mat_out(originY+x, originX+y) = blk(y, x)
+      end do
+      !$omp end parallel
+    end do
+  end do
+  !$omp end target teams distribute
+end subroutine
+'''
+    stomp_test(code, [Msg.ParallelArrayConflict])
+
+
+def test_mat_mul_untiled_ok():
+    code = '''
+subroutine mat_mul_simple(a, b, c, width_a, height_a, width_b)
+  integer, intent(in) :: a(:,:), b(:,:)
+  integer, intent(in) :: width_a, height_a, width_b
+  integer, intent(out) :: c(:,:)
+  integer :: row_a, col_b, acc, k
+  !$omp target teams &
+  !$omp&       distribute parallel do collapse(2) private(acc)
+  do row_a = 1, size(a, 2)
+    do col_b = 1, size(b, 1)
+      acc = 0
+      do k = 1, size(a, 1)
+        acc = acc + a(k, row_a) * b(col_b, k)
+      end do
+      c(col_b, row_a) = acc
+    end do
+  end do
+  !$omp end target teams distribute parallel do
+end subroutine
+'''
+    stomp_test(code, [])
+
+
+def test_mat_mul_tiled_ok():
+    code = '''
+subroutine mat_mul_cl(a, b, c, width_a, height_a, width_b, tile_size)
+  integer, intent(in) :: a(:,:), b(:,:), tile_size
+  integer, intent(in) :: width_a, height_a, width_b
+  integer, intent(out) :: c(:,:)
+  integer :: block_a(0:tile_size-1, 0:tile_size-1)
+  integer :: block_b(0:tile_size-1, 0:tile_size-1)
+  integer row_a_base, col_b_base, k_base, x, y, k
+  !$omp target teams &
+  !$omp&       distribute collapse(2) &
+  !$omp&       thread_limit(tile_size*tile_size) &
+  !$omp&       private(block_a, block_b)
+  do row_a_base = 1, size(a, 2), tile_size
+    do col_b_base = 1, size(b, 1), tile_size
+      !$omp parallel num_threads(tile_size*tile_size) &
+      !$omp&         private(x, y, acc)
+      x = mod(omp_get_thread_num(), tile_size);
+      y = omp_get_thread_num() / tile_size;
+
+      acc = 0
+      do k_base = 1, size(a, 1), tile_size
+        ! Load tiles
+        block_a(x, y) = a(k_base+x, row_a_base+y)
+        block_b(x, y) = b(col_b_base+x, k_base+y)
+        !$omp barrier
+
+        ! Tile multiplication
+        do k = 0, tile_size-1
+          acc = acc + block_a(k, y) * block_b(x, k)
+        end do
+        !$omp barrier
+      end do
+
+      ! Store result
+      c(col_b_base+x, row_a_base+y) = acc
+      !$omp end parallel
+    end do
+  end do
+  !$omp end target teams distribute
+end subroutine
+'''
+    stomp_test(code, [])
+
+
+def test_mat_mul_tiled_bad():
+    code = '''
+subroutine mat_mul_cl(a, b, c, width_a, height_a, width_b, tile_size)
+  integer, intent(in) :: a(:,:), b(:,:), tile_size
+  integer, intent(in) :: width_a, height_a, width_b
+  integer, intent(out) :: c(:,:)
+  integer :: block_a(0:tile_size-1, 0:tile_size-1)
+  integer :: block_b(0:tile_size-1, 0:tile_size-1)
+  integer row_a_base, col_b_base, k_base, x, y, k
+  !$omp target teams &
+  !$omp&       distribute collapse(2) &
+  !$omp&       thread_limit(tile_size*tile_size) &
+  !$omp&       private(block_a, block_b)
+  do row_a_base = 1, size(a, 2), tile_size
+    do col_b_base = 1, size(b, 1), tile_size
+      !$omp parallel num_threads(tile_size*tile_size) &
+      !$omp&         private(x, y, acc)
+      x = mod(omp_get_thread_num(), tile_size);
+      y = omp_get_thread_num() / tile_size;
+
+      acc = 0
+      do k_base = 1, size(a, 1), tile_size
+        ! Load tiles
+        block_a(x, y) = a(k_base+x, row_a_base+y)
+        block_b(x, y) = b(col_b_base+x, k_base+y)
+        !$omp barrier
+
+        ! Tile multiplication
+        do k = 0, tile_size-1
+          acc = acc + block_a(k, y) * block_b(x, k)
+        end do
+        ! Missing barrier
+        ! !$omp barrier
+      end do
+
+      ! Store result
+      c(col_b_base+x, row_a_base+y) = acc
+      !$omp end parallel
+    end do
+  end do
+  !$omp end target teams distribute
+end subroutine
+'''
+    stomp_test(code, [Msg.ParallelArrayConflict])
+
+
+def test_stencil_ok():
+    code = '''
+subroutine stencil_cl(mat_in, mat_out, tile_size)
+  integer, intent(in) :: mat_in(:,:), tile_size
+  integer, intent(out) :: mat_out(:,:)
+  integer :: blk(0:tile_size-1, 0:tile_size-1)
+  integer :: originX, originY, x, y, total
+  !$omp target teams &
+  !$omp&       distribute collapse(2) &
+  !$omp&       thread_limit(tile_size) &
+  !$omp&       private(blk)
+  do originY = 1, size(mat_in, 2), tile_size-2
+    do originX = 1, size(mat_in, 1), tile_size-2
+      !$omp parallel num_threads(tile_size) private(x, total)
+      x = omp_get_thread_num()
+
+      do y = 0, tile_size-1
+        blk(x, y) = mat_in(originX+x, originY+y)
+      end do
+
+      !$omp barrier
+
+      if (x > 0 .and. x < tile_size-1) then
+        do y = 1, tile_size-2
+          total =        blk(x, y-1) +              &
+            blk(x-1,y) + blk(x, y  ) + blk(x+1, y)  &
+                       + blk(x, y+1)
+          mat_out(originX+x, originY+y) = total/5
+        end do
+      end if
+      !$omp end parallel
+    end do
+  end do
+  !$omp end target teams distribute
+end subroutine
+'''
+    stomp_test(code, [])
+
+
+def test_stencil_bad():
+    code = '''
+subroutine stencil_cl(mat_in, mat_out, tile_size)
+  integer, intent(in) :: mat_in(:,:), tile_size
+  integer, intent(out) :: mat_out(:,:)
+  integer :: blk(0:tile_size-1, 0:tile_size-1)
+  integer :: originX, originY, x, y, total
+  !$omp target teams &
+  !$omp&       distribute collapse(2) &
+  !$omp&       thread_limit(tile_size) &
+  !$omp&       private(blk)
+  do originY = 1, size(mat_in, 2), tile_size-2
+    do originX = 1, size(mat_in, 1), tile_size-2
+      !$omp parallel num_threads(tile_size) private(x, total)
+      x = omp_get_thread_num()
+
+      do y = 0, tile_size-1
+        blk(x, y) = mat_in(originX+x, originY+y)
+      end do
+
+      !$omp barrier
+
+      if (x > 0 .and. x < tile_size-1) then
+        ! Wrong loop bounds
+        do y = 1, tile_size-1
+          total =        blk(x, y-1) +              &
+            blk(x-1,y) + blk(x, y  ) + blk(x+1, y)  &
+                       + blk(x, y+1)
+          mat_out(originX+x, originY+y) = total/5
+        end do
+      end if
+      !$omp end parallel
+    end do
+  end do
+  !$omp end target teams distribute
+end subroutine
+'''
+    stomp_test(code, [Msg.ParallelArrayConflict])

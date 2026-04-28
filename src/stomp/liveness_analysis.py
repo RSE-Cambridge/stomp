@@ -2,9 +2,10 @@
 
 '''This module provides functions for liveness analysis.'''
 
-from typing import List, Set, Optional
+from typing import Set, Optional
 from psyclone.psyir.nodes import \
-    Node, Statement, Loop, WhileLoop, IfBlock, Schedule, Routine
+    Node, Statement, Loop, WhileLoop, IfBlock, Schedule
+from stomp.control_flow import after_statement
 
 
 def use(node: Node) -> Set[str]:
@@ -15,23 +16,6 @@ def use(node: Node) -> Set[str]:
         if seq.is_read():
             result.add(sig.var_name)
     return result
-
-
-def next_statement(stmt: Statement) -> List[Statement]:
-    '''Return the statements that may execute after the given one.'''
-    next_list = []
-    while stmt.parent:
-        if (isinstance(stmt.parent, Schedule) or
-                isinstance(stmt.parent, Routine)):
-            if stmt.position + 1 < len(stmt.siblings):
-                next_list.append(stmt.siblings[stmt.position + 1])
-                return next_list
-        elif isinstance(stmt.parent, Loop):
-            next_list.append(stmt)
-        elif isinstance(stmt.parent, WhileLoop):
-            next_list.append(stmt)
-        stmt = stmt.parent
-    return next_list
 
 
 def is_live_in(var_name: str, stmt: Statement) -> bool:
@@ -48,12 +32,10 @@ def is_live_in(var_name: str, stmt: Statement) -> bool:
             if var_name in use(s.start_expr): return True
             if var_name in use(s.stop_expr): return True
             if var_name in use(s.step_expr): return True
-            result = step(s.loop_body)
-            if result is not None: return result
+            return step(s.loop_body)
         elif isinstance(s, WhileLoop):
             if var_name in use(s.condition): return True
-            result = step(s.loop_body)
-            if result is not None: return result
+            return step(s.loop_body)
         elif isinstance(s, Schedule):
             for child in s.children:
                 result = step(child)
@@ -67,8 +49,10 @@ def is_live_in(var_name: str, stmt: Statement) -> bool:
                 result_else = None
             if result_then is True or result_else is True:
                 return True
-            if result_then is False and result_else is False:
+            elif result_then is False and result_else is False:
                 return False
+            else:
+                return None
         elif isinstance(s, Statement):
             accesses = s.reference_accesses()
             for (sig, seq) in accesses.items():
@@ -82,12 +66,12 @@ def is_live_in(var_name: str, stmt: Statement) -> bool:
     # Explore all execution paths from given statement
     stack = [stmt]
     while stack:
-        s = stack.pop(0)
+        s = stack.pop()
         result = step(s)
         if result is True:
             return True
         if result is None:
-            for succ in next_statement(s):
+            for succ in after_statement(s):
                 if id(succ) not in visited:
                     stack.append(succ)
     return False
@@ -96,7 +80,7 @@ def is_live_in(var_name: str, stmt: Statement) -> bool:
 def is_live_out(var_name: str, stmt: Statement) -> bool:
     '''Function to determine if given variable is live-out from the
     given statement. Not very efficient.'''
-    for s in next_statement(stmt):
+    for s in after_statement(stmt):
         if is_live_in(var_name, s):
             return True
     return False

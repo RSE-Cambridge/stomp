@@ -1,0 +1,640 @@
+# -----------------------------------------------------------------------------
+# BSD 3-Clause License
+#
+# Copyright (c) 2026, University of Cambridge, UK.
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# * Redistributions of source code must retain the above copyright notice, this
+#   list of conditions and the following disclaimer.
+#
+# * Redistributions in binary form must reproduce the above copyright notice,
+#   this list of conditions and the following disclaimer in the documentation
+#   and/or other materials provided with the distribution.
+#
+# * Neither the name of the copyright holder nor the names of its
+#   contributors may be used to endorse or promote products derived from
+#   this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+# FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+# COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+# INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+# ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+# -----------------------------------------------------------------------------
+# Author: M. Naylor, University of Cambridge, UK
+# -----------------------------------------------------------------------------
+
+'''This module provides a class to check OpenMP parallel regions (teams,
+distribute, parallel, do) for conflicting array accesses.  It formulates the
+problem as a set of SMT constraints over array indices which are then are
+passed to the Z3 solver.'''
+
+import z3
+from typing import Optional, Tuple, List
+from psyclone.psyir.nodes import \
+    Loop, IntrinsicCall, Routine, Node, Schedule, Statement
+from psyclone.core import Signature
+from psyclone.psyir.symbols import SymbolTable, TypedSymbol
+from stomp.openmp_directives import \
+    OpenMPDirective, drop_omp_dir_bodies, get_enclosing_directives
+from stomp.array_index_analysis import \
+    ArrayIndexAnalysisOptions, ArrayIndexAnalysis, ArrayAccess, \
+    _is_scalar_integer, _is_scalar_logical
+from stomp.fortran_to_z3 import FortranToZ3
+from stomp.control_flow import next_statement, affects_control_flow
+
+# Analysis Options
+# ================
+
+
+class RegionConflictAnalysisOptions(ArrayIndexAnalysisOptions):
+    '''The analysis supports a range of different options, which are all
+    captured together in this class.
+
+    :param use_bv: whether to treat Fortran integers as bit vectors or
+       arbitrary-precision integers. If None is specified then the
+       analysis will use a simple heuristic to decide.
+
+    :param int_width: the bit width of Fortran integers. This is 32 by
+       default but it can be useful to reduce it to (say) 8 in particular
+       cases to improve the ability of solver to find a timely solution,
+       provided the user considers it safe to do so. (Note that the analysis
+       currently only gathers information about Fortran integer values of
+       unspecified width.)
+
+    :param smt_timeout_ms: the time limit (in milliseconds) given to
+       the SMT solver to find a solution. If the solver does not
+       return within this time, the analysis will conservatively return
+       that a conflict exists even though it has not yet found one.
+       This can be set to 'None' to disable the timeout.
+
+    :param prohibit_overflow: if True, the analysis will tell the solver
+       to ignore the possibility of integer overflow. Integer overflow is
+       undefined behaviour in Fortran so this is safe.
+
+    :param handle_array_intrins: handle array intrinsics 'size()',
+       'lbound()', and 'ubound()' specially. For example, multiple
+       occurrences of 'size(arr)' will be assumed to return the same value,
+       provided that those occurrences are not separated by a statement
+       that may modify the size/bounds of 'arr'.
+
+    :param num_sweep_threads: when larger than one, this option enables the
+       sweeper, which runs multiple solvers across multiple threads with each
+       one using a different constraint ordering (and potentially different
+       solver parameters in future). This reduces the solver's sensitivity
+       to the order of constraints.
+
+    :param sweep_seed: the seed for the random number generator used
+       by the sweeper.
+
+    :param succeed_on_timeout: interpret a timeout as a non-conflict.
+       This means that analysis may report no conflicts when there is one,
+       but it will have tried to find one.
+    '''
+    def __init__(self,
+                 int_width: int = 32,
+                 use_bv: bool = None,
+                 smt_timeout_ms: Optional[int] = 5000,
+                 prohibit_overflow: bool = False,
+                 handle_array_intrins: bool = True,
+                 num_sweep_threads: int = 4,
+                 sweep_seed: int = 1,
+                 succeed_on_timeout: bool = False):
+        super().__init__(int_width=int_width,
+                         use_bv=use_bv,
+                         prohibit_overflow=prohibit_overflow,
+                         handle_array_intrins=handle_array_intrins)
+        self.smt_timeout_ms = smt_timeout_ms
+        self.num_sweep_threads = num_sweep_threads
+        self.sweep_seed = sweep_seed
+        self.succeed_on_timeout = succeed_on_timeout
+
+
+# Analysis
+# ========
+
+class RegionConflictAnalysis(ArrayIndexAnalysis):
+    '''This class provides a method 'get_region_conflicts()' to
+    determine whether or not the array accesses in a given parallel region
+    are conflicting between teams/threads. Two array accesses are conflicting
+    if they access the same element of the same array in different
+    teams/threads, and at least one is a write.
+
+    The analysis assumes that any scalar integer or scalar logical
+    variables written by the loop can safely be considered as private
+    to each iteration. This should be validated by the callee.
+
+    The basis of the analysis is inherited from ArrayIndexAnalysis, and
+    additional behavior is introduced as described below.
+
+    TODO
+
+    '''
+
+    def __init__(self, options=RegionConflictAnalysisOptions()):
+        '''This class provides a method 'get_region_conflicts()' to
+        determine whether or not distinct teams/threads in a given
+        region generate conflicting array accesses.
+
+        :param options: these options allow user control over features
+           provided by, and choices made by, the analysis.
+        '''
+        self.opts = options
+
+    def _init_analysis(self):
+        '''Initialise the analysis by setting all the internal state
+        variables accordingly.'''
+        super()._init_analysis()
+        # Are we inside a "parallel" region (or just inside "teams")?
+        self.inside_parallel = False
+        # Variables known to be private to each team
+        self.team_private_vars = []
+        # Variables known to be private to each thread
+        self.thread_private_vars = []
+        # The SMT variable holding the team id
+        self.smt_team_var = None
+        self.smt_team_var_i = None
+        self.smt_team_var_j = None
+        # The SMT variable holding the thread id within the team
+        self.smt_thread_var = None
+        self.smt_thread_var_i = None
+        self.smt_thread_var_j = None
+        # The SMT variable holding the number of threads
+        self.smt_num_threads_var = None
+        # List of loop variable tuples for "do"/"distibute" loops
+        self.parallel_do_vars = None
+        self.distribute_vars = None
+        # The number of loops immediately expected for a "do"/"distibute" loop
+        self.collapse_do = 0
+        self.collapse_distribute = 0
+        # We record two access dicts, representing two arbitrary but distinct
+        # threads executing in the region
+        self.saved_access_dicts = []
+
+    def _save_access_dict(self):
+        '''Move the current access dict to the stack, and proceed with
+        an empty one.'''
+        self.saved_access_dicts.append(self.access_dict)
+        self.access_dict = {}
+
+    def _add_array_access(self, array_name: str, access: ArrayAccess):
+        '''Override parent method: add an array access to the current
+        access dict.'''
+        # Ignore accesses to thread-private variables
+        if array_name in self.thread_private_vars:
+            return
+        # If we are not inside a "parallel" region then constrain the
+        # thread id to zero as only the master thread is active
+        if not self.inside_parallel:
+            access._cond = z3.And(access._cond, self.smt_thread_var == 0)
+        # For team-private variables, the two threads must be in the same
+        # team for there to be a conflict
+        if array_name in self.team_private_vars:
+            access._cond = z3.And(access._cond,
+                                  self.smt_team_var_i == self.smt_team_var_j)
+        # Call parent method with possibly-modified access
+        super()._add_array_access(array_name, access)
+
+    def _kill_scalar_vars(self, vs: List[str]):
+        '''Kill the scalar variables in the given list of variables.'''
+        for v in vs:
+            sym = self.routine.symbol_table.lookup(v, otherwise=None)
+            if sym is None: continue
+            if isinstance(sym, TypedSymbol):
+                if _is_scalar_integer(sym.datatype):
+                    self._kill_integer_var(v)
+                elif _is_scalar_logical(sym.datatype):
+                    self._kill_logical_var(v)
+
+    def get_region_conflicts(self,
+                             region: OpenMPDirective,
+                             all_conflicts: bool = False) -> \
+            list[Tuple[Signature, Optional[str]]]:
+        '''Determine whether or not distinct threads of the given region
+           can generate conflicting array accesses.
+
+           :param region: region to be analysed.
+           :param all_conflicts: if True, enumerate all conflicts, otherwise
+              stop after the first conflict. Defaults to False.
+           :return: a list pairs array-name/message pairs. If the list
+              is empty, the loop is conflict free. If the solver times out,
+              the message is None.
+        '''
+
+        # Type checking
+        if not isinstance(region, OpenMPDirective):
+            raise TypeError("RegionConflictAnalysis: "
+                            "Expected OpenMP directive.")
+        is_teams_region = "teams" in region.clauses
+        is_par_region = "parallel" in region.clauses
+        if not (is_teams_region or is_par_region):
+            raise TypeError("RegionConflictAnalysis: "
+                            "Expected 'teams' or 'parallel' region.")
+        region_body = region.get_body()
+
+        # Find the enclosing routine
+        routine = region.ancestor(Routine)
+        if not routine:
+            raise ValueError(
+                    "RegionConflictAnalysis: region has no enclosing routine")
+        self.routine = routine
+
+        # Start with an empty constraint set and substitution
+        self._init_analysis()
+
+        # Resolve choice of integers v. bit vectors
+        if self.opts.use_bv is None:
+            for stmt in region_body:
+                for call in stmt.walk(IntrinsicCall):
+                    i = call.intrinsic
+                    if i in [IntrinsicCall.Intrinsic.SHIFTL,
+                             IntrinsicCall.Intrinsic.SHIFTR,
+                             IntrinsicCall.Intrinsic.SHIFTA,
+                             IntrinsicCall.Intrinsic.IAND,
+                             IntrinsicCall.Intrinsic.IOR,
+                             IntrinsicCall.Intrinsic.IEOR]:
+                        self.opts.use_bv = True
+                        break
+                if self.opts.use_bv:
+                    break
+
+        # Create Fortran-to-Z3 translator
+        self.trans = FortranToZ3(
+                         use_bv=self.opts.use_bv,
+                         int_width=self.opts.int_width,
+                         prohibit_overflow=self.opts.prohibit_overflow,
+                         handle_array_intrins=self.opts.handle_array_intrins)
+
+        # Initialise array intrinsic variables
+        self._init_array_intrins_vars(routine)
+
+        # Consider two arbitary but distinct threads entering the region.
+        # For each one, the team id or thread id must differ, but the two
+        # threads can be in the same team or have the same thread id in
+        # different teams
+        smt_team_var_i = self._fresh_integer_var()
+        smt_team_var_j = self._fresh_integer_var()
+        self.smt_team_var_i = smt_team_var_i
+        self.smt_team_var_j = smt_team_var_j
+        smt_thread_var_i = self._fresh_integer_var()
+        smt_thread_var_j = self._fresh_integer_var()
+        self.smt_thread_var_i = smt_thread_var_i
+        self.smt_thread_var_j = smt_thread_var_j
+        self._add_constraint(z3.Or(smt_team_var_i != smt_team_var_j,
+                                   smt_thread_var_i != smt_thread_var_j))
+
+        # Variables holding the number of teams/threads
+        smt_num_teams_var = self._fresh_integer_var()
+        smt_num_threads_var = self._fresh_integer_var()
+        self.smt_num_threads_var = smt_num_threads_var
+
+        # Bounds on variables
+        self._add_constraint(smt_team_var_i >= 0)
+        self._add_constraint(smt_team_var_j >= 0)
+        self._add_constraint(smt_thread_var_i >= 0)
+        self._add_constraint(smt_thread_var_j >= 0)
+        self._add_constraint(smt_num_teams_var > 0)
+        self._add_constraint(smt_num_threads_var > 0)
+        if "num_teams" in region.clauses:
+            n = self._translate_integer_expr_with_subst(
+                    region.clauses["num_teams"])
+            self._add_constraint(smt_num_teams_var == n)
+            self._add_constraint(smt_team_var_i < n)
+            self._add_constraint(smt_team_var_j < n)
+        if "thread_limit" in region.clauses:
+            n = self._translate_integer_expr_with_subst(
+                    region.clauses["thread_limit"])
+            self._add_constraint(smt_num_threads_var <= n)
+            self._add_constraint(smt_thread_var_i < n)
+            self._add_constraint(smt_thread_var_j < n)
+
+        # Constrain team to 0 if no teams directive present
+        if "teams" not in region.clauses:
+            self._add_constraint(smt_team_var_i == 0)
+            self._add_constraint(smt_team_var_j == 0)
+            self._add_constraint(smt_num_teams_var == 1)
+
+        # Handle omp_get_num_teams() and omp_get_num_threads()
+        self.trans.add_custom_call_mapping(
+            "omp_get_num_teams", smt_num_teams_var)
+        self.trans.add_custom_call_mapping(
+            "omp_get_num_threads", smt_num_threads_var)
+
+        # Hold the 'parallel_do_vars' and 'distribute_vars' for two
+        # arbitary but distinct threads in the region
+        parallel_do_vars_per_thread = []
+        distribute_vars_per_thread = []
+
+        # Analyse the region twice, once for each of the two threads
+        for thread in ["i", "j"]:
+            # Handle omp_get_thread_num() and omp_get_team_num()
+            if thread == "i":
+                self.trans.add_custom_call_mapping(
+                    "omp_get_thread_num", smt_thread_var_i)
+                self.trans.add_custom_call_mapping(
+                    "omp_get_team_num", smt_team_var_i)
+                self.smt_thread_var = smt_thread_var_i
+                self.smt_team_var = smt_team_var_i
+            else:
+                self.trans.add_custom_call_mapping(
+                    "omp_get_thread_num", smt_thread_var_j)
+                self.trans.add_custom_call_mapping(
+                    "omp_get_team_num", smt_team_var_j)
+                self.smt_thread_var = smt_thread_var_j
+                self.smt_team_var = smt_team_var_j
+            # Variables known to be private to each team
+            self.team_private_vars = []
+            # Variables known to be private to each thread
+            self.thread_private_vars = []
+            # Other initialisation
+            self.parallel_do_vars = []
+            self.distribute_vars = []
+            # Analyse region
+            self._step(region, z3.BoolVal(True))
+            # Save results of analysis
+            parallel_do_vars_per_thread.append(self.parallel_do_vars)
+            distribute_vars_per_thread.append(self.distribute_vars)
+            self._save_access_dict()
+
+        # Constrain each thread's 'parallel_do_vars' tuples to be
+        # not equal, if each thread's thread_id is not equal
+        diff_threads = smt_thread_var_i != smt_thread_var_j
+        for (vs, ws) in zip(*parallel_do_vars_per_thread):
+            diff_tuples = z3.Or([v != w for (v, w) in zip(vs, ws)])
+            self._add_constraint(z3.Implies(diff_threads, diff_tuples))
+
+        # Constrain each thread's 'distribute_vars' tuples to be
+        # not equal, if each thread's team_id is not equal
+        diff_teams = smt_team_var_i != smt_team_var_j
+        for (vs, ws) in zip(*distribute_vars_per_thread):
+            diff_tuples = z3.Or([v != w for (v, w) in zip(vs, ws)])
+            self._add_constraint(z3.Implies(diff_teams, diff_tuples))
+
+        # A list of conflicts to return
+        conflicts = []
+
+        # Forumlate constraints for solving, considering the two threads
+        thread_i = self.saved_access_dicts[0]
+        thread_j = self.saved_access_dicts[1]
+        for (i_arr_name, i_accesses) in thread_i.items():
+            for (j_arr_name, j_accesses) in thread_j.items():
+                if (i_arr_name == j_arr_name or
+                        i_arr_name.startswith(j_arr_name + "%") or
+                        j_arr_name.startswith(i_arr_name + "%")):
+                    # For each write access in the i iteration
+                    for i_access in i_accesses:
+                        if i_access.is_write:
+                            conflict = self._get_conflict(i_access, j_accesses)
+                            if conflict:
+                                conflicts.append(conflict)
+                                if not all_conflicts:
+                                    return conflicts
+
+        return conflicts
+
+    def _get_conflict(self, write: ArrayAccess, accs: list[ArrayAccess]) -> \
+            Optional[Tuple[Signature, Optional[str]]]:
+        '''Get the conflict between the write access 'write' and
+           any access in 'accs', if there is one.
+
+           :param write: a write access from one thread.
+           :param accs: a list of accesses from another thread.
+           :return: a pair containing an array name and a message string,
+              if a conflict exists, and None otherwise. If the solver
+              times out, the message is None.
+        '''
+        sum_of_prods = []
+        for acc in accs:
+            if self._needs_conflict_check(write.psyir_node, acc.psyir_node):
+                indices_equal = []
+                for (i_idxs, j_idxs) in zip(write.indices, acc.indices):
+                    for (i_idx, j_idx) in zip(i_idxs, j_idxs):
+                        indices_equal.append(i_idx == j_idx)
+                sum_of_prods.append(indices_equal + [write.cond, acc.cond])
+
+        # Invoke solver
+        (result, result_values) = self.trans.solve(
+            self.constraints,
+            sum_of_prods,
+            [self.smt_team_var_i, self.smt_team_var_j,
+                 self.smt_thread_var_i, self.smt_thread_var_j] +
+            [ind for inds in write.indices for ind in inds],
+            smt_timeout_ms = self.opts.smt_timeout_ms,
+            num_sweep_threads = self.opts.num_sweep_threads,
+            sweep_seed = self.opts.sweep_seed
+            )
+
+        # Determine return value
+        (sig, sig_inds) = write.psyir_node.get_signature_and_indices()
+        if result == z3.sat:
+            # Produce message
+            team_i = str(result_values.pop(0))
+            team_j = str(result_values.pop(0))
+            thread_i = str(result_values.pop(0))
+            thread_j = str(result_values.pop(0))
+            components = []
+            sig_fields = [sig[i] for i in range(len(sig))]
+            for (field, inds) in zip(sig_fields, sig_inds):
+                vals = []
+                for ind in inds:
+                    if result_values:
+                        vals.append(str(result_values.pop(0)))
+                if vals:
+                    components.append(field + '(' + ','.join(vals) + ')')
+            access_str = '%'.join(components)
+            msg = (f"Thread (team={team_i},thread={thread_i}) and thread "
+                   f"(team={team_j},thread={thread_j}) have conflicting "
+                   f"accesses to {access_str}")
+            return (sig, msg)
+        elif result == z3.unknown:  # pragma: no cover
+            if self.opts.succeed_on_timeout:
+                return None
+            else:
+                return (sig, None)
+        else:
+            return None
+
+    def _step(self, stmt: Node, cond: z3.BoolRef):
+        '''Analyse the given statement in recursive-descent fashion.'''
+
+        # Has analysis finished?
+        if self.finished:
+            return
+
+        # Schedule
+        if isinstance(stmt, Schedule):
+            for child in drop_omp_dir_bodies(stmt.children):
+                self._step(child, cond)
+            return
+
+        # Loop
+        if isinstance(stmt, Loop):
+            # Kill variables written by loop body
+            self._kill_all_written_vars(stmt.loop_body)
+            # Kill loop variable
+            self._kill_integer_var(stmt.variable.name)
+            # Introduce constraints on loop variable
+            var = self._fresh_integer_var()
+            self._save_subst()
+            smt_loop_var = self._integer_var(stmt.variable.name)
+            self.subst[smt_loop_var] = var
+            self._constrain_loop_var(
+                var, stmt.start_expr, stmt.stop_expr, stmt.step_expr)
+            # Record OpenMP "do" and "distribute" loop variables
+            if self.collapse_do > 0:
+                self.parallel_do_vars[-1].append(var)
+                self.collapse_do -= 1
+            if self.collapse_distribute > 0:
+                self.distribute_vars[-1].append(var)
+                self.collapse_distribute -= 1
+            # Analyse loop body
+            self._step(stmt.loop_body, cond)
+            self._restore_subst()
+            return
+
+        if isinstance(stmt, OpenMPDirective):
+            # Save some state that needs to be restored after analysing
+            # the directive's body
+            save_inside_parallel = self.inside_parallel
+            save_thread_private_vars = self.thread_private_vars.copy()
+            save_team_private_vars = self.team_private_vars.copy()
+            self._save_subst()
+            # Track private variables for the region
+            if ("teams" in stmt.clauses or
+                    "parallel" in stmt.clauses):
+                region_vars = stmt.get_private_shared_red()
+                region_private_vars = list(
+                    region_vars[0] | {red[1] for red in region_vars[2]})
+                if "parallel" in stmt.clauses:
+                    self.thread_private_vars = region_private_vars.copy()
+                elif "teams" in stmt.clauses:
+                    self.team_private_vars = region_private_vars.copy()
+                self._kill_scalar_vars(region_private_vars)
+            else:
+                new_private_vars = []
+                if "private" in stmt.clauses:
+                    new_private_vars.extend(stmt.clauses["private"])
+                if "reduction" in stmt.clauses:
+                    new_private_vars.extend(
+                        [red[1] for red in stmt.clauses["reduction"]])
+                if "do" in stmt.clauses:
+                    self.thread_private_vars.extend(new_private_vars)
+                elif "distribute" in stmt.clauses:
+                    self.team_private_vars.extend(new_private_vars)
+                self._kill_scalar_vars(new_private_vars)
+            # Track whether or nor we are inside a "parallel" region
+            if "parallel" in stmt.clauses:
+                self.inside_parallel = True
+                # Constrain the number of threads, if specified
+                if "num_threads" in stmt.clauses:
+                    n = self._translate_integer_expr_with_subst(
+                            stmt.clauses["num_threads"])
+                    cond = z3.And(cond, self.smt_num_threads_var == n)
+                    cond = z3.And(cond, self.smt_thread_var < n)
+            # Handle "master" directive
+            if "master" in stmt.clauses:
+                cond = z3.And(cond, self.smt_thread_var == 0)
+            # Handle "single" directive
+            if "single" in stmt.clauses:
+                # Create a fresh logical variable and add it to the condition
+                active = self._fresh_logical_var()
+                cond = z3.And(cond, active)
+                # Require each thread's variable to be different
+                self.parallel_do_vars.append([active])
+            # Handle loop directive
+            if "do" in stmt.clauses:
+                self.collapse_do = stmt.clauses.get("collapse", 1)
+                self.parallel_do_vars.append([])
+            if "distribute" in stmt.clauses:
+                self.collapse_distribute = stmt.clauses.get("collapse", 1)
+                self.distribute_vars.append([])
+            # Analyse region body
+            region_body = stmt.get_body()
+            if region_body:
+                for s in drop_omp_dir_bodies(stmt.get_body()):
+                    self._step(s, cond)
+            # Restore state before continuing
+            self.inside_parallel = save_inside_parallel
+            self.thread_private_vars = save_thread_private_vars
+            self.team_private_vars = save_team_private_vars
+            self._restore_subst()
+            return
+
+        super()._step(stmt, cond)
+
+    @staticmethod
+    def _needs_conflict_check(node_from: Node, node_to: Node) -> bool:
+        '''Determine wheter or not we need to check for a conflict
+        between the two given accesses'''
+        enclosing_from = get_enclosing_directives(node_from)
+        enclosing_to = get_enclosing_directives(node_to)
+
+        # Return false if both nodes are enclosed by an "atomic" or
+        # "critical" directive
+        def is_atomic(d: OpenMPDirective) -> bool:
+            return "atomic" in d.clauses or "critical" in d.clauses
+        from_atomic = any([is_atomic(d) for d in enclosing_from])
+        to_atomic = any([is_atomic(d) for d in enclosing_to])
+        if from_atomic and to_atomic:
+            return False
+
+        # If both nodes are inside a "parallel" region then we only
+        # need to check for a conflict if there is a path from the
+        # first to the second that does not pass through an
+        # explicit or implicit OpenMP barrier.
+        def is_parallel(d: OpenMPDirective) -> bool:
+            return "parallel" in d.clauses
+        from_par = any([is_parallel(d) for d in enclosing_from])
+        to_par = any([is_parallel(d) for d in enclosing_to])
+        if from_par and to_par:
+            stmt_from = node_from.ancestor(Statement)
+            stmt_to = node_to.ancestor(Statement)
+            if stmt_from and stmt_to:
+                return barrier_free_path(stmt_from, stmt_to) or \
+                       barrier_free_path(stmt_to, stmt_from)
+
+        return False
+
+
+# Helper functions
+# ================
+
+
+def barrier_free_path(stmt_from: Statement, stmt_to: Statement) -> bool:
+    '''Is there a path from the first statement to the second that does
+    not pass through an explicit or implicit OpenMP barrier? It is assumed
+    that both statements reside inside an OpenMP parallel region.'''
+    visited = set()
+    stack = [stmt_from]
+    while stack:
+        s = stack.pop()
+        if id(s) in visited: return False
+        visited.add(id(s))
+        if s is stmt_to: return True
+        if isinstance(s, OpenMPDirective):
+            if "barrier" in s.clauses: continue
+            if "end" in s.clauses:
+                if "parallel" in s.clauses: continue
+                if "nowait" not in s.clauses and \
+                       ("do" in s.clauses or
+                        "single" in s.clauses or
+                        "workshare" in s.clauses or
+                        "sections" in s.clauses):
+                    continue
+        elif not affects_control_flow(s):
+            for child in s.walk(Statement):
+                if child is stmt_to: return True
+        for succ in next_statement(s):
+            if id(succ) not in visited:
+                stack.append(succ)
+    return False

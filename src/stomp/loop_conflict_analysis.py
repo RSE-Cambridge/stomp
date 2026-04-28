@@ -221,14 +221,14 @@ class LoopConflictAnalysis(ArrayIndexAnalysis):
 
         # Type checking
         if not isinstance(loop, Loop):
-            raise TypeError("ArrayIndexAnalysis: Loop argument expected")
+            raise TypeError("LoopConflictAnalysis: Loop argument expected")
         self.loop = loop
 
         # Find the enclosing routine
         routine = loop.ancestor(Routine)
         if not routine:
             raise ValueError(
-                    "ArrayIndexAnalysis: loop has no enclosing routine")
+                    "LoopConflictAnalysis: loop has no enclosing routine")
         self.routine = routine
 
         # Start with an empty constraint set and substitution

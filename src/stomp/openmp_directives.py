@@ -613,6 +613,7 @@ def identify_openmp_directives(psyir: Node):
         else:
             unknown.replace_with(d)
     associate_end_directives(psyir)
+    insert_end_directives(psyir)
 
 
 def associate_end_directives(psyir: Node):
@@ -640,6 +641,41 @@ def associate_end_directives(psyir: Node):
                     else:
                         # Add directive to those that are open
                         open_dirs.append(succ)
+
+
+def insert_end_directives(psyir: Node):
+    '''Insert explicit "end" directives which are otherwise implicit.'''
+    for d in psyir.walk(OpenMPDirective):
+        if d.ended_by is None and d.is_singleton():
+            if d.get_body():
+                kws = d.get_directive_keywords()
+                end = OpenMPDirective({kw: None for kw in ["end"] + kws})
+                d.ended_by = end
+                end.started_by = d
+                d.siblings.insert(d.position+2, end)
+
+
+# Helper functions for OpenMP directives
+# ======================================
+
+
+def drop_omp_dir_bodies(stmts: List[Statement]):
+    '''Drop OpenMP directive bodies, but not their associated opening
+    directives, from the given list of statements'''
+    result = []
+    i = 0
+    while i < len(stmts):
+        stmt = stmts[i]
+        result.append(stmt)
+        if isinstance(stmt, OpenMPDirective):
+            if stmt.ended_by:
+                while i < len(stmts):
+                    if stmts[i] is stmt.ended_by: break
+                    i += 1
+            elif stmt.is_singleton():
+                i += 1
+        i += 1
+    return result
 
 
 # OpenMP reduction operators

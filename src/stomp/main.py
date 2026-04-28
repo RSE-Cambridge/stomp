@@ -32,8 +32,8 @@ def main(psyir, infer: bool = False):
     # Scalar conflict checks
     checks.check_parallel_scalar_accesses(psyir)
 
-    # Loop array conflict checks
-    checks.check_loop_array_accesses(psyir)
+    # Parallel array conflict checks
+    checks.check_parallel_array_accesses(psyir)
 
     # Parallel loop inference
     if infer:

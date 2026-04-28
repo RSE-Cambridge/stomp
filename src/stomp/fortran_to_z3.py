@@ -43,7 +43,7 @@ import threading
 from typing import Optional
 from psyclone.psyir.nodes import \
     Literal, Reference, UnaryOperation, BinaryOperation, \
-    IntrinsicCall, Node, ArrayReference
+    IntrinsicCall, Node, ArrayReference, Call
 
 
 class FortranToZ3:
@@ -77,6 +77,12 @@ class FortranToZ3:
         self.int_width = int_width
         self.prohibit_overflow = prohibit_overflow
         self.handle_array_intrins = handle_array_intrins
+        self.custom_call_mapping = {}
+
+    def add_custom_call_mapping(self, fun_name: str, expr: z3.ExprRef):
+        '''Add a custome translation from a call of the given function
+           name to the given Z3 expression.'''
+        self.custom_call_mapping[fun_name] = expr
 
     def translate_integer_expr(self, expr_root: Node) \
             -> (z3.ExprRef, list[z3.BoolRef]):
@@ -265,13 +271,18 @@ class FortranToZ3:
                         else:
                             return z3.Int(array_intrins_pair[1])
 
+            # Call
+            if isinstance(e, Call):
+                if e.routine.name in self.custom_call_mapping:
+                    return self.custom_call_mapping[e.routine.name]
+
             # Fall through: return a fresh, unconstrained symbol
             if self.use_bv:
                 return z3.FreshConst(z3.BitVecSort(self.int_width))
             else:
                 return z3.FreshInt()
 
-        # Incoke the recursive function
+        # Invoke the recursive function
         expr_root_smt = trans(expr_root)
         return (expr_root_smt, constraints)
 
