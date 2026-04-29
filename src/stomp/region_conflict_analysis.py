@@ -44,7 +44,7 @@ from typing import Optional, Tuple, List
 from psyclone.psyir.nodes import \
     Loop, IntrinsicCall, Routine, Node, Schedule, Statement
 from psyclone.core import Signature
-from psyclone.psyir.symbols import SymbolTable, TypedSymbol
+from psyclone.psyir.symbols import TypedSymbol
 from stomp.openmp_directives import \
     OpenMPDirective, drop_omp_dir_bodies, get_enclosing_directives
 from stomp.array_index_analysis import \

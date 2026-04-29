@@ -112,10 +112,6 @@ recognised_directives_list = [
 recognised_directives_set = set([
     tuple(kw_list) for kw_list in recognised_directives_list])
 
-# All directive keywords as a set for fast membership checking
-recognised_directive_keywords = set([
-    kw for kw_list in recognised_directives_list for kw in kw_list])
-
 # Abstract syntax for OpenMP directives
 # =====================================
 
@@ -144,9 +140,15 @@ class OpenMPDirective(Statement):
 
     def get_directive_keywords(self) -> List[str]:
         '''Return a list of directive keywords present in the directive.'''
-        return [kw for kw in self.clauses.keys()
-                   if kw in recognised_directive_keywords
-                   if self.clauses[kw] is None]
+        kws = [kw for kw in self.clauses.keys() if self.clauses[kw] is None]
+        if kws and kws[0] == "end":
+            kws.pop(0)
+        while kws:
+            if tuple(kws) in recognised_directives_set:
+                return kws
+            else:
+                kws.pop(-1)
+        return []
 
     def is_loop(self, isolated: bool = False) -> bool:
         '''Is it a loop directive? If the isolated flag is provided,
