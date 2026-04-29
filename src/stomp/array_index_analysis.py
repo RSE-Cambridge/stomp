@@ -418,6 +418,7 @@ class ArrayIndexAnalysis:
         if self.opts.use_bv and self.opts.prohibit_overflow:
             self._add_constraint(z3.BVMulNoOverflow(i, var_step, True))
             self._add_constraint(z3.BVMulNoUnderflow(i, var_step))
+        return (i, var_begin, var_end, var_step)
 
     def _add_array_access(self, array_name: str, access: ArrayAccess):
         '''Add an array access to the current access dict.'''
