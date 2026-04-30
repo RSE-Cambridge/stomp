@@ -27,6 +27,9 @@ args = arg_parser.parse_args()
 mod_manager = ModuleManager.get()
 mod_manager.cache_active = True
 
+# Add working dir as a (non-recursive) search path
+mod_manager.add_search_path("./", False)
+
 # Determine file type
 free_form_exts = (".f90", ".f95", ".f03", ".f08",
                   ".F90", ".F95", ".F03", ".F08",

@@ -194,6 +194,7 @@ def check_parallel_scalar_accesses(psyir: Node):
                         node = info.node,
                         directive_node = d.original_directive,
                         routine_name = routine.name)
+                    break
 
                 # Read of private (not firstprivate) scalar must be initialised
                 region = is_within_directive(info.node, par_region)
@@ -220,6 +221,7 @@ def check_parallel_scalar_accesses(psyir: Node):
                             node = info.node,
                             directive_node = d.original_directive,
                             routine_name = routine.name)
+                        break
 
 
 # Parallel array access checks
