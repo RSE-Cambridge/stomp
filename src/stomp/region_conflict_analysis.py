@@ -134,12 +134,11 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
     variables written by the loop can safely be considered as private
     to each iteration. This should be validated by the callee.
 
-    The basis of the analysis is inherited from ArrayIndexAnalysis, and
-    additional behavior is introduced as described below.
-
-    TODO
-
-    '''
+    The basis of the analysis is inherited from ArrayIndexAnalysis. This base
+    analysis is extended consider two arbitrary but distinct threads executing
+    inside each teams/parallel reigon, and to look for array-access conflicts
+    between the two. Two threads are considered distinct if that have different
+    thread ids or different team ids.  '''
 
     def __init__(self, options=RegionConflictAnalysisOptions()):
         '''This class provides a method 'get_region_conflicts()' to
@@ -369,16 +368,31 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         # Constrain each thread's 'parallel_do_vars' tuples to be
         # not equal, if each thread's thread_id is not equal
         diff_threads = smt_thread_var_i != smt_thread_var_j
-        for (vs, ws) in zip(*parallel_do_vars_per_thread):
-            diff_tuples = z3.Or([v != w for (v, w) in zip(vs, ws)])
+        for (info_i, info_j) in zip(*parallel_do_vars_per_thread):
+            diff_tuples = z3.Or(
+                [i.var != j.var for (i, j) in
+                    zip(info_i.loop_infos, info_j.loop_infos)])
             self._add_constraint(z3.Implies(diff_threads, diff_tuples))
 
         # Constrain each thread's 'distribute_vars' tuples to be
         # not equal, if each thread's team_id is not equal
         diff_teams = smt_team_var_i != smt_team_var_j
-        for (vs, ws) in zip(*distribute_vars_per_thread):
-            diff_tuples = z3.Or([v != w for (v, w) in zip(vs, ws)])
+        for (info_i, info_j) in zip(*distribute_vars_per_thread):
+            diff_tuples = z3.Or(
+                [i.var != j.var for (i, j) in
+                    zip(info_i.loop_infos, info_j.loop_infos)])
             self._add_constraint(z3.Implies(diff_teams, diff_tuples))
+
+        # Add constraints to ensure consistent scheduling of statically
+        # schedule loops
+        self._consistent_loop_scheduling(
+            parallel_do_vars_per_thread[0],
+            parallel_do_vars_per_thread[1],
+            diff_threads)
+        self._consistent_loop_scheduling(
+            distribute_vars_per_thread[0],
+            distribute_vars_per_thread[1],
+            diff_teams)
 
         # A list of conflicts to return
         conflicts = []
@@ -488,14 +502,16 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
             self._save_subst()
             smt_loop_var = self._integer_var(stmt.variable.name)
             self.subst[smt_loop_var] = var
-            self._constrain_loop_var(
-                var, stmt.start_expr, stmt.stop_expr, stmt.step_expr)
+            (loop_start, loop_stop, loop_step) = \
+                self._constrain_loop_var(
+                    var, stmt.start_expr, stmt.stop_expr, stmt.step_expr)
+            loop_info = LoopInfo(var, loop_start, loop_stop, loop_step)
             # Record OpenMP "do" and "distribute" loop variables
             if self.collapse_do > 0:
-                self.parallel_do_vars[-1].append(var)
+                self.parallel_do_vars[-1].loop_infos.append(loop_info)
                 self.collapse_do -= 1
             if self.collapse_distribute > 0:
-                self.distribute_vars[-1].append(var)
+                self.distribute_vars[-1].loop_infos.append(loop_info)
                 self.collapse_distribute -= 1
             # Analyse loop body
             self._step(stmt.loop_body, cond)
@@ -550,14 +566,19 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
                 active = self._fresh_logical_var()
                 cond = z3.And(cond, active)
                 # Require each thread's variable to be different
-                self.parallel_do_vars.append([active])
+                # For convenience, this is done via 'parallel_do_vars'
+                var_info = CollapsedLoopInfo(False, [LoopInfo(active)])
+                self.parallel_do_vars.append(var_info)
             # Handle loop directive
             if "do" in stmt.clauses:
                 self.collapse_do = stmt.clauses.get("collapse", 1)
-                self.parallel_do_vars.append([])
+                is_static = "schedule" in stmt.clauses and \
+                            stmt.clauses["schedule"] is not None and \
+                            "static" in stmt.clauses["schedule"]
+                self.parallel_do_vars.append(CollapsedLoopInfo(is_static, []))
             if "distribute" in stmt.clauses:
                 self.collapse_distribute = stmt.clauses.get("collapse", 1)
-                self.distribute_vars.append([])
+                self.distribute_vars.append(CollapsedLoopInfo(True, []))
             # Analyse region body
             region_body = stmt.get_body()
             if region_body:
@@ -603,11 +624,51 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
                 return barrier_free_path(stmt_from, stmt_to) or \
                        barrier_free_path(stmt_to, stmt_from)
 
-        return False
+        return True
+
+    # For parallel loops with a static schedule and the same
+    # iteration space, programmers can rely on a consistent mapping
+    # from loop variable to thread id. This methods adds constraints
+    # to ensure this.
+    def _consistent_loop_scheduling(
+            self, parallel_loop_vars_i, parallel_loop_vars_j, diff_threads):
+        for (i, info_i) in enumerate(parallel_loop_vars_i):
+            if info_i.is_static:
+                for (j, info_j) in enumerate(parallel_loop_vars_j):
+                    if i != j and info_j.is_static:
+                        diff_tuples = z3.Or(
+                            [i.var != j.var for (i, j) in
+                                zip(info_i.loop_infos, info_j.loop_infos)])
+                        same_space = z3.And(
+                            [z3.And(i.begin == j.begin,
+                                    i.end == j.end,
+                                    i.step == j.step) for (i, j) in
+                                zip(info_i.loop_infos, info_j.loop_infos)])
+                        self._add_constraint(z3.Implies(z3.And(
+                            diff_threads, same_space), diff_tuples))
 
 
-# Helper functions
-# ================
+# Helpers
+# =======
+
+
+# Type holding info about loops
+class LoopInfo:
+    def __init__(self, var: z3.ExprRef,
+                       begin: z3.ExprRef = None,
+                       end: z3.ExprRef = None,
+                       step: z3.ExprRef = None):
+        self.var = var
+        self.begin = begin
+        self.end = end
+        self.step = step
+
+
+# Type holding info about collapsed loops
+class CollapsedLoopInfo:
+    def __init__(self, is_static: bool, loop_infos: List[LoopInfo]):
+        self.is_static = is_static
+        self.loop_infos = loop_infos
 
 
 def barrier_free_path(stmt_from: Statement, stmt_to: Statement) -> bool:

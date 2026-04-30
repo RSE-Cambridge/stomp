@@ -79,7 +79,7 @@ subroutine trans_cl(mat_in, mat_out, tile_size)
   integer, intent(out) :: mat_out(:,:)
   integer :: blk(0:tile_size, 0:tile_size-1)
   integer :: originX, originY, x, y
-  
+
   !$omp target teams &
   !$omp&       distribute collapse(2) &
   !$omp&       private(blk)
@@ -113,7 +113,7 @@ subroutine trans_cl(mat_in, mat_out, tile_size)
   integer, intent(out) :: mat_out(:,:)
   integer :: blk(0:tile_size, 0:tile_size-1)
   integer :: originX, originY, x, y
-  
+
   !$omp target teams &
   !$omp&       distribute collapse(2) &
   !$omp&       private(blk)
@@ -330,6 +330,57 @@ subroutine stencil_cl(mat_in, mat_out, tile_size)
     end do
   end do
   !$omp end target teams distribute
+end subroutine
+'''
+    stomp_test(code, [Msg.ParallelArrayConflict])
+
+
+def test_consistent_scheduling_static():
+    '''Test that loops with the same iteration space have a consistent
+    mapping from loop iterations to threads when using static scheduling.'''
+    code = '''
+subroutine sub(arr)
+  integer, intent(inout) :: arr
+  !$omp parallel
+
+  !$omp do schedule(static)
+  do i = 1, size(arr)
+    arr(i) = 0
+  enddo
+  !$omp end do nowait
+
+  !$omp do schedule(static)
+  do i = 1, size(arr)
+    arr(i) = arr(i) + 1
+  end do
+
+  !$omp end parallel
+end subroutine
+'''
+    stomp_test(code, [])
+
+
+def test_consistent_scheduling_default():
+    '''Test that loops with the same iteration space do no require a
+    consistent mapping from loop iterations to threads when not using
+    static scheduling.'''
+    code = '''
+subroutine sub(arr)
+  integer, intent(inout) :: arr
+  !$omp parallel
+
+  !$omp do
+  do i = 1, size(arr)
+    arr(i) = 0
+  enddo
+  !$omp end do nowait
+
+  !$omp do
+  do i = 1, size(arr)
+    arr(i) = arr(i) + 1
+  end do
+
+  !$omp end parallel
 end subroutine
 '''
     stomp_test(code, [Msg.ParallelArrayConflict])
