@@ -7,7 +7,7 @@ from __future__ import annotations
 import re
 from typing import Optional, Dict, Any, List, Union, Tuple, Set
 from psyclone.psyir.nodes import Node, Statement, UnknownDirective, Loop, \
-    BinaryOperation, IntrinsicCall, Routine
+    BinaryOperation, IntrinsicCall
 from psyclone.core import VariablesAccessMap
 from psyclone.psyir.symbols import SymbolTable
 from stomp.parser_lib import lift, char, many, token, \
@@ -416,15 +416,15 @@ def keyword():
                 space())
 
 
-# Liberal parser for OpenMP clause contents
-def clause_contents():
-    '''Consume raw text inside brackets, accounting for nested brackets'''
+# Bracket-aware text parser
+def raw_text():
+    '''Consume raw text until the next non-nested ")", allowing
+    nested brackets. The closing bracket is not consumed.'''
     def parse(txt, pos):
-        if pos >= len(txt) or txt[pos] != "(":
+        if pos >= len(txt):
             return ParseError(txt, pos)
-        pos += 1
-        start = pos
         nesting_level = 0
+        start = pos
         while pos < len(txt):
             c = txt[pos]
             if c == "(":
@@ -432,9 +432,6 @@ def clause_contents():
             elif c == ")":
                 if nesting_level == 0:
                     s = txt[start:pos]
-                    pos += 1
-                    while pos < len(txt) and txt[pos].isspace():
-                        pos += 1
                     return (s, pos)
                 nesting_level -= 1
             pos += 1
@@ -444,9 +441,9 @@ def clause_contents():
 
 # Fortran expression parser
 def fortran_expr(symbol_table: Optional[SymbolTable] = None):
-    '''Parse Fortran expression in parenthesis'''
+    '''Parse Fortran expression up until next non-nested ")"'''
     def parse(txt, pos):
-        result = clause_contents()(txt, pos)
+        result = raw_text()(txt, pos)
         if isinstance(result, ParseError):
             return result
         node = parse_fortran_expr(result[0], symbol_table)
@@ -501,27 +498,55 @@ def omp_clause(symbol_table: Optional[SymbolTable] = None):
 
     # Parser for num_threads clause
     num_threads_clause = lift(
-        lambda keyword, expr: (keyword, expr),
+        lambda keyword, _l, expr, _r: (keyword, expr),
         token("num_threads"),
-        fortran_expr(symbol_table))
+        token("("),
+        fortran_expr(symbol_table),
+        token(")"))
 
     # Parser for thread_limit clause
     thread_limit_clause = lift(
-        lambda keyword, expr: (keyword, expr),
+        lambda keyword, _l, expr, _r: (keyword, expr),
         token("thread_limit"),
-        fortran_expr(symbol_table))
+        token("("),
+        fortran_expr(symbol_table),
+        token(")"))
+
+    # Parser for schedule clause
+    schedule_clause = lift(
+        lambda keyword, _l, mods, kind, chunk_size, _r:
+            (keyword, (mods, kind, chunk_size)),
+        token("schedule"),
+        token("("),
+        sepby(token(","), choice(token("monotonic"),
+                                 token("non-monotonic"),
+                                 token("simd"))),
+        choice(token("auto"),
+               token("dynamic"),
+               token("guided"),
+               token("runtime"),
+               token("static")),
+        optional(lift(lambda _, chunk_size: chunk_size,
+                      token(","),
+                      raw_text())),
+        token(")"))
 
     # Generic clause parser
     other_clause = lift(
         lambda keyword, contents: (keyword, contents),
         keyword(),
-        optional(clause_contents()))
+        optional(lift(
+            lambda _l, text, _r: text,
+            token("("),
+            raw_text(),
+            token(")"))))
 
     return choice(data_sharing_clause,
                   reduction_clause,
                   collapse_clause,
                   num_threads_clause,
                   thread_limit_clause,
+                  schedule_clause,
                   other_clause)
 
 
@@ -536,10 +561,7 @@ def omp_directive(symbol_table: Optional[SymbolTable] = None):
 def parse_omp_directive(directive: UnknownDirective) -> \
         Union[OpenMPDirective, StompMessage]:
     # Get symbol table
-    symbol_table = None
-    routine = directive.ancestor(Routine)
-    if routine:
-        symbol_table = routine.symbol_table
+    symbol_table = directive.scope.symbol_table
     # Create and apply parser
     txt = directive.directive_string
     parser = omp_directive(symbol_table)

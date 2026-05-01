@@ -574,7 +574,7 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
                 self.collapse_do = stmt.clauses.get("collapse", 1)
                 is_static = "schedule" in stmt.clauses and \
                             stmt.clauses["schedule"] is not None and \
-                            "static" in stmt.clauses["schedule"]
+                            stmt.clauses["schedule"][1] == "static"
                 self.parallel_do_vars.append(CollapsedLoopInfo(is_static, []))
             if "distribute" in stmt.clauses:
                 self.collapse_distribute = stmt.clauses.get("collapse", 1)
