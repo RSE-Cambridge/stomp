@@ -17,6 +17,18 @@ arg_parser.add_argument(
     "--infer",
     help="Infer parallel loops",
     action="store_true")
+arg_parser.add_argument(
+    "-I",
+    help="Add module search path",
+    metavar="PATH",
+    action="append",
+    default=[])
+arg_parser.add_argument(
+    "-R",
+    help="Add recursive module search path",
+    metavar="PATH",
+    action="append",
+    default=[])
 
 args = arg_parser.parse_args()
 
@@ -29,6 +41,14 @@ mod_manager.cache_active = True
 
 # Add working dir as a (non-recursive) search path
 mod_manager.add_search_path("./", False)
+
+# Add -I arguments to search path
+for inc_path in args.I:
+    mod_manager.add_search_path(inc_path, False)
+
+# Add -R arguments to search path
+for inc_path in args.R:
+    mod_manager.add_search_path(inc_path, True)
 
 # Determine file type
 free_form_exts = (".f90", ".f95", ".f03", ".f08",
