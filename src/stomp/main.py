@@ -1,5 +1,3 @@
-#!/usr/bin/python3
-
 from stomp.openmp_directives import \
     OpenMPDirective, \
     identify_openmp_directives, \
@@ -23,6 +21,11 @@ def main(psyir, infer: bool = False):
         checks.check_singleton_directive_not_empty(d)
         checks.check_standalone_directive_not_end(d)
         checks.check_directive_is_recognised(d)
+
+    if len(StompLogger.get_messages()) > 0:
+        return
+
+    for d in psyir.walk(OpenMPDirective):
         checks.check_collapse_clause(d)
         checks.check_data_sharing_clauses(d)
 

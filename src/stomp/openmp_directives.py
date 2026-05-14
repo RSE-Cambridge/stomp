@@ -563,7 +563,7 @@ def parse_omp_directive(directive: UnknownDirective) -> \
     # Get symbol table
     symbol_table = directive.scope.symbol_table
     # Create and apply parser
-    txt = directive.directive_string
+    txt = directive.directive_string.partition("!")[0]
     parser = omp_directive(symbol_table)
     result = parser(txt, 0)
     if isinstance(result, ParseError):

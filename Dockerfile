@@ -44,7 +44,7 @@ RUN printf "\
 \n# Thread setup \
 \nexport nproc=\$(grep -c ^processor /proc/cpuinfo) \
 \nexport PYTHONDONTWRITEBYTECODE=1 \
-\n(cd /workspace/PSyclone/external/fparser && pip install --user .) \
+\n(cd /workspace/PSyclone/external/fparser && pip install --user -e .) \
 \n(cd /workspace/PSyclone/ && pip install --user -e .) \
 \n# Terminal color... \
 \nexport LC_ALL=C.utf8 \

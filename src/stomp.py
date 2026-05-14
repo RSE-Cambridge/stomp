@@ -5,6 +5,7 @@ import argparse
 from psyclone.parse import ModuleManager
 from psyclone.errors import InternalError
 from psyclone.psyir.frontend.fortran import FortranReader
+from stomp.preprocessor import enable_preprocessor, preprocess
 from stomp.message import StompLogger
 from stomp.main import main
 
@@ -15,21 +16,47 @@ arg_parser = argparse.ArgumentParser("stomp.py")
 arg_parser.add_argument("input_file")
 arg_parser.add_argument(
     "--infer",
-    help="Infer parallel loops",
+    help="infer parallel loops",
     action="store_true")
 arg_parser.add_argument(
-    "-I",
-    help="Add module search path",
+    "-M",
+    help="add search path for imported modules",
     metavar="PATH",
     action="append",
     default=[])
 arg_parser.add_argument(
     "-R",
-    help="Add recursive module search path",
+    help="add recursive search path for imported modules",
     metavar="PATH",
     action="append",
     default=[])
+arg_parser.add_argument(
+    "--cpp",
+    help="enable preprocessor",
+    action="store_true")
+arg_parser.add_argument(
+    "--nocpp",
+    help="disable preprocessor",
+    action="store_true")
 
+arg_parser.add_argument(
+    "--cpp-cmd",
+    help="specify preprocessor command (the default is 'cpp -traditional -P' but other possibilities include 'gfortran -E -P' or 'ifx -E -P')",
+    metavar="CMD",
+    action="store",
+    default='cpp -traditional -P')
+arg_parser.add_argument(
+    "-I",
+    help="add preprocessor include path",
+    metavar="PATH",
+    action="append",
+    default=[])
+arg_parser.add_argument(
+    "-D",
+    help="define preprocessor macro",
+    metavar="MACRO",
+    action="append",
+    default=[])
 args = arg_parser.parse_args()
 
 # Frontend
@@ -42,13 +69,29 @@ mod_manager.cache_active = True
 # Add working dir as a (non-recursive) search path
 mod_manager.add_search_path("./", False)
 
-# Add -I arguments to search path
-for inc_path in args.I:
-    mod_manager.add_search_path(inc_path, False)
+# Add -M arguments to search path
+for mod_path in args.M:
+    mod_manager.add_search_path(mod_path, False)
 
 # Add -R arguments to search path
-for inc_path in args.R:
-    mod_manager.add_search_path(inc_path, True)
+for mod_path in args.R:
+    mod_manager.add_search_path(mod_path, True)
+
+# Enable preprocessor?
+preprocess_exts = (".F", ".F90", ".F95", ".F03",
+                   ".F08", ".fpp", ".FPP", ".FOR", ".FTN")
+apply_preprocessor = False
+if args.cpp or args.input_file.endswith(preprocess_exts):
+    apply_preprocessor = True
+if args.nocpp:
+    apply_preprocessor = False
+preprocessor_command = args.cpp_cmd
+for inc_path in args.I:
+    preprocessor_command += f" -I'{inc_path}'"
+for macro in args.D:
+    preprocessor_command += f" -D'{macro}'"
+if apply_preprocessor:
+    enable_preprocessor(mod_manager, preprocessor_command)
 
 # Determine file type
 free_form_exts = (".f90", ".f95", ".f03", ".f08",
@@ -73,10 +116,20 @@ fortran_reader = FortranReader(
     free_form=free_form
 )
 try:
-    psyir = fortran_reader.psyir_from_file(args.input_file)
+    if apply_preprocessor:
+        source_code = preprocess(preprocessor_command, args.input_file)
+        psyir = fortran_reader.psyir_from_source(source_code)
+    else:
+        psyir = fortran_reader.psyir_from_file(args.input_file)
 except (InternalError, ValueError, IOError) as err:
     print(f"Failed to create PSyIR from file '{args.input_file}'"
           f"due to: {str(err)}", file=sys.stderr)
+    sys.exit(1)
+
+# Give a warning if the PSyIR container is empty
+if not psyir.children:
+    print(f"Warning: PSyIR from file '{args.input_file}' is empty.",
+          file=sys.stderr)
     sys.exit(1)
 
 # Invoke the tool

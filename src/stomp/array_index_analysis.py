@@ -593,8 +593,8 @@ def _free_vars(expr: z3.ExprRef) -> list[z3.ExprRef]:
 def _is_stop(node: Node) -> bool:
     '''Determines whether or not the given PSyIR node represents a
     Fortran "stop" or "error stop" statement.'''
-    if isinstance(node, CodeBlock) and len(node.get_ast_nodes) == 1:
-        stmt = node.get_ast_nodes[0]
+    if isinstance(node, CodeBlock) and len(node.parse_tree_nodes) == 1:
+        stmt = node.parse_tree_nodes[0]
         if (isinstance(stmt, Fortran2003.Stop_Stmt) or
                 isinstance(stmt, Fortran2008.Error_Stop_Stmt)):
             return True
