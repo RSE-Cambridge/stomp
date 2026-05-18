@@ -8,7 +8,7 @@ from psyclone.psyir.frontend.fortran import FortranReader
 from stomp.preprocessor import enable_preprocessor, preprocess
 from stomp.message import StompLogger
 from stomp.main import main
-from stomp.mark_threadprivate import mark_threadprivate
+from stomp.threadprivate import mark_threadprivate
 
 # Arguments
 # =========

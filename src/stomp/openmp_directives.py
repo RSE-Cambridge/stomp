@@ -7,11 +7,12 @@ from __future__ import annotations
 import re
 from typing import Optional, Dict, Any, List, Union, Tuple, Set
 from psyclone.psyir.nodes import Node, Statement, UnknownDirective, Loop, \
-    BinaryOperation, IntrinsicCall
+    BinaryOperation, IntrinsicCall, Reference
 from psyclone.core import VariablesAccessMap
 from psyclone.psyir.symbols import SymbolTable
 from stomp.parser_lib import lift, char, many, token, \
     ParseError, sepby, choice, many1, optional, space, natural
+from stomp.threadprivate import is_threadprivate
 from stomp.message import StompMessage, StompMessageCode, StompLogger
 from stomp.misc import parse_fortran_expr
 
@@ -134,6 +135,10 @@ class OpenMPDirective(Statement):
         self.ended_by = None
         # Corresponding starting directive
         self.started_by = None
+        # All references accessed by directive body
+        self.accesses = None
+        # Variables accessed in the directive body that must be private
+        self.always_private = None
 
     def __str__(self):
         return ("OpenMPDirective[" + str(self.clauses) + "]")
@@ -208,36 +213,44 @@ class OpenMPDirective(Statement):
             return self.siblings[pos+1:self.ended_by.position]
         return None
 
+    def body_reference_accesses(self) -> VariablesAccessMap:
+        '''Get all variable accesses in the directive body. These are cached
+        for performance.'''
+        if self.accesses is None:
+            self.accesses = VariablesAccessMap()
+            stmts = self.get_body()
+            if stmts is not None:
+                for stmt in stmts:
+                    accs = stmt.reference_accesses()
+                    self.accesses.update(accs)
+        return self.accesses
+
     def get_all_vars(self) -> Set[str]:
         '''Get all variables referenced in the directive body.'''
-        stmts = self.get_body()
-        if stmts is None:
-            return set()
-        accesses = VariablesAccessMap()
-        for stmt in stmts:
-            accs = stmt.reference_accesses()
-            accesses.update(accs)
+        accesses = self.body_reference_accesses()
         return set([sig.var_name for sig in accesses.all_data_accesses])
 
-    def body_reference_accesses(self) -> VariablesAccessMap:
-        accesses = VariablesAccessMap()
-        stmts = self.get_body()
-        if stmts is None:
-            return accesses
-        for stmt in stmts:
-            accs = stmt.reference_accesses()
-            accesses.update(accs)
-        return accesses
-
     def get_always_private(self) -> Set[str]:
-        '''Determine variables, such as loop variables, that are always
-        private within the body of the directive.'''
-        stmts = self.get_body()
-        if stmts is None:
-            return set()
-        loop_vars = [loop.variable.name for stmt in stmts
-                                        for loop in stmt.walk(Loop)]
-        return set(loop_vars)
+        '''Determine variables, such as loop variables and threadprivate
+        variables, that are always private within the body of the directive.'''
+        if self.always_private is None:
+            stmts = self.get_body()
+            if stmts is None:
+                return set()
+            self.always_private = set()
+            # Add loop variables
+            self.always_private.update([
+                loop.variable.name for stmt in stmts
+                                   for loop in stmt.walk(Loop)])
+            # Add threadprivate variables
+            accesses = self.body_reference_accesses()
+            for (sig, seq) in accesses.items():
+                for info in seq:
+                    if (isinstance(info.node, Reference) and
+                           is_threadprivate(info.node)):
+                        self.always_private.add(sig.var_name)
+                        break
+        return self.always_private
 
     def is_always_private(self, v: str) -> bool:
         '''Determine if given variable must be private within the body
@@ -309,7 +322,9 @@ class OpenMPDirective(Statement):
     def is_shared_var(self, v: str) -> bool:
         '''Determine if the given variable is shared within the
         scope of the directive.'''
-        if self.is_private_var(v) or self.is_reduction_var(v):
+        if (self.is_private_var(v) or
+               self.is_reduction_var(v) or
+               self.is_always_private(v)):
             return False
         return True
 

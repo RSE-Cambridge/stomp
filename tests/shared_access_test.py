@@ -17,6 +17,26 @@ end subroutine
     stomp_test(code, [Msg.LoopScalarConflict])
 
 
+def test_loop_scalar_threadprivate():
+    code = '''
+module m
+  !$omp threadprivate(s)
+  integer :: s
+contains
+  subroutine sub(arr)
+    integer, intent(inout) :: arr(:)
+    integer :: i
+    !$omp parallel do private(s)
+    do i = 1, 10
+        arr(i) = 100
+        s = 100
+    end do
+  end subroutine
+end module
+'''
+    stomp_test(code, [])
+
+
 def test_shared_loop_var_1():
     code = '''
 subroutine sub(arr)

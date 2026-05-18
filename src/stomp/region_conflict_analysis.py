@@ -530,7 +530,8 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
                     "parallel" in stmt.clauses):
                 region_vars = stmt.get_private_shared_red()
                 region_private_vars = list(
-                    region_vars[0] | {red[1] for red in region_vars[2]})
+                    region_vars[0] | {red[1] for red in region_vars[2]}
+                                   | stmt.get_always_private())
                 if "parallel" in stmt.clauses:
                     self.thread_private_vars = region_private_vars.copy()
                 elif "teams" in stmt.clauses:
