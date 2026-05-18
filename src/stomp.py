@@ -42,7 +42,9 @@ arg_parser.add_argument(
 
 arg_parser.add_argument(
     "--cpp-cmd",
-    help="specify preprocessor command (the default is 'cpp -traditional -P' but other possibilities include 'gfortran -E -P' or 'ifx -E -P')",
+    help="specify preprocessor command (the default is "
+         "'cpp -traditional -P' but other possibilities include "
+         "'gfortran -E -P' or 'ifx -E -P')",
     metavar="CMD",
     action="store",
     default='cpp -traditional -P')

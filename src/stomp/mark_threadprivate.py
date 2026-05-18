@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-  
+
 '''This file provides functionality to identify and mark all threadprivate
 module variables. Local theadprivate variables with the save attribute are not
 yet supported. Unfortunately, the required information for this pass is not
@@ -9,9 +9,7 @@ source for a more robust solution.'''
 
 import re
 from typing import List, Tuple
-from psyclone.parse.file_info import FileInfo
 from psyclone.parse.module_manager import ModuleManager
-from psyclone.parse.module_info import ModuleInfo
 from psyclone.psyir.nodes import Node, Container
 
 
@@ -65,7 +63,7 @@ def get_threadprivate(source_code: str):
     pattern = r"(^|\n)\s*!\$omp\s+threadprivate\(([^\)]*)\)"
     for match in re.finditer(pattern, source_code):
         s = match.group(2)
-        s = s.replace("!$omp","")
+        s = s.replace("!$omp", "")
         s = s.replace("&", "")
         s = s.replace(",", " ")
         threadprivate.extend(s.split())
