@@ -8,6 +8,7 @@ from psyclone.psyir.frontend.fortran import FortranReader
 from stomp.preprocessor import enable_preprocessor, preprocess
 from stomp.message import StompLogger
 from stomp.main import main
+from stomp.mark_threadprivate import mark_threadprivate
 
 # Arguments
 # =========
@@ -120,17 +121,25 @@ try:
         source_code = preprocess(preprocessor_command, args.input_file)
         psyir = fortran_reader.psyir_from_source(source_code)
     else:
-        psyir = fortran_reader.psyir_from_file(args.input_file)
-except (InternalError, ValueError, IOError) as err:
+        with open(args.input_file, "r",
+                  encoding="utf-8", errors="ignore") as file_in:
+            source_code = file_in.read()
+        psyir = fortran_reader.psyir_from_source(source_code)
+except (InternalError, ValueError, IOError, FileNotFoundError) as err:
     print(f"Failed to create PSyIR from file '{args.input_file}'"
           f"due to: {str(err)}", file=sys.stderr)
     sys.exit(1)
+psyir.name = args.input_file
 
 # Give a warning if the PSyIR container is empty
 if not psyir.children:
     print(f"Warning: PSyIR from file '{args.input_file}' is empty.",
           file=sys.stderr)
     sys.exit(1)
+
+# Identify and mark threadprivate variables (the info needed for this pass
+# is not available in the PSyIR, so we use the raw source code)
+mark_threadprivate(source_code, psyir, mod_manager)
 
 # Invoke the tool
 main(psyir, infer=args.infer)

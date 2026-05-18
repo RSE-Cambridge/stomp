@@ -41,8 +41,8 @@ class FileInfoPreProc(FileInfo):
         self._preprocessor = command
 
     def get_source_code(self) -> str:
-        preprocess = hasattr(self, "_preprocessor")
-        if not preprocess:
+        apply_preprocessor = hasattr(self, "_preprocessor")
+        if not apply_preprocessor:
             super().get_source_code()
         else:
             if self._source_code:
