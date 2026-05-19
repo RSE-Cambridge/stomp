@@ -81,14 +81,20 @@ def is_threadprivate(ref: Reference) -> bool:
             return True
         elif isinstance(sym.interface, ImportInterface):
             con_sym = sym.interface.container_symbol
-            sym_tab = con_sym.find_container_psyir().symbol_table
+            try:
+                sym_tab = con_sym.find_container_psyir().symbol_table
+            except Exception:
+                return False
             if id(sym_tab) in seen:
                 return False
             else:
                 seen.add(id(sym_tab))
-            if sym.interface.orig_name is None:
-                sym = sym_tab.lookup(sym.name)
-            else:
-                sym = sym_tab.lookup(sym.interface.orig_name)
+            try:
+                if sym.interface.orig_name is None:
+                    sym = sym_tab.lookup(sym.name)
+                else:
+                    sym = sym_tab.lookup(sym.interface.orig_name)
+            except Exception:
+                return False
         else:
             return False
