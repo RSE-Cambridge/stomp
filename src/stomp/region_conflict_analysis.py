@@ -51,7 +51,8 @@ from stomp.array_index_analysis import \
     ArrayIndexAnalysisOptions, ArrayIndexAnalysis, ArrayAccess, \
     _is_scalar_integer, _is_scalar_logical
 from stomp.fortran_to_z3 import FortranToZ3
-from stomp.control_flow import next_statement, affects_control_flow
+from stomp.control_flow import \
+    after_statement, next_statement, affects_control_flow
 
 # Analysis Options
 # ================
@@ -369,6 +370,7 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         # not equal, if each thread's thread_id is not equal
         diff_threads = smt_thread_var_i != smt_thread_var_j
         for (info_i, info_j) in zip(*parallel_do_vars_per_thread):
+            if not (info_i.distinct and info_j.distinct): continue
             diff_tuples = z3.Or(
                 [i.var != j.var for (i, j) in
                     zip(info_i.loop_infos, info_j.loop_infos)])
@@ -568,18 +570,15 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
                 cond = z3.And(cond, active)
                 # Require each thread's variable to be different
                 # For convenience, this is done via 'parallel_do_vars'
-                var_info = CollapsedLoopInfo(False, [LoopInfo(active)])
+                var_info = CollapsedLoopInfo(stmt, [LoopInfo(active)])
                 self.parallel_do_vars.append(var_info)
             # Handle loop directive
             if "do" in stmt.clauses:
                 self.collapse_do = stmt.clauses.get("collapse", 1)
-                is_static = "schedule" in stmt.clauses and \
-                            stmt.clauses["schedule"] is not None and \
-                            stmt.clauses["schedule"][1] == "static"
-                self.parallel_do_vars.append(CollapsedLoopInfo(is_static, []))
+                self.parallel_do_vars.append(CollapsedLoopInfo(stmt, []))
             if "distribute" in stmt.clauses:
                 self.collapse_distribute = stmt.clauses.get("collapse", 1)
-                self.distribute_vars.append(CollapsedLoopInfo(True, []))
+                self.distribute_vars.append(CollapsedLoopInfo(stmt, []))
             # Analyse region body
             region_body = stmt.get_body()
             if region_body:
@@ -667,15 +666,31 @@ class LoopInfo:
 
 # Type holding info about collapsed loops
 class CollapsedLoopInfo:
-    def __init__(self, is_static: bool, loop_infos: List[LoopInfo]):
-        self.is_static = is_static
+    def __init__(self, d: OpenMPDirective, loop_infos: List[LoopInfo]):
         self.loop_infos = loop_infos
+        # Is it a statically scheduled construct?
+        self.is_static = "schedule" in d.clauses and \
+                         d.clauses["schedule"] is not None and \
+                         d.clauses["schedule"][1] == "static"
+        self.is_static = self.is_static or "distribute" in d.clauses
+        # Do different thread ids imply distinct loop variable values?
+        self.distinct = True
+        is_nowait = False
+        if d.ended_by is not None and "nowait" in d.ended_by.clauses:
+            is_nowait = True
+        is_lone_do = "do" in d.clauses and "parallel" not in d.clauses
+        if is_lone_do and is_nowait and not self.is_static:
+            body = d.get_singleton_body()
+            for stmt in after_statement(body):
+                if barrier_free_path(stmt, body):
+                    self.distinct = False
+                    break
 
 
 def barrier_free_path(stmt_from: Statement, stmt_to: Statement) -> bool:
     '''Is there a path from the first statement to the second that does
     not pass through an explicit or implicit OpenMP barrier? It is assumed
-    that both statements reside inside an OpenMP parallel region.'''
+    that both statements reside inside the same OpenMP parallel region.'''
     visited = set()
     stack = [stmt_from]
     while stack:

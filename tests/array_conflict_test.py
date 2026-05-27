@@ -361,7 +361,7 @@ end subroutine
 
 
 def test_consistent_scheduling_default():
-    '''Test that loops with the same iteration space do no require a
+    '''Test that loops with the same iteration space do not require a
     consistent mapping from loop iterations to threads when not using
     static scheduling.'''
     code = '''
@@ -380,6 +380,29 @@ subroutine sub(arr)
     arr(i) = arr(i) + 1
   end do
 
+  !$omp end parallel
+end subroutine
+'''
+    stomp_test(code, [Msg.ParallelArrayConflict])
+
+
+def test_nowait_do_path_to_self():
+    '''Test that a nowait do loop with non-static scheduling and a
+    barrier-free path back to itself permits different threads to map to
+    the same iteration variable.'''
+    code = '''
+subroutine main()
+  integer :: arr(10)
+  integer :: nwbins, klev, kbdim, jw, jk
+
+  !$omp parallel private(jk, jw) shared(arr)
+  do jw=2,nwbins
+    !$omp do
+    do jk=1, klev
+      arr(jk) = arr(jk) + 1
+    end do
+    !$omp end do nowait
+  end do
   !$omp end parallel
 end subroutine
 '''
