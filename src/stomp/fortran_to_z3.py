@@ -106,10 +106,13 @@ class FortranToZ3:
             '''
             # Literal
             if isinstance(e, Literal):
-                if self.use_bv:
-                    return z3.BitVecVal(int(e.value), self.int_width)
-                else:
-                    return z3.IntVal(int(e.value))
+                try:
+                    if self.use_bv:
+                        return z3.BitVecVal(int(e.value), self.int_width)
+                    else:
+                        return z3.IntVal(int(e.value))
+                except ValueError:
+                    pass
 
             # Reference
             if (isinstance(e, Reference)
