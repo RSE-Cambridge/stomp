@@ -83,3 +83,16 @@ end subroutine
 '''
     stomp_test(code, [Msg.LoopDirectiveHasNoLoop,
                       Msg.SingleStatementExpected])
+
+def test_double_private():
+    code = '''
+subroutine sub(arr)
+  integer, intent(inout) :: arr(:)
+  integer :: i, j
+  !$omp parallel private(i) private(j)
+  i = 10
+  j = 100
+  !$omp end parallel
+end subroutine
+'''
+    stomp_test(code, [])

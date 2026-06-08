@@ -605,7 +605,8 @@ def parse_omp_directive(directive: UnknownDirective) -> \
                        StompMessageCode.OpenMPParseError,
                        f"Duplicated keyword '{keyword}' in OpenMP directive.",
                        node=directive)
-            clause_map[keyword] = contents
+            else:
+                clause_map[keyword] = contents
         return OpenMPDirective(clause_map, directive)
     else:
         # There is unparsed text remaining, which is a parse error
