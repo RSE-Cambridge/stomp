@@ -538,7 +538,10 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
                     self.thread_private_vars = region_private_vars.copy()
                 elif "teams" in stmt.clauses:
                     self.team_private_vars = region_private_vars.copy()
-                self._kill_scalar_vars(region_private_vars)
+                # We might considering killing private (but not
+                # firstprivate) variables here, however, other checks
+                # should catch use of uninitialised privates
+                #self._kill_scalar_vars(region_private_vars)
             else:
                 new_private_vars = []
                 if "private" in stmt.clauses:
@@ -550,7 +553,10 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
                     self.thread_private_vars.extend(new_private_vars)
                 elif "distribute" in stmt.clauses:
                     self.team_private_vars.extend(new_private_vars)
-                self._kill_scalar_vars(new_private_vars)
+                # We might considering killing private (but not
+                # firstprivate) variables here, however, other checks
+                # should catch use of uninitialised privates
+                #self._kill_scalar_vars(new_private_vars)
             # Track whether or nor we are inside a "parallel" region
             if "parallel" in stmt.clauses:
                 self.inside_parallel = True

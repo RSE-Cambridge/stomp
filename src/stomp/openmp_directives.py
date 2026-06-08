@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any, List, Union, Tuple, Set
 from psyclone.psyir.nodes import Node, Statement, UnknownDirective, Loop, \
     BinaryOperation, IntrinsicCall, Reference
 from psyclone.core import VariablesAccessMap
-from psyclone.psyir.symbols import SymbolTable
+from psyclone.psyir.symbols import SymbolTable, DataSymbol, ScalarType
 from stomp.parser_lib import lift, char, many, token, \
     ParseError, sepby, choice, many1, optional, space, natural
 from stomp.threadprivate import is_threadprivate
@@ -271,12 +271,18 @@ class OpenMPDirective(Statement):
         reduction_vars = [x for (op, x) in self.clauses.get("reduction", [])]
         if v in reduction_vars: return False
         if "private" in kinds and self.is_always_private(v): return True
+        # Get enclosing directives
+        enclosing = get_enclosing_directives(self)
+        # Lookup variable in symbol table
+        try:
+            symbol = self.scope.symbol_table.lookup(v)
+        except Exception:
+            symbol = None
         # For some directives, we need to look at enclosing directives
         inherits_from = [("do", "parallel"),
                          ("distribute", "teams")]
         for (child, parent) in inherits_from:
             if child in self.clauses and parent not in self.clauses:
-                enclosing = get_enclosing_directives(self)
                 for d in enclosing:
                     if parent in d.clauses:
                         return d.is_private_var(v, kinds)
@@ -285,16 +291,25 @@ class OpenMPDirective(Statement):
                 # the variable is private iff it is a local variable, i.e.
                 # not an argument or global.
                 if "private" in kinds:
-                    try:
-                        symbol_table = self.scope.symbol_table
-                        symbol = symbol_table.lookup(v)
+                    if symbol:
                         return symbol.is_automatic
-                    except Exception:
+                    else:
                         return False
+        # Get enclosing "target" directive, if there is one
+        in_target = None
+        for d in [self] + enclosing:
+            if "target" in d.clauses:
+                in_target = d
+                break
         # If we are a parent directive, we need to resolve the default clause
         for (child, parent) in inherits_from:
             if parent in self.clauses:
-                default = self.clauses.get("default", "shared")
+                if (in_target and
+                        isinstance(symbol, DataSymbol) and
+                        isinstance(symbol.datatype, ScalarType)):
+                    default = "firstprivate"
+                else:
+                    default = self.clauses.get("default", "shared")
                 return default.strip() in kinds
         return False
 
