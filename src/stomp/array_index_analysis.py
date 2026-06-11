@@ -45,8 +45,7 @@ from psyclone.psyir.nodes import Loop, DataNode, Literal, Assignment, \
     Reference, IntrinsicCall, \
     Routine, Node, IfBlock, Schedule, Range, WhileLoop, \
     CodeBlock
-from psyclone.psyir.symbols import DataType, ScalarType, ArrayType, \
-    INTEGER_TYPE
+from psyclone.psyir.symbols import DataType, ScalarType, ArrayType
 from fparser.two import Fortran2003, Fortran2008
 from stomp.misc import if_else_chain
 
@@ -402,7 +401,7 @@ class ArrayIndexAnalysis:
         var_begin = self._translate_integer_expr_with_subst(start)
         var_end = self._translate_integer_expr_with_subst(stop)
         if step is None:
-            step = Literal("1", INTEGER_TYPE)  # pragma: no cover
+            step = Literal("1", ScalarType.integer_type())  # pragma: no cover
         var_step = self._translate_integer_expr_with_subst(step)
         i = self._fresh_integer_var()
         self._add_constraint(var_step != zero)
