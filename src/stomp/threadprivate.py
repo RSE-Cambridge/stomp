@@ -61,7 +61,7 @@ def get_threadprivate(source_code: str):
     '''Use a regex to find all variables occuring in an OpenMP
     "threadprivate" directive in the given source code.'''
     threadprivate = []
-    pattern = r"(^|\n)\s*!\$omp\s+threadprivate\(([^\)]*)\)"
+    pattern = r"(^|\n)\s*!\$omp\s+threadprivate\s*\(([^\)]*)\)"
     for m in re.finditer(pattern, source_code):
         s = m.group(2)
         s = s.replace("!$omp", "")
