@@ -2,6 +2,7 @@
 
 import sys
 import argparse
+from psyclone.configuration import Config
 from psyclone.parse import ModuleManager
 from psyclone.errors import InternalError
 from psyclone.psyir.frontend.fortran import FortranReader
@@ -64,6 +65,9 @@ args = arg_parser.parse_args()
 
 # Frontend
 # ========
+
+# Avoid loading the PSyclone config file
+Config.get(do_not_load_file=True)
 
 # Enable caching
 mod_manager = ModuleManager.get()

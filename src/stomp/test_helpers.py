@@ -1,6 +1,7 @@
 import sys
 from typing import List
 from psyclone.errors import InternalError
+from psyclone.configuration import Config
 from psyclone.psyir.frontend.fortran import FortranReader
 from stomp.message import StompLogger, StompMessageCode
 from stomp.threadprivate import mark_threadprivate
@@ -15,6 +16,9 @@ def stomp_test(code: str,
                expected_msgs: List[StompMessageCode],
                infer: bool = False):
     '''Function to check that the given code yeilds the given messages.'''
+    # Avoid loading the PSyclone config file
+    Config.get(do_not_load_file=True)
+
     # Clear messages
     StompLogger.clear()
 

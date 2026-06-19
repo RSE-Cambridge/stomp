@@ -31,10 +31,14 @@ USER dev-user
 ENV PATH="${PATH}:/home/dev-user/.local/bin"
 RUN pip3 install --user --upgrade pip \
     && pip3 install black colorlog toml tabulate isort \
-         pytest-xdist pytest-cov mpmath termcolor sympy \
-         pyparsing MarkupSafe graphviz configparser Jinja2 \
-         sphinx-autoapi autoapi sphinx-autodoc-typehints \
-         sphinx-design sphinxcontrib-bibtex flake8 z3-solver
+         pytest-xdist pytest-cov flake8 ruff graphviz
+
+# Dependencies
+RUN pip3 install pyparsing
+RUN pip3 install sympy
+RUN pip3 install fparser==0.2.3
+RUN pip3 install z3-solver==4.15.4.0
+RUN pip3 install graphviz
 
 # Add environment variables
 RUN printf "\
@@ -44,8 +48,6 @@ RUN printf "\
 \n# Thread setup \
 \nexport nproc=\$(grep -c ^processor /proc/cpuinfo) \
 \nexport PYTHONDONTWRITEBYTECODE=1 \
-\n(cd /workspace/PSyclone/external/fparser && pip install --user -e .) \
-\n(cd /workspace/PSyclone/ && pip install --user -e .) \
 \n# Terminal color... \
 \nexport LC_ALL=C.utf8 \
 \nexport PS1=$'\u25b6 ' \
