@@ -457,6 +457,8 @@ class FortranToZ3:
         '''
         if num_sweep_threads <= 1:
             s = z3.Solver()
+            s.set("random_seed", sweep_seed)
+            s.set("smt.random_seed", sweep_seed)
             if smt_timeout_ms is not None:
                 s.set("timeout", smt_timeout_ms)
             s.add(z3.And(constraints))
@@ -517,6 +519,8 @@ class FortranToZ3:
             # Create a solver for the problem
             ctx = z3.Context()
             s = z3.Solver(ctx=ctx)
+            s.set("random_seed", sweep_seed+i)
+            s.set("smt.random_seed", sweep_seed+i)
             if smt_timeout_ms is not None:
                 s.set("timeout", smt_timeout_ms)
             s.add(z3.And(constraints).translate(ctx))
