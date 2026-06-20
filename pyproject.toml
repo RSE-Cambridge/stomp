@@ -1,3 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fortran-stomp"
+version = "0.1.0"
+description = "Static checker for Fortran OpenMP directives"
+authors = [
+    { name = "Matthew Naylor", email = "mn416@cam.ac.uk" },
+]
+dependencies = [
+    "pyparsing",
+    "fparser==0.2.3",
+    "sympy",
+    "graphviz",
+    "z3-solver >= 4.15.0.0, <= 4.15.4.0",
+]
+
 [tool.pytest.ini_options]
 pythonpath = "src"
 testpaths = ["tests"]
@@ -8,3 +27,6 @@ exclude = ["PSyclone", "tmp"]
 
 [tool.ruff.lint]
 ignore = ["E701", "E251"]
+
+[project.scripts]
+stomp = "stomp.cli:entry"

@@ -34,11 +34,11 @@ RUN pip3 install --user --upgrade pip \
          pytest-xdist pytest-cov flake8 ruff graphviz
 
 # Dependencies
-RUN pip3 install pyparsing
-RUN pip3 install sympy
-RUN pip3 install fparser==0.2.3
-RUN pip3 install z3-solver==4.15.4.0
-RUN pip3 install graphviz
+#RUN pip3 install pyparsing
+#RUN pip3 install sympy
+#RUN pip3 install fparser==0.2.3
+#RUN pip3 install z3-solver==4.15.4.0
+#RUN pip3 install graphviz
 
 # Add environment variables
 RUN printf "\
@@ -47,6 +47,7 @@ RUN printf "\
 \nexport PATH=/workspace/scripts:/home/dev-user/.local/bin:\$PATH \
 \n# Thread setup \
 \nexport nproc=\$(grep -c ^processor /proc/cpuinfo) \
+\npip3 install -e . \
 \nexport PYTHONDONTWRITEBYTECODE=1 \
 \n# Terminal color... \
 \nexport LC_ALL=C.utf8 \
