@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "fortran-stomp"
 version = "0.1.0"
-description = "Static checker for Fortran OpenMP directives"
+description = "Static checker for Fortran OpenMP"
 authors = [
     { name = "Matthew Naylor", email = "mn416@cam.ac.uk" },
 ]

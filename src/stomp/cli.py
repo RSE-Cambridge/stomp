@@ -149,11 +149,14 @@ def entry():
     mark_threadprivate(source_code, psyir, mod_manager)
 
     # Invoke the tool
-    main(psyir, infer=args.infer)
+    num_omp_dir = main(psyir, infer=args.infer)
 
     # Emit messages
     for msg in StompLogger.get_messages():
-        print(msg.render(), end="")
+        print(msg.render())
+
+    # Emit number of directives analysed
+    print(f"All done. Analysed {num_omp_dir} directives.")
 
 if __name__ == "__main__":
     entry()

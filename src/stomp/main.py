@@ -1,3 +1,4 @@
+from typing import Optional
 from stomp.openmp_directives import \
     OpenMPDirective, \
     identify_openmp_directives, \
@@ -7,7 +8,7 @@ import stomp.static_checks as checks
 import stomp.inference as inference
 
 
-def main(psyir, infer: bool = False):
+def main(psyir, infer: bool = False) -> Optional[int]:
     # Merge multiline directives into a single line
     merge_multiline_directives(psyir)
 
@@ -41,3 +42,7 @@ def main(psyir, infer: bool = False):
     # Parallel loop inference
     if infer:
         inference.infer_parallel_loops(psyir)
+
+    # Count number of directives analaysed
+    num_omp_dir = len(psyir.walk(OpenMPDirective))
+    return num_omp_dir
