@@ -180,6 +180,10 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         # We record two access dicts, representing two arbitrary but distinct
         # threads executing in the region
         self.saved_access_dicts = []
+        # Have we found the parallel region of interest?
+        self.found_region_of_interest = False
+        # The condition around the statment of interest
+        self.region_cond = None
 
     def _save_access_dict(self):
         '''Move the current access dict to the stack, and proceed with
@@ -190,6 +194,9 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
     def _add_array_access(self, array_name: str, access: ArrayAccess):
         '''Override parent method: add an array access to the current
         access dict.'''
+        # Ignore accesses outside region of interest
+        if not self.found_region_of_interest:
+            return
         # Ignore accesses to thread-private variables
         if array_name in self.thread_private_vars:
             return
@@ -204,6 +211,12 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
                                   self.smt_team_var_i == self.smt_team_var_j)
         # Call parent method with possibly-modified access
         super()._add_array_access(array_name, access)
+
+    def _add_all_array_accesses(self, node: Node, cond: z3.BoolRef):
+        '''Add all array accesses in the given node to the current
+        access dict.'''
+        if self.found_region_of_interest:
+            super()._add_all_array_accesses(node, cond)
 
     def _kill_scalar_vars(self, vs: List[str]):
         '''Kill the scalar variables in the given list of variables.'''
@@ -251,6 +264,7 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
 
         # Start with an empty constraint set and substitution
         self._init_analysis()
+        self.region_of_interest = region
 
         # Resolve choice of integers v. bit vectors
         if self.opts.use_bv is None:
@@ -277,6 +291,14 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
 
         # Initialise array intrinsic variables
         self._init_array_intrins_vars(routine)
+
+        # Find region of interest
+        for stmt in routine.children:
+            self._step(stmt, z3.BoolVal(True))
+        if not self.found_region_of_interest:
+            raise RuntimeError("RegionConflictAnalysis: could not find "
+                "region of interest in routine.")
+        self.finished = False
 
         # Consider two arbitary but distinct threads entering the region.
         # For each one, the team id or thread id must differ, but the two
@@ -360,7 +382,7 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
             self.parallel_do_vars = []
             self.distribute_vars = []
             # Analyse region
-            self._step(region, z3.BoolVal(True))
+            self._step(region, self.region_cond)
             # Save results of analysis
             parallel_do_vars_per_thread.append(self.parallel_do_vars)
             distribute_vars_per_thread.append(self.distribute_vars)
@@ -487,6 +509,15 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         if self.finished:
             return
 
+        # Look for region of interest
+        if (not self.found_region_of_interest and
+                isinstance(stmt, OpenMPDirective) and
+                stmt is self.region_of_interest):
+            self.found_region_of_interest = True
+            self.region_cond = cond
+            self.finished = True
+            return
+
         # Schedule
         if isinstance(stmt, Schedule):
             for child in drop_omp_dir_bodies(stmt.children):
@@ -520,7 +551,8 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
             self._restore_subst()
             return
 
-        if isinstance(stmt, OpenMPDirective):
+        if (self.found_region_of_interest and
+                isinstance(stmt, OpenMPDirective)):
             # Save some state that needs to be restored after analysing
             # the directive's body
             save_inside_parallel = self.inside_parallel
