@@ -152,11 +152,14 @@ def entry():
     num_omp_dir = main(psyir, infer=args.infer)
 
     # Emit messages
+    issue_count = 0
     for msg in StompLogger.get_messages():
         print(msg.render())
+        issue_count += 1
 
     # Emit number of directives analysed
-    print(f"All done. Analysed {num_omp_dir} directives.")
+    print(f"All done. Analysed {num_omp_dir} directives and "
+          f"found {issue_count} issues.")
 
 if __name__ == "__main__":
     entry()
