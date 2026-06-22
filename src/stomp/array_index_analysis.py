@@ -276,6 +276,9 @@ class ArrayIndexAnalysis:
         else:
             return z3.FreshInt()
 
+    def _fresh_logical_var(self) -> z3.BoolRef:
+        return z3.FreshBool()
+
     def _integer_var(self, var: str) -> z3.ExprRef:
         '''Create an integer SMT variable with the given name.'''
         if self.opts.use_bv:
