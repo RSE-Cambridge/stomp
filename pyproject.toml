@@ -23,7 +23,7 @@ testpaths = ["tests"]
 filterwarnings = ["ignore::DeprecationWarning"]
 
 [tool.ruff]
-exclude = ["PSyclone", "tmp"]
+exclude = ["PSyclone", "benchmarks", "tmp"]
 
 [tool.ruff.lint]
 ignore = ["E701", "E251"]
