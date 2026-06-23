@@ -27,9 +27,9 @@ drb-out/:
 	@mkdir drb-out
 
 # Run stomp on DRB
-drb-out/%.out: $(DRB_FTN)/*.f95
+drb-out/%.out: $(DRB_FTN)/%.f95
 	@stomp $(DRB_INC) $< 2>/dev/null > $@
-drb-out/%.out: $(DRB_FTN)/*.F95
+drb-out/%.out: $(DRB_FTN)/%.F95
 	@stomp $(DRB_INC) $< 2>/dev/null > $@
 
 # Generate DRB output files

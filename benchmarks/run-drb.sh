@@ -12,12 +12,12 @@ echo "Making stomp outputs with '-j $N_THREADS'..."
 make -s -j $N_THREADS drb
 
 # Get list of all outputs
-ALL=$(ls drb-out/)
-N_ALL=$(echo "$ALL" | wc -l)
+ALL=$(ls drb-out/*.out)
 
 echo -ne > drb-results.txt
 for B in $ALL; do
-  OUTPUT=$(cat drb-out/$B)
+  OUTPUT=$(cat $B)
+  SHORT_B=$(basename $B .out)
   if [[ $OUTPUT == *"All done."* ]]; then
     if [[ $OUTPUT == *"found 0 issues."* ]]; then
       if [[ $SHORT_B == *"-yes"* ]]; then
@@ -35,7 +35,6 @@ for B in $ALL; do
   else
     RESULT="\e[31mFAIL\e[0m"
   fi
-  SHORT_B=$(basename $B .out)
   echo -e "$SHORT_B: $RESULT" >> drb-results.txt
 done
 
@@ -47,12 +46,14 @@ N_TN=$(cat drb-results.txt | cut -d':' -f2| grep TN | wc -l)
 N_FP=$(cat drb-results.txt | cut -d':' -f2| grep FP | wc -l)
 N_FN=$(cat drb-results.txt | cut -d':' -f2| grep FN | wc -l)
 
-echo -e "\e[32mTP\e[0m: $N_TP"
-echo -e "\e[32mTN\e[0m: $N_TN"
-echo -e "\e[33mFP\e[0m: $N_FP"
-echo -e "\e[33mFN\e[0m: $N_FN"
+echo -e "TP: $N_TP"
+echo -e "TN: $N_TN"
+echo -e "FP: $N_FP"
+echo -e "FN: $N_FN"
+echo -e "\e[32mRight\e[0m:" $(($N_TP + $N_TN))
+echo -e "\e[33mWrong\e[0m:" $(($N_FP + $N_FN))
 
-if [ ! $(cmp drb-results.txt expected/drb-results.txt) ]; then
+if cmp drb-results.txt expected/drb-results.txt; then
   echo -e "\e[32mPass\e[0m: 'drb-results.txt'" \
           "matches 'expected/drb-results.txt'"
 else
