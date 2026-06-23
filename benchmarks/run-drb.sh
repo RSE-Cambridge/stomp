@@ -6,7 +6,7 @@ if [[ "$N_THREADS" == "0" ]]; then
   N_THREADS="1"
 fi
 
-echo "Making with '-j $N_THREADS'..."
+echo "Making stomp outputs with '-j $N_THREADS'..."
 
 # Run stomp on DRB benhmarks
 make -s -j $N_THREADS drb
