@@ -561,6 +561,16 @@ def omp_clause(symbol_table: Optional[SymbolTable] = None):
                       raw_text())),
         token(")"))
 
+    # Generic clause parser for clauses that may be duplicated
+    duplicatable_clause = lift(
+        lambda keyword, contents: (keyword, [contents]),
+        choice(token("map")),
+        optional(lift(
+            lambda _l, text, _r: text,
+            token("("),
+            raw_text(),
+            token(")"))))
+
     # Generic clause parser
     other_clause = lift(
         lambda keyword, contents: (keyword, contents),
@@ -577,6 +587,7 @@ def omp_clause(symbol_table: Optional[SymbolTable] = None):
                   num_threads_clause,
                   thread_limit_clause,
                   schedule_clause,
+                  duplicatable_clause,
                   other_clause)
 
 
