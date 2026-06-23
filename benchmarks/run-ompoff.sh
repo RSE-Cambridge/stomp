@@ -1,7 +1,9 @@
 #!/bin/bash
 
 if [ ! -d OMPOff ]; then
+  COMMIT="4e8950e"
   git clone git@github.com:rse-cambridge/OMPOff 2> /dev/null
+  (cd OMPOff && git checkout $COMMIT 2> /dev/null)
   if [ $? -ne 0 ]; then
     echo "Did not have permission to clone" \
          "'git@github.com:rse-cambridge/OMPOff'"
