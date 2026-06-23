@@ -1,3 +1,6 @@
 [submodule "PSyclone"]
 	path = PSyclone
 	url = https://github.com/stfc/PSyclone
+[submodule "benchmarks/dataracebench"]
+	path = benchmarks/dataracebench
+	url = https://github.com/llnl/dataracebench
