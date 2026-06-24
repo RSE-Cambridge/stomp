@@ -334,6 +334,8 @@ class LoopConflictAnalysis(ArrayIndexAnalysis):
                         vals.append(str(result_values.pop(0)))
                 if vals:
                     components.append(field + '(' + ','.join(vals) + ')')
+                else:
+                    components.append(field)
             access_str = '%'.join(components)
             msg = (f"Iterations {i_val} and {j_val} have conflicting "
                    f"accesses to {access_str}")

@@ -489,6 +489,8 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
                         vals.append(str(result_values.pop(0)))
                 if vals:
                     components.append(field + '(' + ','.join(vals) + ')')
+                else:
+                    components.append(field)
             access_str = '%'.join(components)
             msg = (f"Thread (team={team_i},thread={thread_i}) and thread "
                    f"(team={team_j},thread={thread_j}) have conflicting "
