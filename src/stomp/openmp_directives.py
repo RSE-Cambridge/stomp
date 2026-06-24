@@ -295,22 +295,10 @@ class OpenMPDirective(Statement):
                         return symbol.is_automatic
                     else:
                         return False
-        # Get enclosing "target" directive, if there is one
-        in_target = None
-        for d in [self] + enclosing:
-            if "target" in d.clauses:
-                in_target = d
-                break
         # If we are a parent directive, we need to resolve the default clause
         for (child, parent) in inherits_from:
-            if parent in self.clauses:
-                if (in_target and
-                        isinstance(symbol, DataSymbol) and
-                        isinstance(symbol.datatype, ScalarType)):
-                    default = "firstprivate"
-                else:
-                    default = self.clauses.get("default", "shared")
-                return default.strip() in kinds
+            default = self.clauses.get("default", "shared")
+            return default.strip() in kinds
         return False
 
     def is_firstprivate_var(self, v: str) -> bool:

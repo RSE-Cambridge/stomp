@@ -14,7 +14,7 @@ make -s -j $N_THREADS drb
 # Get list of all outputs
 ALL=$(ls drb-out/*.out)
 
-echo -ne > drb-results.txt
+echo -n > drb-results.txt
 for B in $ALL; do
   OUTPUT=$(cat $B)
   SHORT_B=$(basename $B .out)
@@ -53,7 +53,7 @@ echo -e "FN: $N_FN"
 echo -e "\e[32mRight\e[0m:" $(($N_TP + $N_TN))
 echo -e "\e[33mWrong\e[0m:" $(($N_FP + $N_FN))
 
-if cmp drb-results.txt expected/drb-results.txt; then
+if cmp -s drb-results.txt expected/drb-results.txt; then
   echo -e "\e[32mPass\e[0m: 'drb-results.txt'" \
           "matches 'expected/drb-results.txt'"
 else

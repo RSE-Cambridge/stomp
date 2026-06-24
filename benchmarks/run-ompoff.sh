@@ -11,16 +11,20 @@ if [ ! -d OMPOff ]; then
   fi
 fi
 
+echo -n > ompoff-results.txt
 FILES=$(ls OMPOff/src/OpenMP/*.F90)
 for FILE in $FILES; do
   SHORT=$(basename $FILE .out)
-  echo -n "$SHORT: "
-  OUTPUT=$(stomp -I OMPOff/platforms/mn416-laptop/ $FILE 2> /dev/null)
-  # All benchmarks are expected to have no issues
-  if [[ $OUTPUT == *"found 0 issues."* ]]; then
-    RESULT="\e[32mpassed\e[0m"
-  else
-    RESULT="\e[31mfailed\e[0m"
-  fi
-  echo -e "$RESULT"
+  echo "# $SHORT" >> ompoff-results.txt
+  stomp -I OMPOff/platforms/mn416-laptop/ $FILE 2> /dev/null \
+     >> ompoff-results.txt
+  echo >> ompoff-results.txt
 done
+
+if cmp -s ompoff-results.txt expected/ompoff-results.txt; then
+  echo -e "\e[32mPass\e[0m: 'ompoff-results.txt'" \
+          "matches 'expected/ompoff-results.txt'"
+else
+  echo -e "\e[31mFail\e[0m: 'ompoff-results.txt'" \
+          "doesn't match 'expected/ompoff-results.txt'"
+fi

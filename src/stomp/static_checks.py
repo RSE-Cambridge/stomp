@@ -188,7 +188,7 @@ def check_parallel_scalar_accesses(psyir: Node):
                       not is_within_directive(info.node, safe)
                 if bad:
                     StompLogger.add_message(
-                        StompMessageCode.LoopScalarConflict,
+                        StompMessageCode.ParallelScalarConflict,
                         description = f"Unprotected parallel write to shared "
                             f"variable '{sig.var_name}'.",
                         node = info.node,

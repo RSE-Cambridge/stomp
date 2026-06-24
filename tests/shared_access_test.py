@@ -14,7 +14,7 @@ subroutine sub(arr)
   end do
 end subroutine
 '''
-    stomp_test(code, [Msg.LoopScalarConflict])
+    stomp_test(code, [Msg.ParallelScalarConflict])
 
 
 def test_loop_scalar_threadprivate():
