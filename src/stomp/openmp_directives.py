@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any, List, Union, Tuple, Set
 from psyclone.psyir.nodes import Node, Statement, UnknownDirective, Loop, \
     BinaryOperation, IntrinsicCall, Reference
 from psyclone.core import VariablesAccessMap
-from psyclone.psyir.symbols import SymbolTable, DataSymbol, ScalarType
+from psyclone.psyir.symbols import SymbolTable
 from stomp.parser_lib import lift, char, many, token, \
     ParseError, sepby, choice, many1, optional, space, natural
 from stomp.threadprivate import is_threadprivate

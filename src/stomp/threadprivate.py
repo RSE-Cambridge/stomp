@@ -24,7 +24,6 @@ def mark_threadprivate(top_source_code: str,
         source_code_list = [top_source_code]
         psyir_list = [top_psyir]
     else:
-        mod_manager.load_all_module_infos()
         mod_infos = mod_manager.all_module_infos
         source_code_list = [top_source_code] + \
                            [m.get_source_code() for m in mod_infos]

@@ -34,6 +34,12 @@ def entry():
         action="append",
         default=[])
     arg_parser.add_argument(
+        "-F",
+        help="add given Fortran file for imported modules",
+        metavar="PATH",
+        action="append",
+        default=[])
+    arg_parser.add_argument(
         "--cpp",
         help="enable preprocessor",
         action="store_true")
@@ -41,7 +47,6 @@ def entry():
         "--nocpp",
         help="disable preprocessor",
         action="store_true")
-
     arg_parser.add_argument(
         "--cpp-cmd",
         help="specify preprocessor command (the default is "
@@ -74,17 +79,6 @@ def entry():
     mod_manager = ModuleManager.get()
     mod_manager.cache_active = True
 
-    # Add working dir as a (non-recursive) search path
-    mod_manager.add_search_path("./", False)
-
-    # Add -M arguments to search path
-    for mod_path in args.M:
-        mod_manager.add_search_path(mod_path, False)
-
-    # Add -R arguments to search path
-    for mod_path in args.R:
-        mod_manager.add_search_path(mod_path, True)
-
     # Enable preprocessor?
     preprocess_exts = (".F", ".F90", ".F95", ".F03",
                        ".F08", ".fpp", ".FPP", ".FOR", ".FTN")
@@ -99,7 +93,23 @@ def entry():
     for macro in args.D:
         preprocessor_command += f" -D'{macro}'"
     if apply_preprocessor:
-        enable_preprocessor(mod_manager, preprocessor_command)
+        enable_preprocessor(preprocessor_command)
+
+    # Add working dir as a (non-recursive) search path
+    mod_manager.add_search_path("./", False)
+
+    # Add -M arguments to search path
+    for mod_path in args.M:
+        mod_manager.add_search_path(mod_path, False)
+
+    # Add -R arguments to search path
+    for mod_path in args.R:
+        mod_manager.add_search_path(mod_path, True)
+
+    # Load any files specified by -F arguments
+    if args.F:
+        mod_manager.add_files(args.F)
+        mod_manager.load_all_module_infos()
 
     # Determine file type
     free_form_exts = (".f90", ".f95", ".f03", ".f08",
