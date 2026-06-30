@@ -196,32 +196,35 @@ def check_parallel_scalar_accesses(psyir: Node):
                         routine_name = routine.name)
                     break
 
-                # Read of private (not firstprivate) scalar must be initialised
-                region = is_within_directive(info.node, par_region)
-                bad = d and \
-                      info.is_any_read() and \
-                      not is_array_access(info) and \
-                      d.is_private_var(sig.var_name) and \
-                      not d.is_firstprivate_var(sig.var_name) and \
-                      not d.is_always_private(sig.var_name)
-                if bad:
-                    # Look for preceeding initialiser
-                    ok = False
-                    for pre in reversed(seq[0:i]):
-                        ok = pre.is_any_write() and \
-                                 (region is None or
-                                  is_child_directive(pre.node, region))
-                        if ok: break
-                    if not ok:
-                        StompLogger.add_message(
-                            StompMessageCode.ReadUninitialisedPrivate,
-                            description = f"Parallel loop reads "
-                                f"uninitialised private variable "
-                                f"'{sig.var_name}'.",
-                            node = info.node,
-                            directive_node = d.original_directive,
-                            routine_name = routine.name)
-                        break
+                # Read of private (not firstprivate) scalar must
+                # be initialised
+                code = StompMessageCode.ReadUninitialisedPrivate
+                if code not in StompLogger.ignore:
+                    region = is_within_directive(info.node, par_region)
+                    bad = d and \
+                          info.is_any_read() and \
+                          not is_array_access(info) and \
+                          d.is_private_var(sig.var_name) and \
+                          not d.is_firstprivate_var(sig.var_name) and \
+                          not d.is_always_private(sig.var_name)
+                    if bad:
+                        # Look for preceeding initialiser
+                        ok = False
+                        for pre in reversed(seq[0:i]):
+                            ok = pre.is_any_write() and \
+                                     (region is None or
+                                      is_child_directive(pre.node, region))
+                            if ok: break
+                        if not ok:
+                            StompLogger.add_message(
+                                StompMessageCode.ReadUninitialisedPrivate,
+                                description = f"Parallel loop reads "
+                                    f"uninitialised private variable "
+                                    f"'{sig.var_name}'.",
+                                node = info.node,
+                                directive_node = d.original_directive,
+                                routine_name = routine.name)
+                            break
 
 
 # Parallel array access checks

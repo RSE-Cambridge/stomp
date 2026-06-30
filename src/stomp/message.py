@@ -121,18 +121,33 @@ class StompMessage:
 
 class StompLogger:
     '''Global logger class for recording messages'''
-    messages: StompMessage = []
+
+    # List of messages gathered so far
+    messages: list[StompMessage] = []
+
+    # List of messages to ignore
+    ignore: list[StompMessageCode] = []
 
     @classmethod
-    def add_msg(cls, msg):
+    def add_ignore(cls, code: StompMessageCode):
+        cls.ignore.append(code)
+
+    @classmethod
+    def add_msg(cls, msg: StompMessage):
         cls.messages.append(msg)
 
     @classmethod
     def add_message(cls, *args, **kw_args):
-        cls.messages.append(StompMessage(*args, **kw_args))
+        cls.add_msg(StompMessage(*args, **kw_args))
 
     @classmethod
     def get_messages(cls):
+        # Filter out messages in the ignore list
+        msgs = [msg for msg in cls.messages if msg.code not in cls.ignore]
+        return msgs
+
+    @classmethod
+    def get_all_messages(cls):
         return cls.messages
 
     @classmethod

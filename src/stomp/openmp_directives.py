@@ -552,7 +552,8 @@ def omp_clause(symbol_table: Optional[SymbolTable] = None):
     # Generic clause parser for clauses that may be duplicated
     duplicatable_clause = lift(
         lambda keyword, contents: (keyword, [contents]),
-        choice(token("map")),
+        choice(token("map"),
+               token("depend")),
         optional(lift(
             lambda _l, text, _r: text,
             token("("),

@@ -19,7 +19,7 @@ for B in $ALL; do
   OUTPUT=$(cat $B)
   SHORT_B=$(basename $B .out)
   if [[ $OUTPUT == *"All done."* ]]; then
-    if [[ $OUTPUT == *"found 0 issues."* ]]; then
+    if [[ $OUTPUT == *"found 0 issues"* ]]; then
       if [[ $SHORT_B == *"-yes"* ]]; then
         RESULT="\e[33mFN\e[0m" 
       else

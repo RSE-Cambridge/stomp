@@ -29,6 +29,7 @@ def mark_threadprivate(top_source_code: str,
                            [m.get_source_code() for m in mod_infos]
         psyir_list = [top_psyir] + [m.get_psyir() for m in mod_infos]
     for (source_code, psyir) in zip(source_code_list, psyir_list):
+        if not psyir: continue
         for (mod_name, spec) in get_module_specs(source_code):
             threadprivate = get_threadprivate(spec)
             for c in psyir.walk(Container):

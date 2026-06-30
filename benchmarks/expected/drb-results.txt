@@ -40,7 +40,7 @@ DRB039-truedepsingleelement-orig-yes: [32mTP[0m
 DRB040-truedepsingleelement-var-yes: [32mTP[0m
 DRB045-doall1-orig-no: [32mTN[0m
 DRB046-doall2-orig-no: [32mTN[0m
-DRB047-doallchar-orig-no: [33mFP[0m
+DRB047-doallchar-orig-no: [32mTN[0m
 DRB048-firstprivate-orig-no: [32mTN[0m
 DRB049-write-orig-no: [33mFP[0m
 DRB050-functionparameter-orig-no: [32mTN[0m
@@ -67,7 +67,7 @@ DRB072-taskdep1-orig-no: [32mTN[0m
 DRB073-doall2-orig-yes: [33mFN[0m
 DRB074-flush-orig-yes: [32mTP[0m
 DRB075-getthreadnum-orig-yes: [32mTP[0m
-DRB076-flush-orig-no: [33mFP[0m
+DRB076-flush-orig-no: [32mTN[0m
 DRB077-single-orig-no: [32mTN[0m
 DRB078-taskdep2-orig-no: [32mTN[0m
 DRB079-taskdep3-orig-no: [32mTN[0m
@@ -85,7 +85,7 @@ DRB090-static-local-orig-yes: [32mTP[0m
 DRB091-threadprivate2-orig-no: [33mFP[0m
 DRB092-threadprivatemissing2-orig-yes: [32mTP[0m
 DRB093-doall2-collapse-orig-no: [32mTN[0m
-DRB094-doall2-ordered-orig-no: [33mFP[0m
+DRB094-doall2-ordered-orig-no: [32mTN[0m
 DRB095-doall2-taskloop-orig-yes: [33mFN[0m
 DRB096-doall2-taskloop-collapse-orig-no: [32mTN[0m
 DRB097-target-teams-distribute-orig-no: [32mTN[0m
@@ -126,7 +126,7 @@ DRB131-taskdep4-orig-omp45-yes: [33mFN[0m
 DRB132-taskdep4-orig-omp45-no: [32mTN[0m
 DRB133-taskdep5-orig-omp45-no: [32mTN[0m
 DRB134-taskdep5-orig-omp45-yes: [33mFN[0m
-DRB135-taskdep-mutexinoutset-orig-omp50-no: [33mFP[0m
+DRB135-taskdep-mutexinoutset-orig-omp50-no: [32mTN[0m
 DRB136-taskdep-mutexinoutset-orig-yes: [33mFN[0m
 DRB137-simdsafelen-orig-no: [32mTN[0m
 DRB138-simdsafelen-orig-yes: [33mFN[0m

@@ -8,8 +8,13 @@ DRB_INC := "-I dataracebench/micro-benchmarks-fortran/polybench"
 DRB_INC += "-I dataracebench/micro-benchmarks-fortran/utilities"
 DRB_OUT := $(patsubst $(DRB_FTN)/%.f95, drb-out/%.out, $(DRB_SRC))
 
+# Issues to exclude because they are not strictly data races
+DRB_EXCLUDE := -e ReadUninitialisedPrivate
+
 .phony: top
-top: run-drb run-ompoff
+top:
+	@echo "Type './run-all.sh' to run all tests."
+	@echo "Type 'make clean' to tidy up."
 
 .phony: clean
 clean:
@@ -28,24 +33,10 @@ drb-out/:
 
 # Run stomp on DRB
 drb-out/%.out: $(DRB_FTN)/%.f95
-	@stomp $(DRB_INC) $< 2>/dev/null > $@
+	@stomp $(DRB_EXCLUDE) $(DRB_INC) $< 2>/dev/null > $@
 drb-out/%.out: $(DRB_FTN)/%.F95
-	@stomp $(DRB_INC) $< 2>/dev/null > $@
+	@stomp $(DRB_EXCLUDE) $(DRB_INC) $< 2>/dev/null > $@
 
 # Generate DRB output files
 .phony:
 drb: dataracebench/README.md drb-out/ $(DRB_OUT)
-
-.phony: run-drb
-run-drb:
-	@echo "Running stomp on dataracebench"
-	@echo "=============================="
-	@./run-drb.sh
-	@echo
-
-.phony: run-ompoff
-run-ompoff:
-	@echo "Running stomp on OMPOff"
-	@echo "======================="
-	@./run-ompoff.sh
-	@echo

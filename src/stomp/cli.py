@@ -7,7 +7,7 @@ from psyclone.parse import ModuleManager
 from psyclone.errors import InternalError
 from psyclone.psyir.frontend.fortran import FortranReader
 from stomp.preprocessor import enable_preprocessor, preprocess
-from stomp.message import StompLogger
+from stomp.message import StompLogger, StompMessageCode
 from stomp.main import main
 from stomp.threadprivate import mark_threadprivate
 
@@ -36,7 +36,7 @@ def entry():
     arg_parser.add_argument(
         "-F",
         help="add given Fortran file for imported modules",
-        metavar="PATH",
+        metavar="FILE",
         action="append",
         default=[])
     arg_parser.add_argument(
@@ -67,6 +67,22 @@ def entry():
         metavar="MACRO",
         action="append",
         default=[])
+    arg_parser.add_argument(
+        "--cache",
+        help="create '.psycache' module files to speed up loading",
+        action="store_true")
+    arg_parser.add_argument(
+        "--ignore",
+        help="ignore (don't try to load) given module",
+        metavar="MOD",
+        action="append",
+        default=[])
+    arg_parser.add_argument(
+        "-e",
+        help="exclude issues matching the given code",
+        metavar="CODE",
+        action="append",
+        default=[])
     args = arg_parser.parse_args()
 
     # Frontend
@@ -75,9 +91,8 @@ def entry():
     # Avoid loading the PSyclone config file
     Config.get(do_not_load_file=True)
 
-    # Enable caching
+    # Create module manager
     mod_manager = ModuleManager.get()
-    mod_manager.cache_active = True
 
     # Enable preprocessor?
     preprocess_exts = (".F", ".F90", ".F95", ".F03",
@@ -95,8 +110,28 @@ def entry():
     if apply_preprocessor:
         enable_preprocessor(preprocessor_command)
 
+    # Inform logger about isssues to exclude
+    for code_str in args.e:
+        try:
+            code = StompMessageCode[code_str]
+        except KeyError:
+            print(f"CLI error: unrecognised issue code '{code_str}'.")
+            sys.exit(-1)
+        StompLogger.add_ignore(code)
+
+    # Enable module caching
+    if args.cache:
+        mod_manager.cache_active = True
+
+    # Disabling unnecessary check in module manager
+    mod_manager._doesnt_need_preprocessing = lambda self: True
+
     # Add working dir as a (non-recursive) search path
     mod_manager.add_search_path("./", False)
+
+    # Add modules to ignore
+    for mod_ignore in args.ignore:
+        mod_manager.add_ignore_module(mod_ignore)
 
     # Add -M arguments to search path
     for mod_path in args.M:
@@ -106,10 +141,15 @@ def entry():
     for mod_path in args.R:
         mod_manager.add_search_path(mod_path, True)
 
-    # Load any files specified by -F arguments
+    # Add top-level file to module manager
+    mod_manager.add_files([args.input_file])
+
+    # Add any files specified by -F arguments
     if args.F:
         mod_manager.add_files(args.F)
-        mod_manager.load_all_module_infos()
+
+    # Load added files
+    mod_manager.load_all_module_infos()
 
     # Determine file type
     free_form_exts = (".f90", ".f95", ".f03", ".f08",
@@ -161,15 +201,23 @@ def entry():
     # Invoke the tool
     num_omp_dir = main(psyir, infer=args.infer)
 
+    note = ""
+    if num_omp_dir:
+        msgs = StompLogger.get_messages()
+    else:
+        num_omp_dir = 0
+        note = " (non-excludable)"
+        msgs = StompLogger.get_all_messages()
+
     # Emit messages
     issue_count = 0
-    for msg in StompLogger.get_messages():
+    for msg in msgs:
         print(msg.render())
         issue_count += 1
 
     # Emit number of directives analysed
     print(f"All done. Analysed {num_omp_dir} directives and "
-          f"found {issue_count} issues.")
+          f"found {issue_count} issues{note}.")
 
 if __name__ == "__main__":
     entry()
