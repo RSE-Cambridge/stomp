@@ -23,9 +23,16 @@ clean:
 	@rm -rf OMPOff
 	@rm -rf ompoff-results.txt
 
+# Download DRB if not there
+dataracebench/README.md:
+	@git submodule update --init --recursive
+
 # Create DRB output dir if not there
 drb-out/:
 	@mkdir drb-out
+
+.phony: prepare-drb
+prepare-drb: dataracebench/ drb-out/
 
 # Run stomp on DRB
 drb-out/%.out: $(DRB_FTN)/%.f95
@@ -33,6 +40,9 @@ drb-out/%.out: $(DRB_FTN)/%.f95
 drb-out/%.out: $(DRB_FTN)/%.F95
 	@stomp $(DRB_EXCLUDE) $(DRB_INC) $< 2>/dev/null > $@
 
+# Make sure output directory and input files are ready before building
+$(DRB_OUT): dataracebench/README.md | drb-out/
+
 # Generate DRB output files
 .phony:
-drb: drb-out/ $(DRB_OUT)
+drb: $(DRB_OUT)
