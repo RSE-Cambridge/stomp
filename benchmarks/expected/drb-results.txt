@@ -146,7 +146,7 @@ DRB151-missinglock3-orig-gpu-yes: [32mTP[0m
 DRB152-missinglock2-orig-gpu-no: [33mFP[0m
 DRB153-missinglock2-orig-gpu-yes: [32mTP[0m
 DRB154-missinglock3-orig-gpu-no: [33mFP[0m
-DRB155-missingordered-orig-gpu-no: [33mFP[0m
+DRB155-missingordered-orig-gpu-no: [32mTN[0m
 DRB156-missingordered-orig-gpu-yes: [32mTP[0m
 DRB157-missingorderedsimd-orig-gpu-yes: [32mTP[0m
 DRB158-missingtaskbarrier-orig-gpu-no: [32mTN[0m

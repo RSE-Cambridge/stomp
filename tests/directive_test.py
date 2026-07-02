@@ -96,3 +96,33 @@ subroutine sub(arr)
 end subroutine
 '''
     stomp_test(code, [])
+
+
+def test_stray_ordered_yes():
+    code = '''
+subroutine sub()
+  integer :: arr(10)
+  !$omp parallel do
+  do i = 1, 10
+      !$omp ordered
+      arr(1) = i
+      !$omp end ordered
+  end do
+end subroutine
+'''
+    stomp_test(code, [Msg.StrayOrderedDirective])
+
+
+def test_stray_ordered_no():
+    code = '''
+subroutine sub()
+  integer :: arr(10)
+  !$omp parallel do ordered
+  do i = 1, 10
+      !$omp ordered
+      arr(1) = i
+      !$omp end ordered
+  end do
+end subroutine
+'''
+    stomp_test(code, [])

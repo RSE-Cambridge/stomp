@@ -90,6 +90,23 @@ def check_directive_is_recognised(d: OpenMPDirective):
             directive_node = d.original_directive)
 
 
+def check_ordered_directives(d: OpenMPDirective):
+    '''For an "ordered" directive inside a "do" directive, the "do"
+    directive must contain the "ordered" clause.'''
+    if "end" in d.clauses: return
+    if "ordered" in d.clauses and "do" not in d.clauses:
+        for e in get_enclosing_directives(d):
+            if "do" in e.clauses:
+                if "ordered" not in e.clauses:
+                    StompLogger.add_message(
+                        StompMessageCode.StrayOrderedDirective,
+                        description = "Found 'ordered' directive enclosed "
+                            "by a 'do' directive without the 'ordered' "
+                            "clause.",
+                        directive_node = d.original_directive)
+                break
+
+
 # Collapsed loop checks
 # =====================
 

@@ -29,6 +29,7 @@ def main(psyir, infer: bool = False) -> Optional[int]:
     for d in psyir.walk(OpenMPDirective):
         checks.check_collapse_clause(d)
         checks.check_data_sharing_clauses(d)
+        checks.check_ordered_directives(d)
 
     if len(StompLogger.get_messages()) > 0:
         return

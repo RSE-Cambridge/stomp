@@ -645,6 +645,13 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         to_atomic = any(["atomic" in d.clauses for d in enclosing_to])
         if from_atomic and to_atomic: return False
 
+        # Return false if both nodes are enclosed by an "ordered" directive
+        from_ord = any(["ordered" in d.clauses and "do" not in d.clauses
+                        for d in enclosing_from])
+        to_ord = any(["ordered" in d.clauses and "do" not in d.clauses
+                      for d in enclosing_to])
+        if from_ord and to_ord: return False
+
         # Return false if both nodes are enlosed by a "critical" directive
         # with the same name
         from_critical = [d.clauses["critical"]
