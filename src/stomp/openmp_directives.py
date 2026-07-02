@@ -358,6 +358,11 @@ def get_enclosing_directives(origin: Node) -> List[OpenMPDirective]:
     '''Get the stack of OpenMP directives that enlose the given node,
     innermost first. If the node itself is a directive, it will not
     be counted as an enclosing directive.'''
+    # Enclosing directives are cached, so first check the cache
+    if hasattr(origin, "cached_omp_enclosing_dirs"):
+        return origin.cached_omp_enclosing_dirs
+
+    # Find the enclosing directives
     enclosing = []
     cursor = origin
     while cursor:
@@ -381,6 +386,10 @@ def get_enclosing_directives(origin: Node) -> List[OpenMPDirective]:
                             enclosing.append(node)
                 pos -= 1
         cursor = cursor.parent
+
+    # Cache the result
+    origin.cached_omp_enclosing_dirs = enclosing
+
     return enclosing
 
 
