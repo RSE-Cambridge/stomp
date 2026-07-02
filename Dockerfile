@@ -33,13 +33,6 @@ RUN pip3 install --user --upgrade pip \
     && pip3 install black colorlog toml tabulate isort \
          pytest-xdist pytest-cov flake8 ruff graphviz
 
-# Dependencies
-#RUN pip3 install pyparsing
-#RUN pip3 install sympy
-#RUN pip3 install fparser==0.2.3
-#RUN pip3 install z3-solver==4.15.4.0
-#RUN pip3 install graphviz
-
 # Add environment variables
 RUN printf "\
 \nexport LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:\$LIBRARY_PATH \
