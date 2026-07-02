@@ -640,14 +640,18 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         enclosing_from = get_enclosing_directives(node_from)
         enclosing_to = get_enclosing_directives(node_to)
 
-        # Return false if both nodes are enclosed by an "atomic" or
-        # "critical" directive
-        def is_atomic(d: OpenMPDirective) -> bool:
-            return "atomic" in d.clauses or "critical" in d.clauses
-        from_atomic = any([is_atomic(d) for d in enclosing_from])
-        to_atomic = any([is_atomic(d) for d in enclosing_to])
-        if from_atomic and to_atomic:
-            return False
+        # Return false if both nodes are enclosed by an "atomic" directive
+        from_atomic = any(["atomic" in d.clauses for d in enclosing_from])
+        to_atomic = any(["atomic" in d.clauses for d in enclosing_to])
+        if from_atomic and to_atomic: return False
+
+        # Return false if both nodes are enlosed by a "critical" directive
+        # with the same name
+        from_critical = [d.clauses["critical"]
+                         for d in enclosing_from if "critical" in d.clauses]
+        to_critical = [d.clauses["critical"]
+                       for d in enclosing_to if "critical" in d.clauses]
+        if set(from_critical) & set(to_critical): return False
 
         # If both nodes are inside a "parallel" region then we only
         # need to check for a conflict if there is a path from the

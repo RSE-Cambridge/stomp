@@ -11,7 +11,7 @@ from psyclone.psyir.nodes import Node, Statement, UnknownDirective, Loop, \
 from psyclone.core import VariablesAccessMap
 from psyclone.psyir.symbols import SymbolTable
 from stomp.parser_lib import lift, char, many, token, \
-    ParseError, sepby, choice, many1, optional, space, natural
+    ParseError, sepby, choice, many1, optional, space, natural, chain
 from stomp.threadprivate import is_threadprivate
 from stomp.message import StompMessage, StompMessageCode, StompLogger
 from stomp.misc import parse_fortran_expr
@@ -72,6 +72,7 @@ recognised_directives_list = [
     ["requires"],
     ["scan"],
     ["scope"],
+    ["section"],
     ["sections"],
     ["simd"],
     ["single"],
@@ -145,7 +146,7 @@ class OpenMPDirective(Statement):
 
     def get_directive_keywords(self) -> List[str]:
         '''Return a list of directive keywords present in the directive.'''
-        kws = [kw for kw in self.clauses.keys() if self.clauses[kw] is None]
+        kws = list(self.clauses.keys())
         if kws and kws[0] == "end":
             kws.pop(0)
         while kws:
@@ -183,7 +184,7 @@ class OpenMPDirective(Statement):
         if "end" in self.clauses.keys():
             return False
         for kw in self.clauses.keys():
-            if kw in ["barrier", "update"]:
+            if kw in ["barrier", "update", "flush", "critical"]:
                 return True
         return False
 
@@ -280,6 +281,7 @@ class OpenMPDirective(Statement):
             symbol = None
         # For some directives, we need to look at enclosing directives
         inherits_from = [("do", "parallel"),
+                         ("sections", "parallel"),
                          ("distribute", "teams")]
         for (child, parent) in inherits_from:
             if child in self.clauses and parent not in self.clauses:
@@ -313,6 +315,7 @@ class OpenMPDirective(Statement):
                 return op
         # For some directives, we need to look at enclosing directives
         inherits_from = [("do", "parallel"),
+                         ("sections", "parallel"),
                          ("distribute", "teams")]
         for (child, parent) in inherits_from:
             if child in self.clauses and parent not in self.clauses:
@@ -549,6 +552,15 @@ def omp_clause(symbol_table: Optional[SymbolTable] = None):
                       raw_text())),
         token(")"))
 
+    # Parser for critical directive
+    critical_clause = lift(
+        lambda keyword, name: (keyword, name[1] if name else None),
+        token("critical"),
+        optional(chain(
+            token("("),
+            identifier(),
+            token(")"))))
+
     # Generic clause parser for clauses that may be duplicated
     duplicatable_clause = lift(
         lambda keyword, contents: (keyword, [contents]),
@@ -576,6 +588,7 @@ def omp_clause(symbol_table: Optional[SymbolTable] = None):
                   num_threads_clause,
                   thread_limit_clause,
                   schedule_clause,
+                  critical_clause,
                   duplicatable_clause,
                   other_clause)
 
