@@ -35,6 +35,40 @@ end subroutine
     stomp_test(code, [Msg.ParallelArrayConflict])
 
 
+def test_simd_reverse_ok():
+    code = '''
+subroutine reverse(arr)
+  integer, intent(inout) :: arr(:)
+  integer :: i, n, tmp
+  n = size(arr)
+  !$omp simd private(tmp)
+  do i = 1, n/2
+    tmp = arr(i)
+    arr(i) = arr(n+1-i)
+    arr(n+1-i) = tmp
+  end do
+end subroutine
+'''
+    stomp_test(code, [])
+
+
+def test_simd_reverse_bad():
+    code = '''
+subroutine reverse(arr)
+  integer, intent(inout) :: arr(:)
+  integer :: i, n, tmp
+  n = size(arr)
+  !$omp simd private(tmp)
+  do i = 1, n
+    tmp = arr(i)
+    arr(i) = arr(n+1-i)
+    arr(n+1-i) = tmp
+  end do
+end subroutine
+'''
+    stomp_test(code, [Msg.ParallelArrayConflict])
+
+
 def test_transpose_untiled_ok():
     code = '''
 subroutine trans_simple(mat_in, mat_out)

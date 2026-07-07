@@ -162,6 +162,7 @@ class OpenMPDirective(Statement):
         if "end" in self.clauses:
             return False
         inherits_from = [("do", "parallel"),
+                         ("simd", "parallel"),
                          ("distribute", "teams")]
         for (child, parent) in inherits_from:
             if child in self.clauses:
@@ -193,7 +194,7 @@ class OpenMPDirective(Statement):
         if "end" in self.clauses.keys():
             return False
         for kw in self.clauses.keys():
-            if kw in ["loop", "do", "distribute", "atomic"]:
+            if kw in ["loop", "do", "distribute", "atomic", "simd"]:
                 return True
         return False
 

@@ -8,6 +8,7 @@ from stomp.openmp_directives import \
     is_within_directive, is_child_directive, \
     get_enclosing_directives
 from stomp.message import StompMessageCode, StompLogger
+from stomp.loop_conflict_analysis import LoopConflictAnalysis
 from stomp.region_conflict_analysis import RegionConflictAnalysis
 from stomp.misc import is_array_access, get_nested_loops
 
@@ -208,7 +209,7 @@ def check_parallel_scalar_accesses(psyir: Node):
     '''Various checks for scalar accesses within parallel directives.'''
     # Iterate over all accesses that are enclosed by parallel directive
     par_region = [["parallel"], ["teams"]]
-    par_loop = [["do"], ["distribute"]]
+    par_loop = [["do"], ["distribute"], ["simd"]]
     par = par_region + par_loop
     safe = [["critical"], ["atomic"], ["single"], ["master"]]
     for routine in psyir.walk(Routine):
@@ -298,3 +299,44 @@ def check_parallel_array_accesses(psyir: Node):
                         "parallel region. " + msg + ".",
                     directive_node = d.original_directive,
                     routine_name = routine.name)
+
+
+# SIMD loop checks
+# ================
+
+
+def check_simd_loops(psyir: Node):
+    '''Check that 'simd' directives have non-conflicting loop iterations.
+    The 'safelen' clause is not yet supported.'''
+    for routine in psyir.walk(Routine):
+        for d in routine.walk(OpenMPDirective):
+            if "end" in d.clauses: continue
+            if "simd" in d.clauses and "do" not in d.clauses:
+                collapse = 1
+                if "collapse" in d.clauses:
+                    collapse = d.clauses["collapse"]
+                outer_loop = d.get_singleton_body()
+                all_loops = outer_loop.walk(Loop)
+                loop_vars = [loop.variable.name for loop in all_loops]
+                par_loops = all_loops[0:collapse]
+
+                # Compute private variables
+                private_vars = set(loop_vars)
+                clauses = ["private", "firstprivate", "lastprivate"]
+                for c in clauses:
+                    if c in d.clauses:
+                        private_vars.update(d.clauses[c])
+                for (op, x) in d.clauses.get("reduction", []):
+                    private_vars.add(x)
+
+                # Analyse loop
+                analysis = LoopConflictAnalysis()
+                for loop in par_loops:
+                    conflicts = analysis.get_loop_conflicts(loop,
+                                    private=private_vars)
+                    if conflicts:
+                        StompLogger.add_message(
+                            StompMessageCode.ParallelArrayConflict,
+                            description = conflicts[0][1] + ".",
+                            node = d.original_directive,
+                            routine_name = routine.name)

@@ -41,6 +41,9 @@ def main(psyir, infer: bool = False) -> Optional[int]:
     # Parallel array conflict checks
     checks.check_parallel_array_accesses(psyir)
 
+    # Check SIMD loops
+    checks.check_simd_loops(psyir)
+
     # Parallel loop inference
     if infer:
         inference.infer_parallel_loops(psyir)

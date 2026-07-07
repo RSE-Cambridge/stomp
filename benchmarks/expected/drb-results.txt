@@ -21,8 +21,8 @@ DRB020-privatemissing-var-yes: [32mTP[0m
 DRB021-reductionmissing-orig-yes: [32mTP[0m
 DRB022-reductionmissing-var-yes: [32mTP[0m
 DRB023-sections1-orig-yes: [32mTP[0m
-DRB024-simdtruedep-orig-yes: [33mFN[0m
-DRB025-simdtruedep-var-yes: [33mFN[0m
+DRB024-simdtruedep-orig-yes: [32mTP[0m
+DRB025-simdtruedep-var-yes: [32mTP[0m
 DRB026-targetparallelfor-orig-yes: [32mTP[0m
 DRB027-taskdependmissing-orig-yes: [33mFN[0m
 DRB028-privatemissing-orig-yes: [32mTP[0m
@@ -106,7 +106,7 @@ DRB111-linearmissing-orig-yes: [32mTP[0m
 DRB112-linear-orig-no: [33mFP[0m
 DRB113-default-orig-no: [32mTN[0m
 DRB114-if-orig-yes: [32mTP[0m
-DRB115-forsimd-orig-yes: [33mFN[0m
+DRB115-forsimd-orig-yes: [32mTP[0m
 DRB116-target-teams-orig-yes: [32mTP[0m
 DRB117-taskwait-waitonlychild-orig-yes: [33mFN[0m
 DRB118-nestlock-orig-no: [33mFP[0m
@@ -129,7 +129,7 @@ DRB134-taskdep5-orig-omp45-yes: [33mFN[0m
 DRB135-taskdep-mutexinoutset-orig-omp50-no: [32mTN[0m
 DRB136-taskdep-mutexinoutset-orig-yes: [33mFN[0m
 DRB137-simdsafelen-orig-no: [32mTN[0m
-DRB138-simdsafelen-orig-yes: [33mFN[0m
+DRB138-simdsafelen-orig-yes: [32mTP[0m
 DRB139-worksharingcritical-orig-no: [33mFP[0m
 DRB140-reduction-barrier-orig-yes: [33mFN[0m
 DRB141-reduction-barrier-orig-no: [32mTN[0m
