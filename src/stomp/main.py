@@ -30,6 +30,7 @@ def main(psyir, infer: bool = False) -> Optional[int]:
         checks.check_collapse_clause(d)
         checks.check_data_sharing_clauses(d)
         checks.check_ordered_directives(d)
+        checks.check_nested_directives(d)
 
     if len(StompLogger.get_messages()) > 0:
         return

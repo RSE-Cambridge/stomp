@@ -26,6 +26,7 @@ class StompMessageCode(Enum):
     DataSharingConflict = 10
     ReadUninitialisedPrivate = 11
     StrayOrderedDirective = 12
+    DisallowedNestedDirective = 13
     ParallelArrayConflict = 100
     ParallelScalarConflict = 101
     FoundParallelisableLoop = 200

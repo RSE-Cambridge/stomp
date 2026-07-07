@@ -101,7 +101,7 @@ end subroutine
 def test_stray_ordered_yes():
     code = '''
 subroutine sub()
-  integer :: arr(10)
+  integer :: i, arr(10)
   !$omp parallel do
   do i = 1, 10
       !$omp ordered
@@ -116,7 +116,7 @@ end subroutine
 def test_stray_ordered_no():
     code = '''
 subroutine sub()
-  integer :: arr(10)
+  integer :: i, arr(10)
   !$omp parallel do ordered
   do i = 1, 10
       !$omp ordered
@@ -126,3 +126,18 @@ subroutine sub()
 end subroutine
 '''
     stomp_test(code, [])
+
+
+def test_nested_parallelism():
+    code = '''
+subroutine sub()
+  integer :: i, arr(10)
+  !$omp parallel
+    !$omp parallel do
+    do i = 1, 10
+      arr(i) = i
+    end do
+  !$omp end parallel
+end subroutine
+'''
+    stomp_test(code, [Msg.DisallowedNestedDirective])

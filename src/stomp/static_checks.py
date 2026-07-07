@@ -107,6 +107,26 @@ def check_ordered_directives(d: OpenMPDirective):
                 break
 
 
+def check_nested_directives(d: OpenMPDirective):
+    '''Check for nested directives that are not supported
+    by the checker.'''
+    if "end" in d.clauses: return
+    enclosing = get_enclosing_directives(d)
+    disallowed_nested_dirs = ["parallel", "teams", "distribute",
+        "do", "sections"]
+    for disallow in disallowed_nested_dirs:
+        if disallow in d.clauses:
+            bad = any([disallow in e.clauses for e in enclosing])
+            if bad:
+                StompLogger.add_message(
+                   StompMessageCode.DisallowedNestedDirective,
+                   description = f"Found nested '{disallow}' directive, "
+                       "which is either not allowed by OpenMP or not "
+                       "supported by the checker.",
+                   directive_node = d.original_directive)
+                break
+
+
 # Collapsed loop checks
 # =====================
 
