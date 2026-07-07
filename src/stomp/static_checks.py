@@ -113,7 +113,7 @@ def check_nested_directives(d: OpenMPDirective):
     if "end" in d.clauses: return
     enclosing = get_enclosing_directives(d)
     disallowed_nested_dirs = ["parallel", "teams", "distribute",
-        "do", "sections"]
+        "do", "sections", "section"]
     for disallow in disallowed_nested_dirs:
         if disallow in d.clauses:
             bad = any([disallow in e.clauses for e in enclosing])
