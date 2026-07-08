@@ -10,6 +10,8 @@ DRB_OUT := $(patsubst $(DRB_FTN)/%.f95, drb-out/%.out, $(DRB_SRC))
 
 # Issues to exclude because they are not strictly data races
 DRB_EXCLUDE := -e ReadUninitialisedPrivate
+DRB_EXCLUDE += -e UnsupportedArrayReduction
+DRB_EXCLUDE += -e BadReductionClause
 
 .phony: top
 top:

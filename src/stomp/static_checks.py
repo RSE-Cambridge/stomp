@@ -2,11 +2,13 @@
 
 '''This module implements static checks.'''
 
+from psyclone.core import Signature
 from psyclone.psyir.nodes import Node, Routine, Loop
+from psyclone.psyir.tools import ReductionInferenceTool
 from stomp.openmp_directives import \
     OpenMPDirective, recognised_directives_set, \
     is_within_directive, is_child_directive, \
-    get_enclosing_directives
+    get_enclosing_directives, MAP_REDUCTION_OP_TO_STR
 from stomp.message import StompMessageCode, StompLogger
 from stomp.loop_conflict_analysis import LoopConflictAnalysis
 from stomp.region_conflict_analysis import RegionConflictAnalysis
@@ -201,6 +203,68 @@ def check_data_sharing_clauses(d: OpenMPDirective):
             directive_node = d.original_directive)
 
 
+# Reduction clause checks
+# =======================
+
+
+def check_reduction_clauses(d: OpenMPDirective):
+    '''Check that reduction clauses describe valid reductions.'''
+    if "end" in d.clauses: return
+
+    if "reduction" in d.clauses:
+        # Create mapping from string to reduction operator
+        str_to_red_op = {}
+        for (op, s) in MAP_REDUCTION_OP_TO_STR.items():
+           str_to_red_op[s] = op
+
+        # Get accesses in directive body
+        accesses = d.body_reference_accesses()
+
+        # Check reduction clauses
+        for (op, x) in d.clauses["reduction"]:
+          if op in str_to_red_op:
+              x_sig = Signature(x)
+              if x_sig not in accesses:
+                  StompLogger.add_message(
+                      StompMessageCode.BadReductionClause,
+                      description =
+                          f"Found a reduction clause involving a variable "
+                          f"'{x}' that is not referenced in the body of "
+                          f"the directive.",
+                      directive_node = d.original_directive)
+              else:
+                  seq = accesses[x_sig]
+
+                  # Array reductions not yet supported
+                  if any([is_array_access(info) for info in seq]):
+                      StompLogger.add_message(
+                          StompMessageCode.UnsupportedArrayReduction,
+                          description =
+                              f"Variable '{x}' is an array. Array reductions "
+                              f"are not yet supported by the checker.",
+                          directive_node = d.original_directive)
+                      continue
+
+                  # Check for valid reduction forms in loops
+                  if not d.is_loop(): continue
+                  red_infer = ReductionInferenceTool([str_to_red_op[op]])
+                  red_clause = red_infer.attempt_reduction(x_sig, seq)
+                  if not red_clause:
+                      StompLogger.add_message(
+                          StompMessageCode.BadReductionClause,
+                          description =
+                              f"Not all references to variable '{x}' "
+                              f"are valid reduction forms involving the "
+                              f"operator '{op}'.",
+                          directive_node = d.original_directive)
+          else:
+              StompLogger.add_message(
+                  StompMessageCode.BadReductionClause,
+                  description =
+                      f"Unrecognised reduction operator '{op}'.",
+                  directive_node = d.original_directive)
+
+
 # Parallel scalar access checks
 # =============================
 
@@ -338,5 +402,6 @@ def check_simd_loops(psyir: Node):
                         StompLogger.add_message(
                             StompMessageCode.ParallelArrayConflict,
                             description = conflicts[0][1] + ".",
-                            node = d.original_directive,
+                            node = outer_loop,
+                            directive_node = d.original_directive,
                             routine_name = routine.name)
