@@ -185,7 +185,7 @@ class OpenMPDirective(Statement):
         if "end" in self.clauses.keys():
             return False
         for kw in self.clauses.keys():
-            if kw in ["barrier", "update", "flush", "critical"]:
+            if kw in ["barrier", "update", "flush", "section"]:
                 return True
         return False
 
@@ -754,6 +754,25 @@ def drop_omp_dir_bodies(stmts: List[Statement]):
                 i += 1
         i += 1
     return result
+
+
+def get_sections(d: OpenMPDirective) -> List[List[Statement]]:
+    '''Extract the individual sections from a 'sections' directive.'''
+    if "sections" not in d.clauses: return []
+    section = []
+    sections = []
+    region_body = d.get_body()
+    if region_body:
+        for s in drop_omp_dir_bodies(region_body):
+            if isinstance(s, OpenMPDirective):
+                if "section" in s.clauses:
+                    if section: sections.append(section)
+                    section = []
+                    continue
+            section.append(s)
+        if section: sections.append(section)
+        return sections
+    return []
 
 
 # OpenMP reduction operators

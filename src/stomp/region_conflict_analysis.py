@@ -46,7 +46,8 @@ from psyclone.psyir.nodes import \
 from psyclone.core import Signature
 from psyclone.psyir.symbols import TypedSymbol
 from stomp.openmp_directives import \
-    OpenMPDirective, drop_omp_dir_bodies, get_enclosing_directives
+    OpenMPDirective, drop_omp_dir_bodies, get_enclosing_directives, \
+    get_sections
 from stomp.array_index_analysis import \
     ArrayIndexAnalysisOptions, ArrayIndexAnalysis, ArrayAccess, \
     _is_scalar_integer, _is_scalar_logical
@@ -561,6 +562,7 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
             save_thread_private_vars = self.thread_private_vars.copy()
             save_team_private_vars = self.team_private_vars.copy()
             self._save_subst()
+
             # Track private variables for the region
             if ("teams" in stmt.clauses or
                     "parallel" in stmt.clauses):
@@ -585,12 +587,15 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
                         [red[1] for red in stmt.clauses["reduction"]])
                 if "do" in stmt.clauses:
                     self.thread_private_vars.extend(new_private_vars)
+                elif "sections" in stmt.clauses:
+                    self.thread_private_vars.extend(new_private_vars)
                 elif "distribute" in stmt.clauses:
                     self.team_private_vars.extend(new_private_vars)
                 # We might considering killing private (but not
                 # firstprivate) variables here, however, other checks
                 # should catch use of uninitialised privates
                 # self._kill_scalar_vars(new_private_vars)
+
             # Track whether or nor we are inside a "parallel" region
             if "parallel" in stmt.clauses:
                 self.inside_parallel = True
@@ -619,11 +624,36 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
             if "distribute" in stmt.clauses:
                 self.collapse_distribute = stmt.clauses.get("collapse", 1)
                 self.distribute_vars.append(CollapsedLoopInfo(stmt, []))
+            if "sections" in stmt.clauses:
+                sections = get_sections(stmt)
+                if sections:
+                    # We model "sections" like a parallel loop whose
+                    # body contains an "if" for each section
+                    zero = self._integer_val(0)
+                    num_sections = self._integer_val(len(sections))
+                    section_id = self._fresh_integer_var()
+                    self._add_constraint(section_id >= zero)
+                    self._add_constraint(section_id < num_sections)
+                    # Iterate over sections
+                    for (i, section) in enumerate(sections):
+                       i_val = self._integer_val(i)
+                       self._save_subst()
+                       section_cond = z3.And(cond, section_id == i_val)
+                       for s in drop_omp_dir_bodies(section):
+                           self._step(s, section_cond)
+                       self._restore_subst()
+                    # Require each thread's section_id to be different.
+                    # For convenience, this is done via 'parallel_do_vars'
+                    self.parallel_do_vars.append(
+                        CollapsedLoopInfo(stmt, [LoopInfo(section_id)]))
+
             # Analyse region body
-            region_body = stmt.get_body()
-            if region_body:
-                for s in drop_omp_dir_bodies(stmt.get_body()):
-                    self._step(s, cond)
+            if "sections" not in stmt.clauses:
+                region_body = stmt.get_body()
+                if region_body:
+                    for s in drop_omp_dir_bodies(region_body):
+                        self._step(s, cond)
+
             # Restore state before continuing
             self.inside_parallel = save_inside_parallel
             self.thread_private_vars = save_thread_private_vars

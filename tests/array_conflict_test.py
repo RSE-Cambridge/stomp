@@ -441,3 +441,41 @@ subroutine main()
 end subroutine
 '''
     stomp_test(code, [Msg.ParallelArrayConflict])
+
+
+def test_sections_ok():
+    '''Simple test of a correct 'sections' directive.'''
+    code = '''
+subroutine sub(arr)
+  integer, intent(inout) :: arr(:)
+  !$omp parallel
+    !$omp sections
+      !$omp section
+      arr(1) = 100
+
+      !$omp section
+      arr(2) = 200
+    !$omp end sections
+  !$omp end parallel
+end subroutine
+'''
+    stomp_test(code, [])
+
+
+def test_sections_bad():
+    '''Simple test of and incorrect 'sections' directive.'''
+    code = '''
+subroutine sub(arr)
+  integer, intent(inout) :: arr(:)
+  !$omp parallel
+    !$omp sections
+      !$omp section
+      arr(1) = 100
+
+      !$omp section
+      arr(1) = 200
+    !$omp end sections
+  !$omp end parallel
+end subroutine
+'''
+    stomp_test(code, [Msg.ParallelArrayConflict])
