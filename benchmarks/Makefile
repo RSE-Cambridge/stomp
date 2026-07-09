@@ -12,6 +12,7 @@ DRB_OUT := $(patsubst $(DRB_FTN)/%.f95, drb-out/%.out, $(DRB_SRC))
 DRB_EXCLUDE := -e ReadUninitialisedPrivate
 DRB_EXCLUDE += -e UnsupportedArrayReduction
 DRB_EXCLUDE += -e BadReductionClause
+DRB_EXCLUDE += -e ImpureParallelCall
 
 .phony: top
 top:

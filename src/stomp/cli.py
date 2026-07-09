@@ -83,6 +83,13 @@ def entry():
         metavar="CODE",
         action="append",
         default=[])
+    arg_parser.add_argument(
+        "--pure",
+        help="assume that given function/subroutine is pure",
+        metavar="NAME",
+        action="append",
+        default=[])
+
     args = arg_parser.parse_args()
 
     # Frontend
@@ -199,10 +206,10 @@ def entry():
     mark_threadprivate(source_code, psyir, mod_manager)
 
     # Invoke the tool
-    num_omp_dir = main(psyir, infer=args.infer)
+    num_omp_dir = main(psyir, infer=args.infer, assume_pure=args.pure)
 
     note = ""
-    if num_omp_dir:
+    if num_omp_dir is not None:
         msgs = StompLogger.get_messages()
     else:
         num_omp_dir = 0

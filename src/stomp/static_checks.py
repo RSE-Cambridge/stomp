@@ -3,7 +3,7 @@
 '''This module implements static checks.'''
 
 from psyclone.core import Signature
-from psyclone.psyir.nodes import Node, Routine, Loop
+from psyclone.psyir.nodes import Node, Routine, Loop, Call, IntrinsicCall
 from psyclone.psyir.tools import ReductionInferenceTool
 from stomp.openmp_directives import \
     OpenMPDirective, recognised_directives_set, \
@@ -405,3 +405,47 @@ def check_simd_loops(psyir: Node):
                             node = outer_loop,
                             directive_node = d.original_directive,
                             routine_name = routine.name)
+
+
+# Impure call checks
+# ==================
+
+
+def check_impure_calls(d: OpenMPDirective, assume_pure: set[str] = set()):
+    '''Report calls to impure functions/routines in parallel regions'''
+    # Skip the check if we're just going to ignore it
+    code = StompMessageCode.ImpureParallelCall
+    if code in StompLogger.ignore: return
+
+    # Scan calls in parallel regions
+    is_parallel_region = "parallel" in d.clauses or "teams" in d.clauses
+    if is_parallel_region:
+        # Add names of functions/subroutines to ignore
+        assume_pure.add("omp_get_team_num")
+        assume_pure.add("omp_get_thread_num")
+        assume_pure.add("omp_get_num_teams")
+        assume_pure.add("omp_get_num_threads")
+        region_body = d.get_body()
+        if region_body:
+            for stmt in region_body:
+                for call in stmt.walk(Call):
+                    name = call.routine.name
+
+                    # Ignore specified calls
+                    if name in assume_pure: continue
+
+                    # Ignore intrinsic calls
+                    if isinstance(call, IntrinsicCall): continue
+
+                    # Catch all remaining impure calls
+                    if not call.is_pure:
+                        StompLogger.add_message(
+                            StompMessageCode.ImpureParallelCall,
+                            description = f"Call to impure "
+                                f"function/subroutine '{name}' in parallel "
+                                f"region. Use the command-line option "
+                                f"'--pure {name}' to assume that this call is "
+                                f"pure or '-e ImpureParallelCall' to assume "
+                                f"that all calls are pure.",
+                            directive_node = d.original_directive,
+                            node = call)
