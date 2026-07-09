@@ -66,3 +66,28 @@ subroutine sub(arr)
 end subroutine
 '''
     stomp_test(code, [Msg.DataSharingConflict])
+
+
+def test_barrier_non_team_private():
+    # The barrier does not prevent the data race here because it is in
+    # a teams region and the data being accesses is not team-private
+    code = '''
+subroutine sub(arr)
+  integer :: team, thread, arr(:)
+
+  !$omp target teams
+  !$omp parallel private(team, thread)
+    team = omp_get_team_num()
+    thread = omp_get_thread_num()
+    if (team == 0) then
+      arr(thread) = 1
+    end if
+    !$omp barrier
+    if (team == 1) then
+      arr(thread) = 1
+    end if
+  !$omp end parallel
+  !$omp end target teams
+endsubroutine
+'''
+    stomp_test(code, [Msg.ParallelArrayConflict])

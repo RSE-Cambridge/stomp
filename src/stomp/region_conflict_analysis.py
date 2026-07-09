@@ -43,7 +43,7 @@ import z3
 from typing import Optional, Tuple, List
 from psyclone.psyir.nodes import \
     Loop, IntrinsicCall, Routine, Node, Schedule, Statement
-from psyclone.core import Signature
+from psyclone.core import Signature, AccessInfo
 from psyclone.psyir.symbols import TypedSymbol
 from stomp.openmp_directives import \
     OpenMPDirective, drop_omp_dir_bodies, get_enclosing_directives, \
@@ -156,7 +156,9 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         '''Initialise the analysis by setting all the internal state
         variables accordingly.'''
         super()._init_analysis()
-        # Are we inside a "parallel" region (or just inside "teams")?
+        # Are we analysing a "teams" region?
+        self.is_teams_region = False
+        # Are we inside a "parallel" region?
         self.inside_parallel = False
         # Variables known to be private to each team
         self.team_private_vars = []
@@ -210,6 +212,10 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         if array_name in self.team_private_vars:
             access._cond = z3.And(access._cond,
                                   self.smt_team_var_i == self.smt_team_var_j)
+            access._is_team_private = True
+        # If not analysing a teams region, every array is team-private
+        if not self.is_teams_region:
+            access._is_team_private = True
         # Call parent method with possibly-modified access
         super()._add_array_access(array_name, access)
 
@@ -266,6 +272,7 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         # Start with an empty constraint set and substitution
         self._init_analysis()
         self.region_of_interest = region
+        self.is_teams_region = is_teams_region
 
         # Resolve choice of integers v. bit vectors
         if self.opts.use_bv is None:
@@ -454,7 +461,7 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         '''
         sum_of_prods = []
         for acc in accs:
-            if self._needs_conflict_check(write.psyir_node, acc.psyir_node):
+            if self._needs_conflict_check(write, acc):
                 indices_equal = []
                 for (i_idxs, j_idxs) in zip(write.indices, acc.indices):
                     for (i_idx, j_idx) in zip(i_idxs, j_idxs):
@@ -664,9 +671,12 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         super()._step(stmt, cond)
 
     @staticmethod
-    def _needs_conflict_check(node_from: Node, node_to: Node) -> bool:
+    def _needs_conflict_check(access_from: AccessInfo,
+                              access_to: AccessInfo) -> bool:
         '''Determine wheter or not we need to check for a conflict
         between the two given accesses'''
+        node_from = access_from.psyir_node
+        node_to = access_to.psyir_node
         enclosing_from = get_enclosing_directives(node_from)
         enclosing_to = get_enclosing_directives(node_to)
 
@@ -681,6 +691,13 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         to_ord = any(["ordered" in d.clauses and "do" not in d.clauses
                       for d in enclosing_to])
         if from_ord and to_ord: return False
+
+        # If we are in a teams region but accessing a non-team-private
+        # array then return True because "crtical" and "barrier" only
+        # prevent conflicts within a team not between teams
+        if (not (access_from._is_team_private and
+                 access_to._is_team_private)):
+            return True
 
         # Return false if both nodes are enlosed by a "critical" directive
         # with the same name

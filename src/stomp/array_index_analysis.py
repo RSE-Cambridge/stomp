@@ -104,16 +104,19 @@ class ArrayAccess:
       indices of the array access.
     :param psyir_node: PSyIR node for the access (useful for reporting
        conflict messages / errors).
+    :param is_team_private: is it an access to a team-private array?
     '''
     def __init__(self,
-                 cond:       z3.BoolRef,
-                 is_write:   bool,
-                 indices:    list[list[z3.ExprRef]],
-                 psyir_node: Node):
+                 cond:            z3.BoolRef,
+                 is_write:        bool,
+                 indices:         list[list[z3.ExprRef]],
+                 psyir_node:      Node,
+                 is_team_private: bool = False):
         self._cond = cond
         self._is_write = is_write
         self._indices = indices
         self._psyir_node = psyir_node
+        self._is_team_private = is_team_private
 
     @property
     def cond(self):
