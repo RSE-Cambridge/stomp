@@ -15,7 +15,7 @@ def entry():
     # Arguments
     # =========
 
-    arg_parser = argparse.ArgumentParser("stomp.py")
+    arg_parser = argparse.ArgumentParser("stomp")
     arg_parser.add_argument("input_file")
     arg_parser.add_argument(
         "--infer",
@@ -79,13 +79,13 @@ def entry():
         default=[])
     arg_parser.add_argument(
         "-e",
-        help="exclude issues matching the given code",
+        help="exclude issues with the given code",
         metavar="CODE",
         action="append",
         default=[])
     arg_parser.add_argument(
         "--pure",
-        help="assume that given function/subroutine is pure",
+        help="assume that the given function/subroutine is pure",
         metavar="NAME",
         action="append",
         default=[])
