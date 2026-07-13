@@ -479,3 +479,37 @@ subroutine sub(arr)
 end subroutine
 '''
     stomp_test(code, [Msg.ParallelArrayConflict])
+
+
+def test_stomp_assume_directive():
+    '''Test of stomp's 'assume' directive.'''
+    code = '''
+subroutine sub(arr, offset, n)
+  integer, intent(inout) :: arr(:)
+  integer, intent(in) :: n, offset
+  integer :: i
+  !$stomp assume (offset > n)
+  !$omp parallel do
+  do i = 1, n
+    arr(i) = 0
+    arr(offset+i) = 1
+  end do
+end subroutine'''
+    stomp_test(code, [])
+
+
+def test_stomp_unique_directive():
+    '''Test of stomp's 'unique' directive.'''
+    code = '''
+subroutine sub(arr, indirection)
+  integer, intent(inout) :: arr(:)
+  integer, intent(in) :: indirection(:)
+  integer :: i, j
+  !$omp parallel do private(j)
+  do i = 1, size(arr)
+    j = indirection(i)
+    !$stomp unique(j)
+    arr(j) = 1
+  end do
+end subroutine'''
+    stomp_test(code, [])

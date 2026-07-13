@@ -114,12 +114,33 @@ recognised_directives_list = [
 recognised_directives_set = set([
     tuple(kw_list) for kw_list in recognised_directives_list])
 
+
+# Recognised stomp directives
+# ===========================
+
+# As well as standard "!$omp" directives, we also support custom "!$stomp"
+# directives.
+
+stomp_recognised_directives_list = [
+    ["assume"],
+    ["pure"],
+    ["safe"],
+    ["unique"],
+]
+
+# As a set for fast membership checking
+stomp_recognised_directives_set = set([
+    tuple(kw_list) for kw_list in stomp_recognised_directives_list])
+
 # Abstract syntax for OpenMP directives
 # =====================================
 
 
 class OpenMPDirective(Statement):
-    '''Abstract syntax node for parsed OpenMP directives.'''
+    '''Abstract syntax node for parsed OpenMP directives. Both "!$omp" 
+    and "!$stomp" directives get parsed as OpenMPDirective but the two
+    can be distinguished using the "is_stomp_directive" member variable.
+    '''
 
     def __init__(self,
                  clauses: Dict[str, Any] = {},
@@ -140,9 +161,18 @@ class OpenMPDirective(Statement):
         self.accesses = None
         # Variables accessed in the directive body that must be private
         self.always_private = None
+        # Is it a stomp-specific directive?
+        self.is_stomp_directive = False
 
     def __str__(self):
         return ("OpenMPDirective[" + str(self.clauses) + "]")
+
+    def get_allowed_keywords_set(self):
+        '''Get the set of recognised directive keywords.'''
+        if self.is_stomp_directive:
+            return stomp_recognised_directives_set
+        else:
+            return recognised_directives_set
 
     def get_directive_keywords(self) -> List[str]:
         '''Return a list of directive keywords present in the directive.'''
@@ -150,7 +180,7 @@ class OpenMPDirective(Statement):
         if kws and kws[0] == "end":
             kws.pop(0)
         while kws:
-            if tuple(kws) in recognised_directives_set:
+            if tuple(kws) in self.get_allowed_keywords_set():
                 return kws
             else:
                 kws.pop(-1)
@@ -185,8 +215,12 @@ class OpenMPDirective(Statement):
         if "end" in self.clauses.keys():
             return False
         for kw in self.clauses.keys():
-            if kw in ["barrier", "update", "flush", "section"]:
-                return True
+            if self.is_stomp_directive:
+                if kw in ["assume", "pure", "unique"]:
+                    return True
+            else:
+                if kw in ["barrier", "update", "flush", "section"]:
+                    return True
         return False
 
     def is_singleton(self) -> bool:
@@ -605,9 +639,48 @@ def omp_clause(symbol_table: Optional[SymbolTable] = None):
 
 # OpenMP directive parser
 def omp_directive(symbol_table: Optional[SymbolTable] = None):
-    return lift(lambda _, cs: cs,
+    return lift(lambda d, cs: (d, cs),
                 token("omp"),
                 many(omp_clause(symbol_table)))
+
+
+# Stomp clause parser
+def stomp_clause(symbol_table: Optional[SymbolTable] = None):
+    '''Parse a stomp clause'''
+
+    # Parser for fortran-expression clauses
+    expr_clause = lift(
+        lambda keyword, _l, expr, _r: (keyword, expr),
+        choice(token("assume"),
+               token("unique")),
+        token("("),
+        fortran_expr(symbol_table),
+        token(")"))
+
+    # Parser identifier-list clauses
+    id_list_clause = lift(
+        lambda keyword, _l, ids, _r: (keyword, ids),
+        token("pure"),
+        token("("),
+        sepby(token(","), identifier()),
+        token(")"))
+
+    # Parser for simple clauses
+    simple_clause = lift(
+        lambda keyword: (keyword, None),
+        choice(token("end"),
+               token("safe")))
+
+    return choice(expr_clause,
+                  id_list_clause,
+                  simple_clause)
+
+
+# Stomp directive parser
+def stomp_directive(symbol_table: Optional[SymbolTable] = None):
+    return lift(lambda d, cs: (d, cs),
+                token("stomp"),
+                many(stomp_clause(symbol_table)))
 
 
 # Top-level parser
@@ -617,7 +690,8 @@ def parse_omp_directive(directive: UnknownDirective) -> \
     symbol_table = directive.scope.symbol_table
     # Create and apply parser
     txt = directive.directive_string.partition("!")[0].lower()
-    parser = omp_directive(symbol_table)
+    parser = choice(omp_directive(symbol_table),
+                    stomp_directive(symbol_table))
     result = parser(txt, 0)
     if isinstance(result, ParseError):
         remaining = result.txt[result.pos:]
@@ -628,7 +702,7 @@ def parse_omp_directive(directive: UnknownDirective) -> \
                        repr(remaining[:30]) + ".",
                    node=directive)
     # Accumulate clauses, with some basic checks
-    (clauses, pos) = result
+    ((top_dir, clauses), pos) = result
     if pos == len(txt):
         clause_map = {}
         for (keyword, contents) in clauses:
@@ -645,7 +719,9 @@ def parse_omp_directive(directive: UnknownDirective) -> \
                        node=directive)
             else:
                 clause_map[keyword] = contents
-        return OpenMPDirective(clause_map, directive)
+        d = OpenMPDirective(clause_map, directive)
+        d.is_stomp_directive = top_dir == "stomp"
+        return d
     else:
         # There is unparsed text remaining, which is a parse error
         remaining = txt[pos:]

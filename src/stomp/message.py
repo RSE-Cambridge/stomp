@@ -30,6 +30,7 @@ class StompMessageCode(Enum):
     BadReductionClause = 14
     UnsupportedArrayReduction = 15
     ImpureParallelCall = 16
+    BadUniqueDirective = 17
     ParallelArrayConflict = 100
     ParallelScalarConflict = 101
     FoundParallelisableLoop = 200

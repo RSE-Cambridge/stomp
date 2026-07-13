@@ -404,7 +404,9 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
             diff_tuples = z3.Or(
                 [i.var != j.var for (i, j) in
                     zip(info_i.loop_infos, info_j.loop_infos)])
-            self._add_constraint(z3.Implies(diff_threads, diff_tuples))
+            self._add_constraint(
+                z3.Implies(z3.And(info_i.cond, info_j.cond, diff_threads),
+                           diff_tuples))
 
         # Constrain each thread's 'distribute_vars' tuples to be
         # not equal, if each thread's team_id is not equal
@@ -413,7 +415,9 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
             diff_tuples = z3.Or(
                 [i.var != j.var for (i, j) in
                     zip(info_i.loop_infos, info_j.loop_infos)])
-            self._add_constraint(z3.Implies(diff_teams, diff_tuples))
+            self._add_constraint(
+                z3.Implies(z3.And(info_i.cond, info_j.cond, diff_teams),
+                           diff_tuples))
 
         # Add constraints to ensure consistent scheduling of statically
         # schedule loops
@@ -624,13 +628,14 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
                 # For convenience, this is done via 'parallel_do_vars'
                 var_info = CollapsedLoopInfo(stmt, [LoopInfo(active)])
                 self.parallel_do_vars.append(var_info)
-            # Handle loop directive
+            # Handle loop directives
             if "do" in stmt.clauses:
                 self.collapse_do = stmt.clauses.get("collapse", 1)
                 self.parallel_do_vars.append(CollapsedLoopInfo(stmt, []))
             if "distribute" in stmt.clauses:
                 self.collapse_distribute = stmt.clauses.get("collapse", 1)
                 self.distribute_vars.append(CollapsedLoopInfo(stmt, []))
+            # Handle 'sections' directive
             if "sections" in stmt.clauses:
                 sections = get_sections(stmt)
                 if sections:
@@ -653,6 +658,16 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
                     # For convenience, this is done via 'parallel_do_vars'
                     self.parallel_do_vars.append(
                         CollapsedLoopInfo(stmt, [LoopInfo(section_id)]))
+            # Handle stomp 'unique' directive
+            if stmt.is_stomp_directive and "unique" in stmt.clauses:
+                # Compile expression
+                expr = self._translate_integer_expr_with_subst(
+                           stmt.clauses["unique"])
+                # Require each thread's expression to be different.
+                # For convenience, this is done via 'parallel_do_vars'
+                self.parallel_do_vars.append(
+                    CollapsedLoopInfo(stmt, [LoopInfo(expr)], cond=cond))
+                return
 
             # Analyse region body
             if "sections" not in stmt.clauses:
@@ -764,8 +779,13 @@ class LoopInfo:
 
 # Type holding info about collapsed loops
 class CollapsedLoopInfo:
-    def __init__(self, d: OpenMPDirective, loop_infos: List[LoopInfo]):
+    def __init__(self,
+                 d: OpenMPDirective,
+                 loop_infos: List[LoopInfo],
+                 cond: z3.BoolRef = z3.BoolVal(True)):
         self.loop_infos = loop_infos
+        # Add condition guard for the loop
+        self.cond = cond
         # Is it a statically scheduled construct?
         self.is_static = "schedule" in d.clauses and \
                          d.clauses["schedule"] is not None and \
@@ -783,7 +803,6 @@ class CollapsedLoopInfo:
                 if barrier_free_path(stmt, body):
                     self.distinct = False
                     break
-
 
 def barrier_free_path(stmt_from: Statement, stmt_to: Statement) -> bool:
     '''Is there a path from the first statement to the second that does

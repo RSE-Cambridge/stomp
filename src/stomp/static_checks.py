@@ -3,13 +3,15 @@
 '''This module implements static checks.'''
 
 from psyclone.core import Signature
-from psyclone.psyir.nodes import Node, Routine, Loop, Call, IntrinsicCall
+from psyclone.psyir.nodes import \
+  Node, Routine, Loop, Call, IntrinsicCall, ArrayReference, Reference
 from psyclone.psyir.tools import ReductionInferenceTool
 from stomp.openmp_directives import \
-    OpenMPDirective, recognised_directives_set, \
+    OpenMPDirective, \
     is_within_directive, is_child_directive, \
     get_enclosing_directives, MAP_REDUCTION_OP_TO_STR
 from stomp.message import StompMessageCode, StompLogger
+from stomp.array_index_analysis import _is_scalar_integer
 from stomp.loop_conflict_analysis import LoopConflictAnalysis
 from stomp.region_conflict_analysis import RegionConflictAnalysis
 from stomp.misc import is_array_access, get_nested_loops
@@ -86,7 +88,7 @@ def check_directive_is_recognised(d: OpenMPDirective):
     kws = d.get_directive_keywords()
     if kws and kws[0] == "end":
         del kws[0]
-    if tuple(kws) not in recognised_directives_set:
+    if tuple(kws) not in d.get_allowed_keywords_set():
         StompLogger.add_message(
             StompMessageCode.UnrecognisedDirective,
             description = "This is not a recognised OpenMP directive.",
@@ -128,6 +130,22 @@ def check_nested_directives(d: OpenMPDirective):
                        "supported by the checker.",
                    directive_node = d.original_directive)
                 break
+
+
+def check_stomp_unique_directives(d: OpenMPDirective):
+    '''Check that stomp 'unique' directives contain a scalar integer
+    Reference.'''
+    if d.is_stomp_directive and "unique" in d.clauses:
+        expr = d.clauses["unique"]
+        ok = isinstance(expr, Reference) and \
+             not isinstance(expr, ArrayReference) and \
+             _is_scalar_integer(expr.datatype)
+        if not ok:
+            StompLogger.add_message(
+                StompMessageCode.BadUniqueDirective,
+                description = "The 'unique' directive must contain "
+                    "a scalar integer reference as its argument.",
+                directive_node = d.original_directive)
 
 
 # Collapsed loop checks

@@ -47,6 +47,7 @@ from psyclone.core import Signature
 from stomp.array_index_analysis import \
     ArrayIndexAnalysisOptions, ArrayIndexAnalysis, ArrayAccess
 from stomp.fortran_to_z3 import FortranToZ3
+from stomp.openmp_directives import OpenMPDirective
 
 # Analysis Options
 # ================
@@ -188,12 +189,18 @@ class LoopConflictAnalysis(ArrayIndexAnalysis):
         # The SMT variables representing each loop iteration variable
         self.smt_loop_var_i = None
         self.smt_loop_var_j = None
+        # For handling stomp 'unique' clauses (works similary to access dicts)
+        self.saved_unique_lists = []
+        self.unique_list = []
 
     def _save_access_dict(self):
         '''Move the current access dict to the stack, and proceed with
         an empty one.'''
         self.saved_access_dicts.append(self.access_dict)
         self.access_dict = {}
+        # For handling stomp 'unique' clauses
+        self.saved_unique_lists.append(self.unique_list)
+        self.unique_list = []
 
     def _add_all_array_accesses(self, node: Node, cond: z3.BoolRef):
         '''Add all array accesses in the given node to the current
@@ -269,6 +276,12 @@ class LoopConflictAnalysis(ArrayIndexAnalysis):
 
         # A list of conflicts to return
         conflicts = []
+
+        # Add constraints for stomp 'unique' directives
+        for (unique_i, unique_j) in zip(*self.saved_unique_lists):
+            self._add_constraint(
+                z3.Implies(z3.And(unique_i[0], unique_j[0]),
+                           unique_i[1] != unique_j[1]))
 
         # Forumlate constraints for solving, considering the two iterations
         iter_i = self.saved_access_dicts[0]
@@ -392,5 +405,14 @@ class LoopConflictAnalysis(ArrayIndexAnalysis):
             if stmt is self.loop_to_parallelise:
                 self.finished = True
             return
+
+        # Stomp directive
+        if isinstance(stmt, OpenMPDirective) and stmt.is_stomp_directive:
+            # Add assumption
+            if "unique" in stmt.clauses:
+                expr = self._translate_integer_expr_with_subst(
+                           stmt.clauses["unique"])
+                self.unique_list.append((cond, expr))
+                # Fall through
 
         super()._step(stmt, cond)

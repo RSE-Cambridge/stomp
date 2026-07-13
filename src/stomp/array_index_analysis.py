@@ -48,6 +48,8 @@ from psyclone.psyir.nodes import Loop, DataNode, Literal, Assignment, \
 from psyclone.psyir.symbols import DataType, ScalarType, ArrayType
 from fparser.two import Fortran2003, Fortran2008
 from stomp.misc import if_else_chain
+from stomp.openmp_directives import OpenMPDirective
+
 
 # Analysis Options
 # ================
@@ -560,6 +562,15 @@ class ArrayIndexAnalysis:
             # beyond this point
             self._add_constraint(z3.Not(cond))
             return
+
+        # Stomp directive
+        if isinstance(stmt, OpenMPDirective) and stmt.is_stomp_directive:
+            # Add assumption
+            if "assume" in stmt.clauses:
+                assumption = self._translate_logical_expr_with_subst(
+                                 stmt.clauses["assume"])
+                self._add_constraint(z3.Implies(cond, assumption))
+                return
 
         # Fall through
         self._add_all_array_accesses(stmt, cond)
