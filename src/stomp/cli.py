@@ -9,7 +9,7 @@ from psyclone.psyir.frontend.fortran import FortranReader
 from stomp.preprocessor import enable_preprocessor, preprocess
 from stomp.message import StompLogger, StompMessageCode
 from stomp.main import main
-from stomp.threadprivate import mark_threadprivate
+from stomp.module_spec_directives import parse_module_spec_directives
 
 def entry():
     # Arguments
@@ -201,9 +201,8 @@ def entry():
               file=sys.stderr)
         sys.exit(1)
 
-    # Identify and mark threadprivate variables (the info needed for this pass
-    # is not available in the PSyIR, so we use the raw source code)
-    mark_threadprivate(source_code, psyir, mod_manager)
+    # Parse directives in the specification part of Fortran modules
+    parse_module_spec_directives(source_code, psyir, mod_manager)
 
     # Invoke the tool
     num_omp_dir = main(psyir, infer=args.infer, assume_pure=args.pure)

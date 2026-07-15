@@ -1,25 +1,27 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
-'''This file provides functionality to identify and mark all threadprivate
-module variables. Local theadprivate variables with the save attribute are not
-yet supported. Unfortunately, the required information for this pass is not
-currently provided by PSyIR, so we use imperfect regex matching on the raw
-source code. In future, we could search the parse tree rather than the raw
-source for a more robust solution.'''
+'''This file provides functionality to handle directives that appear in the
+specifiation part of a module definition, e.g. OpenMP's "threadprivate"
+directive and stomp's "threadsafe" directive. These directives are not
+available in the PSyIR, so we use use imperfect regex matching on the raw
+source code to locate them.  In future, we could search the parse tree rather
+than the raw source for a more robust solution.
+'''
 
 import re
 from typing import List, Tuple
 from psyclone.parse.module_manager import ModuleManager
 from psyclone.psyir.nodes import Node, Container, Reference
-from psyclone.psyir.symbols import ImportInterface
+from psyclone.psyir.symbols import ImportInterface, Symbol, RoutineSymbol
 
 
-def mark_threadprivate(top_source_code: str,
-                       top_psyir: Node,
-                       mod_manager: ModuleManager = None):
-    '''Iterate over each module, determine the threadprivate variables
-    declared in that module, and mark these variables as threadprivate in
-    in the module's symbol table.'''
+def parse_module_spec_directives(
+        top_source_code: str,
+        top_psyir: Node,
+        mod_manager: ModuleManager = None):
+    '''Iterate over each module and handle directives in the specification
+    part of the module definition, e.g. "threadprivate" and "threadsafe"
+    directives.'''
     if mod_manager is None:
         source_code_list = [top_source_code]
         psyir_list = [top_psyir]
@@ -32,6 +34,7 @@ def mark_threadprivate(top_source_code: str,
         if not psyir: continue
         for (mod_name, spec) in get_module_specs(source_code):
             threadprivate = get_threadprivate(spec)
+            threadsafe = get_threadsafe(spec)
             for c in psyir.walk(Container):
                 if c.name == mod_name:
                     for v in threadprivate:
@@ -39,6 +42,13 @@ def mark_threadprivate(top_source_code: str,
                             sym = c.symbol_table.lookup(v)
                             # Mark symbol as threadprivate
                             sym.is_threadprivate = True
+                        except Exception:
+                            continue
+                    for v in threadsafe:
+                        try:
+                            sym = c.symbol_table.lookup(v)
+                            # Mark symbol as threadsafe
+                            sym.is_threadsafe = True
                         except Exception:
                             continue
 
@@ -71,13 +81,28 @@ def get_threadprivate(source_code: str):
     return threadprivate
 
 
-def is_threadprivate(ref: Reference) -> bool:
-    '''Determine whether the given reference is a reference to a
-    threadprivate variable.'''
+def get_threadsafe(source_code: str):
+    '''Use a regex to find all identifiers occuring in a stomp
+    "threadsafe" directive in the given source code.'''
+    threadsafe = []
+    pattern = r"(^|\n)\s*!\$stomp\s+threadsafe\s*\(([^\)]*)\)"
+    for m in re.finditer(pattern, source_code):
+        s = m.group(2)
+        s = s.replace("!$stomp", "")
+        s = s.replace("&", "")
+        s = s.replace(",", " ")
+        threadsafe.extend(s.split())
+    return threadsafe
+
+
+def sym_has_field(sym: Symbol, field_name: str) -> bool:
+    '''Chase down the given symbol and determine if it has the given
+    field name present.'''
     seen = set()
-    sym = ref.symbol
     while True:
         if hasattr(sym, "is_threadprivate"):
+            return True
+        if hasattr(sym, "is_threadsafe"):
             return True
         elif isinstance(sym.interface, ImportInterface):
             con_sym = sym.interface.container_symbol
@@ -98,3 +123,15 @@ def is_threadprivate(ref: Reference) -> bool:
                 return False
         else:
             return False
+
+
+def is_threadprivate(ref: Reference) -> bool:
+    '''Determine whether the given reference is a reference to a
+    threadprivate variable.'''
+    return sym_has_field(ref.symbol, "is_threadprivate")
+
+
+def is_threadsafe(sym: RoutineSymbol) -> bool:
+    '''Determine whether the given routine symbol is a reference to
+    a routine that is marked as threadsafe.''' 
+    return sym_has_field(sym, "is_threadsafe")

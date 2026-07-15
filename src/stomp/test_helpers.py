@@ -4,7 +4,7 @@ from psyclone.errors import InternalError
 from psyclone.configuration import Config
 from psyclone.psyir.frontend.fortran import FortranReader
 from stomp.message import StompLogger, StompMessageCode
-from stomp.threadprivate import mark_threadprivate
+from stomp.module_spec_directives import parse_module_spec_directives
 from stomp.main import main
 
 
@@ -36,7 +36,7 @@ def stomp_test(code: str,
         print(f"Failed to create PSyIR from source "
               f"due to: {str(err)}", file=sys.stderr)
         assert False
-    mark_threadprivate(code, psyir)
+    parse_module_spec_directives(code, psyir)
 
     # Invoke the tool
     main(psyir, infer=infer)

@@ -12,7 +12,7 @@ from psyclone.core import VariablesAccessMap
 from psyclone.psyir.symbols import SymbolTable
 from stomp.parser_lib import lift, char, many, token, \
     ParseError, sepby, choice, many1, optional, space, natural, chain
-from stomp.threadprivate import is_threadprivate
+from stomp.module_spec_directives import is_threadprivate
 from stomp.message import StompMessage, StompMessageCode, StompLogger
 from stomp.misc import parse_fortran_expr
 

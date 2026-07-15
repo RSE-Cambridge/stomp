@@ -15,6 +15,7 @@ from stomp.array_index_analysis import _is_scalar_integer
 from stomp.loop_conflict_analysis import LoopConflictAnalysis
 from stomp.region_conflict_analysis import RegionConflictAnalysis
 from stomp.misc import is_array_access, get_nested_loops
+from stomp.module_spec_directives import is_threadsafe
 
 
 # Basic checks that apply to every directive
@@ -454,6 +455,9 @@ def check_impure_calls(d: OpenMPDirective, assume_pure: set[str] = set()):
 
                     # Ignore intrinsic calls
                     if isinstance(call, IntrinsicCall): continue
+
+                    # Ignore routines marked as "threadsafe"
+                    if is_threadsafe(call.routine.symbol): continue
 
                     # Catch all remaining impure calls
                     if not call.is_pure:
