@@ -685,7 +685,7 @@ def stomp_directive(symbol_table: Optional[SymbolTable] = None):
 
 # Top-level parser
 def parse_omp_directive(directive: UnknownDirective) -> \
-        Union[OpenMPDirective, StompMessage]:
+        Optional[Union[OpenMPDirective, StompMessage]]:
     # Get symbol table
     symbol_table = directive.scope.symbol_table
     # Create and apply parser
@@ -694,6 +694,9 @@ def parse_omp_directive(directive: UnknownDirective) -> \
                     stomp_directive(symbol_table))
     result = parser(txt, 0)
     if isinstance(result, ParseError):
+        if result.pos == 0:
+            # Ignore directive if no text was consumed at all
+            return None
         remaining = result.txt[result.pos:]
         re.sub(" +", " ", remaining)
         return StompMessage(
@@ -762,6 +765,7 @@ def identify_openmp_directives(psyir: Node):
     successfully parsed as an OpenMP directive.'''
     for unknown in psyir.walk(UnknownDirective):
         d = parse_omp_directive(unknown)
+        if d is None: continue
         if isinstance(d, StompMessage):
             StompLogger.add_msg(d)
         else:
