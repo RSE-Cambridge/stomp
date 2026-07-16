@@ -43,7 +43,7 @@ def main(psyir,
         checks.check_ordered_directives(d)
         checks.check_nested_directives(d)
         checks.check_reduction_clauses(d)
-        checks.check_impure_calls(d, assume_pure=set(assume_pure))
+        checks.check_calls(d, assume_pure=set(assume_pure))
 
     if len(StompLogger.get_messages()) > 0:
         return num_omp_dir

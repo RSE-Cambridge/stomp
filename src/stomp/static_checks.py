@@ -426,35 +426,59 @@ def check_simd_loops(psyir: Node):
                             routine_name = routine.name)
 
 
-# Impure call checks
-# ==================
+# Subroutine/function call checks
+# ===============================
 
 
-def check_impure_calls(d: OpenMPDirective, assume_pure: set[str] = set()):
-    '''Report calls to impure functions/routines in parallel regions'''
-    # Skip the check if we're just going to ignore it
-    code = StompMessageCode.ImpureParallelCall
-    if code in StompLogger.ignore: return
+def check_calls(d: OpenMPDirective, assume_pure: set[str] = set()):
+    '''Report calls to unresolved or impure functions/routines in
+    parallel regions'''
+
+    # The following calls are ignored by the checking routines
+    ignore_calls = {
+        "omp_get_team_num",
+        "omp_get_thread_num",
+        "omp_get_num_teams",
+        "omp_get_num_threads",
+        "sleep",
+    }
 
     # Scan calls in parallel regions
     is_parallel_region = "parallel" in d.clauses or "teams" in d.clauses
     if is_parallel_region:
-        # Add names of functions/subroutines to ignore
-        assume_pure.add("omp_get_team_num")
-        assume_pure.add("omp_get_thread_num")
-        assume_pure.add("omp_get_num_teams")
-        assume_pure.add("omp_get_num_threads")
         region_body = d.get_body()
         if region_body:
             for stmt in region_body:
                 for call in stmt.walk(Call):
                     name = call.routine.name
 
-                    # Ignore specified calls
-                    if name in assume_pure: continue
-
-                    # Ignore intrinsic calls
+                    # Skip intrinsic calls
                     if isinstance(call, IntrinsicCall): continue
+
+                    # Skip ignored calls
+                    if name in ignore_calls: continue
+
+                    # Try to resolve call
+                    resolved = True
+                    try:
+                        call.get_callee()
+                    except Exception as err:
+                        reason = str(err)
+                        resolved = False
+
+                    if not resolved:
+                        StompLogger.add_message(
+                            StompMessageCode.UnresolvedCall,
+                            description = f"Call to unresolved "
+                                f"function/subroutine '{name}' in parallel "
+                                f"region. The reason for the resolution "
+                                f"failure is: '" + reason + "'.",
+                            directive_node = d.original_directive,
+                            node = call)
+                        break
+
+                    # Ignore assumed-pure calls
+                    if name in assume_pure: continue
 
                     # Ignore routines marked as "threadsafe"
                     if is_threadsafe(call.routine.symbol): continue
