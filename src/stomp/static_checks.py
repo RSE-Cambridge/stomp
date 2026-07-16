@@ -472,7 +472,9 @@ def check_calls(d: OpenMPDirective, assume_pure: set[str] = set()):
                             description = f"Call to unresolved "
                                 f"function/subroutine '{name}' in parallel "
                                 f"region. The reason for the resolution "
-                                f"failure is: '" + reason + "'.",
+                                f"failure is: '" + reason + "'. "
+                                f"To find missing source code, consider "
+                                f"using stomp's -F, -M, or -R options.",
                             directive_node = d.original_directive,
                             node = call)
                         break

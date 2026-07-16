@@ -92,12 +92,12 @@ DRB097-target-teams-distribute-orig-no: [32mTN[0m
 DRB098-simd2-orig-no: [32mTN[0m
 DRB099-targetparallelfor2-orig-no: [32mTN[0m
 DRB100-task-reference-orig-no: [32mTN[0m
-DRB101-task-value-orig-no: [32mTN[0m
+DRB101-task-value-orig-no: [33mFP[0m
 DRB102-copyprivate-orig-no: [32mTN[0m
 DRB103-master-orig-no: [32mTN[0m
 DRB104-nowait-barrier-orig-no: [32mTN[0m
-DRB105-taskwait-orig-no: [32mTN[0m
-DRB106-taskwaitmissing-orig-yes: [33mFN[0m
+DRB105-taskwait-orig-no: [33mFP[0m
+DRB106-taskwaitmissing-orig-yes: [32mTP[0m
 DRB107-taskgroup-orig-no: [32mTN[0m
 DRB108-atomic-orig-no: [32mTN[0m
 DRB109-orderedmissing-orig-yes: [32mTP[0m
