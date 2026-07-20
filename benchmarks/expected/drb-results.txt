@@ -117,7 +117,7 @@ DRB122-taskundeferred-orig-no: [32mTN[0m
 DRB123-taskundeferred-orig-yes: [33mFN[0m
 DRB124-master-orig-yes: [32mTP[0m
 DRB125-single-orig-no: [32mTN[0m
-DRB126-firstprivatesections-orig-no: [33mFP[0m
+DRB126-firstprivatesections-orig-no: [32mTN[0m
 DRB127-tasking-threadprivate1-orig-no: [32mTN[0m
 DRB128-tasking-threadprivate2-orig-no: [32mTN[0m
 DRB129-mergeable-taskwait-orig-yes: [33mFN[0m
