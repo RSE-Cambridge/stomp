@@ -219,6 +219,15 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         # Call parent method with possibly-modified access
         super()._add_array_access(array_name, access)
 
+    def _get_private_vars(self) -> list[str]:
+        '''Override parent class method: get the list of private variables'''
+        private = self.explicit_private_vars
+        if self.inside_parallel:
+            private.update(self.thread_private_vars)
+        else:
+            private.update(self.team_private_vars)
+        return list(private)
+
     def _kill_scalar_vars(self, vs: List[str]):
         '''Kill the scalar variables in the given list of variables.'''
         for v in vs:
@@ -604,10 +613,8 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
                 region_private_vars = list(region_private_vars)
                 if "parallel" in stmt.clauses:
                     self.thread_private_vars = region_private_vars.copy()
-                    self.private_vars = self.thread_private_vars
                 elif "teams" in stmt.clauses:
                     self.team_private_vars = region_private_vars.copy()
-                    self.private_vars = self.team_private_vars
                 # We might considering killing private (but not
                 # firstprivate) variables here, however, other checks
                 # should catch use of uninitialised privates

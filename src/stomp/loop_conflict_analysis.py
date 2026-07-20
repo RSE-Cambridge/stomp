@@ -239,7 +239,7 @@ class LoopConflictAnalysis(ArrayIndexAnalysis):
         # Start with an empty constraint set and substitution
         self._init_analysis()
         self.loop_to_parallelise = loop
-        self.private_vars = private
+        self.explicit_private_vars = private
 
         # Resolve choice of integers v. bit vectors
         if self.opts.use_bv is None:

@@ -257,7 +257,7 @@ class ArrayIndexAnalysis:
         # calls on that array.
         self.array_intrins_vars = {}
         # Accesses to arrays in this set will be ignored.
-        self.private_vars = {}
+        self.explicit_private_vars = set()
         # Are we inside the parallel region to analyse for conflicts?
         self.in_region_of_interest = False
 
@@ -442,9 +442,13 @@ class ArrayIndexAnalysis:
             self._add_constraint(z3.BVMulNoUnderflow(i, var_step))
         return (var_begin, var_end, var_step)
 
+    def _get_private_vars(self) -> set[str]:
+        '''Get the list of private variables'''
+        return self.explicit_private_vars
+
     def _add_array_access(self, array_name: str, access: ArrayAccess):
         '''Add an array access to the current access dict.'''
-        if array_name in self.private_vars:
+        if array_name in self._get_private_vars():
             return
         if array_name in self.access_dict:
             self.access_dict[array_name].append(access)
@@ -501,7 +505,7 @@ class ArrayIndexAnalysis:
                 if indices_flat == [] and len(sig) == 1:
                     if (self.in_region_of_interest and
                             self.opts.check_scalars and
-                            sig.var_name not in self.private_vars):
+                            sig.var_name not in self._get_private_vars()):
                         # Only accumulate info about private variables
                         # if we're inside the region of potential conflicts
                         pass
