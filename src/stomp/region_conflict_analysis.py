@@ -102,6 +102,7 @@ class RegionConflictAnalysisOptions(ArrayIndexAnalysisOptions):
     :param succeed_on_timeout: interpret a timeout as a non-conflict.
        This means that analysis may report no conflicts when there is one,
        but it will have tried to find one.
+
     '''
     def __init__(self,
                  int_width: int = 32,
@@ -151,6 +152,7 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
            provided by, and choices made by, the analysis.
         '''
         self.opts = options
+        self.opts.check_scalars = True
 
     def _init_analysis(self):
         '''Initialise the analysis by setting all the internal state
@@ -183,8 +185,6 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         # We record two access dicts, representing two arbitrary but distinct
         # threads executing in the region
         self.saved_access_dicts = []
-        # Have we found the parallel region of interest?
-        self.found_region_of_interest = False
         # The condition around the statment of interest
         self.region_cond = None
 
@@ -198,7 +198,7 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         '''Override parent method: add an array access to the current
         access dict.'''
         # Ignore accesses outside region of interest
-        if not self.found_region_of_interest:
+        if not self.in_region_of_interest:
             return
         # Ignore accesses to thread-private variables
         if array_name in self.thread_private_vars:
@@ -218,12 +218,6 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
             access._is_team_private = True
         # Call parent method with possibly-modified access
         super()._add_array_access(array_name, access)
-
-    def _add_all_array_accesses(self, node: Node, cond: z3.BoolRef):
-        '''Add all array accesses in the given node to the current
-        access dict.'''
-        if self.found_region_of_interest:
-            super()._add_all_array_accesses(node, cond)
 
     def _kill_scalar_vars(self, vs: List[str]):
         '''Kill the scalar variables in the given list of variables.'''
@@ -303,7 +297,7 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         # Find region of interest
         for stmt in routine.children:
             self._step(stmt, z3.BoolVal(True))
-        if not self.found_region_of_interest:
+        if not self.in_region_of_interest:
             raise RuntimeError("RegionConflictAnalysis: could not find "
                 "region of interest in routine.")
         self.finished = False
@@ -430,10 +424,27 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
             distribute_vars_per_thread[1],
             diff_teams)
 
-        # A list of conflicts to return
-        conflicts = []
+        # Get the accesses pairs involving the same variable name
+        candidates = self._get_candidate_conflicts()
 
-        # Forumlate constraints for solving, considering the two threads
+        # We want to analyse scalar conflict first, if there are any
+        scalar_candidates = []
+        array_candidates = []
+        for (i_accesses, j_accesses) in candidates:
+            if any([i_acc.is_scalar for i_acc in i_accesses]):
+                scalar_candidates.append((i_accesses, j_accesses))
+            else:
+                array_candidates.append((i_accesses, j_accesses))
+
+        conflicts = self._get_conflicts(scalar_candidates, all_conflicts)
+        if not conflicts or all_conflicts:
+            conflicts += self._get_conflicts(array_candidates, all_conflicts)
+        return conflicts
+
+    def _get_candidate_conflicts(self) -> \
+            list[Tuple[list[ArrayAccess], list[ArrayAccess]]]:
+        '''Get the candidate conflicts (acceses to the same variable).'''
+        candidates = []
         thread_i = self.saved_access_dicts[0]
         thread_j = self.saved_access_dicts[1]
         for (i_arr_name, i_accesses) in thread_i.items():
@@ -441,15 +452,26 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
                 if (i_arr_name == j_arr_name or
                         i_arr_name.startswith(j_arr_name + "%") or
                         j_arr_name.startswith(i_arr_name + "%")):
-                    # For each write access in the i iteration
-                    for i_access in i_accesses:
-                        if i_access.is_write:
-                            conflict = self._get_conflict(i_access, j_accesses)
-                            if conflict:
-                                conflicts.append(conflict)
-                                if not all_conflicts:
-                                    return conflicts
+                    candidates.append((i_accesses, j_accesses))
+        return candidates
 
+    def _get_conflicts(self,
+                       candidates: list[Tuple[list[ArrayAccess],
+                                              list[ArrayAccess]]],
+                       all_conflicts: bool) -> \
+            Optional[Tuple[Signature, Optional[str]]]:
+        '''Get the conflicts in the given conflict candidates.'''
+        conflicts = []
+        # Formulate constraints for solving, considering the two threads
+        for (i_accesses, j_accesses) in candidates:
+            # For each write access in the i iteration
+            for i_access in i_accesses:
+                if i_access.is_write:
+                    conflict = self._get_conflict(i_access, j_accesses)
+                    if conflict:
+                        conflicts.append(conflict)
+                        if not all_conflicts:
+                            return conflicts
         return conflicts
 
     def _get_conflict(self, write: ArrayAccess, accs: list[ArrayAccess]) -> \
@@ -524,10 +546,10 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
             return
 
         # Look for region of interest
-        if (not self.found_region_of_interest and
+        if (not self.in_region_of_interest and
                 isinstance(stmt, OpenMPDirective) and
                 stmt is self.region_of_interest):
-            self.found_region_of_interest = True
+            self.in_region_of_interest = True
             self.region_cond = cond
             self.finished = True
             return
@@ -565,7 +587,7 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
             self._restore_subst()
             return
 
-        if (self.found_region_of_interest and
+        if (self.in_region_of_interest and
                 isinstance(stmt, OpenMPDirective)):
             # Save some state that needs to be restored after analysing
             # the directive's body
@@ -583,8 +605,10 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
                                    | stmt.get_always_private())
                 if "parallel" in stmt.clauses:
                     self.thread_private_vars = region_private_vars.copy()
+                    self.private_vars = self.thread_private_vars
                 elif "teams" in stmt.clauses:
                     self.team_private_vars = region_private_vars.copy()
+                    self.private_vars = self.team_private_vars
                 # We might considering killing private (but not
                 # firstprivate) variables here, however, other checks
                 # should catch use of uninitialised privates

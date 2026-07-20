@@ -42,9 +42,9 @@ DRB045-doall1-orig-no: [32mTN[0m
 DRB046-doall2-orig-no: [32mTN[0m
 DRB047-doallchar-orig-no: [32mTN[0m
 DRB048-firstprivate-orig-no: [32mTN[0m
-DRB049-write-orig-no: [33mFP[0m
+DRB049-write-orig-no: [32mTN[0m
 DRB050-functionparameter-orig-no: [32mTN[0m
-DRB051-getthreadnum-orig-no: [33mFP[0m
+DRB051-getthreadnum-orig-no: [32mTN[0m
 DRB052-indirectaccesssharebase-orig-no: [33mFP[0m
 DRB053-inneronly1-orig-no: [32mTN[0m
 DRB054-inneronly2-orig-no: [32mTN[0m
@@ -101,7 +101,7 @@ DRB106-taskwaitmissing-orig-yes: [32mTP[0m
 DRB107-taskgroup-orig-no: [32mTN[0m
 DRB108-atomic-orig-no: [32mTN[0m
 DRB109-orderedmissing-orig-yes: [32mTP[0m
-DRB110-ordered-orig-no: [33mFP[0m
+DRB110-ordered-orig-no: [32mTN[0m
 DRB111-linearmissing-orig-yes: [32mTP[0m
 DRB112-linear-orig-no: [33mFP[0m
 DRB113-default-orig-no: [32mTN[0m
@@ -113,9 +113,9 @@ DRB118-nestlock-orig-no: [33mFP[0m
 DRB119-nestlock-orig-yes: [32mTP[0m
 DRB120-barrier-orig-no: [32mTN[0m
 DRB121-reduction-orig-no: [32mTN[0m
-DRB122-taskundeferred-orig-no: [33mFP[0m
-DRB123-taskundeferred-orig-yes: [32mTP[0m
-DRB124-master-orig-yes: [33mFN[0m
+DRB122-taskundeferred-orig-no: [32mTN[0m
+DRB123-taskundeferred-orig-yes: [33mFN[0m
+DRB124-master-orig-yes: [32mTP[0m
 DRB125-single-orig-no: [32mTN[0m
 DRB126-firstprivatesections-orig-no: [33mFP[0m
 DRB127-tasking-threadprivate1-orig-no: [32mTN[0m

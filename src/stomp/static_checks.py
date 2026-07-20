@@ -8,11 +8,12 @@ from psyclone.psyir.nodes import \
 from psyclone.psyir.tools import ReductionInferenceTool
 from stomp.openmp_directives import \
     OpenMPDirective, \
-    is_within_directive, is_child_directive, \
-    get_enclosing_directives, MAP_REDUCTION_OP_TO_STR
+    get_enclosing_directives, \
+    MAP_REDUCTION_OP_TO_STR
 from stomp.message import StompMessageCode, StompLogger
 from stomp.array_index_analysis import _is_scalar_integer
-from stomp.loop_conflict_analysis import LoopConflictAnalysis
+from stomp.loop_conflict_analysis import \
+    LoopConflictAnalysis, LoopConflictAnalysisOptions
 from stomp.region_conflict_analysis import RegionConflictAnalysis
 from stomp.misc import is_array_access, get_nested_loops
 from stomp.module_spec_directives import is_threadsafe
@@ -288,74 +289,74 @@ def check_reduction_clauses(d: OpenMPDirective):
 # =============================
 
 
-def check_parallel_scalar_accesses(psyir: Node):
-    '''Various checks for scalar accesses within parallel directives.'''
-    # Iterate over all accesses that are enclosed by parallel directive
-    par_region = [["parallel"], ["teams"]]
-    par_loop = [["do"], ["distribute"], ["simd"]]
-    par = par_region + par_loop
-    safe = [["critical"], ["atomic"], ["single"], ["master"]]
-    for routine in psyir.walk(Routine):
-        accesses = routine.reference_accesses()
-        for (sig, seq) in accesses.items():
-            for (i, info) in enumerate(seq):
-                d = is_within_directive(info.node, par)
+#def check_parallel_scalar_accesses(psyir: Node):
+#    '''Various checks for scalar accesses within parallel directives.'''
+#    # Iterate over all accesses that are enclosed by parallel directive
+#    par_region = [["parallel"], ["teams"]]
+#    par_loop = [["do"], ["distribute"], ["simd"]]
+#    par = par_region + par_loop
+#    safe = [["critical"], ["atomic"], ["single"], ["master"]]
+#    for routine in psyir.walk(Routine):
+#        accesses = routine.reference_accesses()
+#        for (sig, seq) in accesses.items():
+#            for (i, info) in enumerate(seq):
+#                d = is_within_directive(info.node, par)
+#
+#                # Write access to a shared variable must be protected
+#                bad = d and \
+#                      info.is_any_write() and \
+#                      not is_array_access(info) and \
+#                      d.is_shared_var(sig.var_name) and \
+#                      not is_within_directive(info.node, safe)
+#                if bad:
+#                    StompLogger.add_message(
+#                        StompMessageCode.ParallelScalarConflict,
+#                        description = f"Unprotected parallel write to shared "
+#                            f"variable '{sig.var_name}'.",
+#                        node = info.node,
+#                        directive_node = d.original_directive,
+#                        routine_name = routine.name)
+#                    break
+#
+#                # Read of private (not firstprivate) scalar must
+#                # be initialised
+#                code = StompMessageCode.ReadUninitialisedPrivate
+#                if code not in StompLogger.ignore:
+#                    region = is_within_directive(info.node, par_region)
+#                    bad = d and \
+#                          info.is_any_read() and \
+#                          not is_array_access(info) and \
+#                          d.is_private_var(sig.var_name) and \
+#                          not d.is_firstprivate_var(sig.var_name) and \
+#                          not d.is_always_private(sig.var_name)
+#                    if bad:
+#                        # Look for preceeding initialiser
+#                        ok = False
+#                        for pre in reversed(seq[0:i]):
+#                            ok = pre.is_any_write() and \
+#                                     (region is None or
+#                                      is_child_directive(pre.node, region))
+#                            if ok: break
+#                        if not ok:
+#                            StompLogger.add_message(
+#                                StompMessageCode.ReadUninitialisedPrivate,
+#                                description = f"Parallel loop reads "
+#                                    f"uninitialised private variable "
+#                                    f"'{sig.var_name}'.",
+#                                node = info.node,
+#                                directive_node = d.original_directive,
+#                                routine_name = routine.name)
+#                            break
 
-                # Write access to a shared variable must be protected
-                bad = d and \
-                      info.is_any_write() and \
-                      not is_array_access(info) and \
-                      d.is_shared_var(sig.var_name) and \
-                      not is_within_directive(info.node, safe)
-                if bad:
-                    StompLogger.add_message(
-                        StompMessageCode.ParallelScalarConflict,
-                        description = f"Unprotected parallel write to shared "
-                            f"variable '{sig.var_name}'.",
-                        node = info.node,
-                        directive_node = d.original_directive,
-                        routine_name = routine.name)
-                    break
-
-                # Read of private (not firstprivate) scalar must
-                # be initialised
-                code = StompMessageCode.ReadUninitialisedPrivate
-                if code not in StompLogger.ignore:
-                    region = is_within_directive(info.node, par_region)
-                    bad = d and \
-                          info.is_any_read() and \
-                          not is_array_access(info) and \
-                          d.is_private_var(sig.var_name) and \
-                          not d.is_firstprivate_var(sig.var_name) and \
-                          not d.is_always_private(sig.var_name)
-                    if bad:
-                        # Look for preceeding initialiser
-                        ok = False
-                        for pre in reversed(seq[0:i]):
-                            ok = pre.is_any_write() and \
-                                     (region is None or
-                                      is_child_directive(pre.node, region))
-                            if ok: break
-                        if not ok:
-                            StompLogger.add_message(
-                                StompMessageCode.ReadUninitialisedPrivate,
-                                description = f"Parallel loop reads "
-                                    f"uninitialised private variable "
-                                    f"'{sig.var_name}'.",
-                                node = info.node,
-                                directive_node = d.original_directive,
-                                routine_name = routine.name)
-                            break
+# Data race checks
+# ================
 
 
-# Parallel array access checks
-# ============================
-
-
-def check_parallel_array_accesses(psyir: Node):
-    '''Check all OpenMP teams/parallel regions for array access
-    conflicts, where at least two accesses (one of which is a write)
-    access the same indices of the same array in different threads.'''
+def check_data_races(psyir: Node):
+    '''Check all OpenMP teams/parallel regions for data races,
+    where at least two accesses (one of which is a write)
+    access the same indices of the same array in different threads,
+    or access the same scalar in different threads.'''
 
     for routine in psyir.walk(Routine):
         for d in routine.walk(OpenMPDirective):
@@ -377,8 +378,8 @@ def check_parallel_array_accesses(psyir: Node):
                 if msg is None:
                     continue
                 StompLogger.add_message(
-                    StompMessageCode.ParallelArrayConflict,
-                    description = "Array access conflict in "
+                    StompMessageCode.DataRace,
+                    description = "Potential data race in "
                         "parallel region. " + msg + ".",
                     directive_node = d.original_directive,
                     routine_name = routine.name)
@@ -413,13 +414,15 @@ def check_simd_loops(psyir: Node):
                     private_vars.add(x)
 
                 # Analyse loop
-                analysis = LoopConflictAnalysis()
+                opts = LoopConflictAnalysisOptions()
+                opts.check_scalars = True
+                analysis = LoopConflictAnalysis(opts)
                 for loop in par_loops:
                     conflicts = analysis.get_loop_conflicts(loop,
                                     private=private_vars)
                     if conflicts:
                         StompLogger.add_message(
-                            StompMessageCode.ParallelArrayConflict,
+                            StompMessageCode.DataRace,
                             description = conflicts[0][1] + ".",
                             node = outer_loop,
                             directive_node = d.original_directive,
@@ -472,7 +475,7 @@ def check_calls(d: OpenMPDirective, assume_pure: set[str] = set()):
                             description = f"Call to unresolved "
                                 f"function/subroutine '{name}' in parallel "
                                 f"region. The reason for the resolution "
-                                f"failure is: '" + reason + "'. "
+                                f"failure is: '{reason}'. "
                                 f"To find missing source code, consider "
                                 f"using stomp's -F, -M, or -R options.",
                             directive_node = d.original_directive,

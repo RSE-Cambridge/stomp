@@ -48,11 +48,8 @@ def main(psyir,
     if len(StompLogger.get_messages()) > 0:
         return num_omp_dir
 
-    # Scalar conflict checks
-    checks.check_parallel_scalar_accesses(psyir)
-
-    # Parallel array conflict checks
-    checks.check_parallel_array_accesses(psyir)
+    # Data race checks
+    checks.check_data_races(psyir)
 
     # SIMD loop checks
     checks.check_simd_loops(psyir)

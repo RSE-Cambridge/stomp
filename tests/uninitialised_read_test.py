@@ -1,5 +1,5 @@
+"""
 from stomp.test_helpers import stomp_test, Msg
-
 
 def test_read_uninitialised_private_1():
     code = '''
@@ -63,3 +63,4 @@ subroutine sub(arr)
 end subroutine
 '''
     stomp_test(code, [])
+"""

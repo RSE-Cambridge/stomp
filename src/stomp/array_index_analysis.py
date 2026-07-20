@@ -79,16 +79,22 @@ class ArrayIndexAnalysisOptions:
        occurrences of 'size(arr)' will be assumed to return the same value,
        provided that those occurrences are not separated by a statement
        that may modify the size/bounds of 'arr'.
+
+    :param check_scalars: whether to check for scalar access conflicts
+       as well as array access conflicts.
+
     '''
     def __init__(self,
                  int_width: int = 32,
                  use_bv: bool = None,
                  prohibit_overflow: bool = False,
-                 handle_array_intrins: bool = True):
+                 handle_array_intrins: bool = True,
+                 check_scalars: bool = False):
         self.int_width = int_width
         self.use_bv = use_bv
         self.prohibit_overflow = prohibit_overflow
         self.handle_array_intrins = handle_array_intrins
+        self.check_scalars = check_scalars
 
 
 # Array access type
@@ -107,18 +113,21 @@ class ArrayAccess:
     :param psyir_node: PSyIR node for the access (useful for reporting
        conflict messages / errors).
     :param is_team_private: is it an access to a team-private array?
+    :param is_scalar: is it an access to a scalar rather than an array?
     '''
     def __init__(self,
                  cond:            z3.BoolRef,
                  is_write:        bool,
                  indices:         list[list[z3.ExprRef]],
                  psyir_node:      Node,
-                 is_team_private: bool = False):
+                 is_team_private: bool = False,
+                 is_scalar:       bool = False):
         self._cond = cond
         self._is_write = is_write
         self._indices = indices
         self._psyir_node = psyir_node
         self._is_team_private = is_team_private
+        self._is_scalar = is_scalar
 
     @property
     def cond(self):
@@ -135,6 +144,10 @@ class ArrayAccess:
     @property
     def psyir_node(self):
         return self._psyir_node
+
+    @property
+    def is_scalar(self):
+        return self._is_scalar
 
 
 # Analysis
@@ -244,7 +257,9 @@ class ArrayIndexAnalysis:
         # calls on that array.
         self.array_intrins_vars = {}
         # Accesses to arrays in this set will be ignored.
-        self.ignore_arrays = {}
+        self.private_vars = {}
+        # Are we inside the parallel region to analyse for conflicts?
+        self.in_region_of_interest = False
 
     def _init_array_intrins_vars(self, routine: Routine):
         '''Initialise the 'array_intrins_vars' dict so that, for each
@@ -429,7 +444,7 @@ class ArrayIndexAnalysis:
 
     def _add_array_access(self, array_name: str, access: ArrayAccess):
         '''Add an array access to the current access dict.'''
-        if array_name in self.ignore_arrays:
+        if array_name in self.private_vars:
             return
         if array_name in self.access_dict:
             self.access_dict[array_name].append(access)
@@ -439,17 +454,17 @@ class ArrayIndexAnalysis:
     def _add_all_array_accesses(self, node: Node, cond: z3.BoolRef):
         '''Add all array accesses in the given node to the current
         access dict.'''
+        if not self.in_region_of_interest: return
         var_accesses = node.reference_accesses()
         for sig, access_seq in var_accesses.items():
             for access_info in access_seq:
                 if isinstance(access_info.node, Reference):
+                    if not access_info.is_data_access: continue
                     (s, indices) = access_info.node.get_signature_and_indices()
                     indices_flat = [i for inds in indices for i in inds]
-                    is_array_access = (
-                      access_info.is_data_access and
-                      (indices_flat != [] or
-                       isinstance(access_info.node.datatype, ArrayType)))
-                    if is_array_access:
+                    is_array_access = (indices_flat != [] or
+                       isinstance(access_info.node.datatype, ArrayType))
+                    if is_array_access or self.opts.check_scalars:
                         smt_indices = []
                         for inds in indices:
                             smt_inds = []
@@ -468,7 +483,8 @@ class ArrayIndexAnalysis:
                             str(s),
                             ArrayAccess(
                               cond, access_info.is_any_write(),
-                              smt_indices, access_info.node))
+                              smt_indices, access_info.node,
+                              not is_array_access))
 
     def _step(self, stmt: Node, cond: z3.BoolRef):
         '''Analyse the given statement in recursive-descent fashion.'''
@@ -483,7 +499,13 @@ class ArrayIndexAnalysis:
                 (sig, indices) = stmt.lhs.get_signature_and_indices()
                 indices_flat = [i for inds in indices for i in inds]
                 if indices_flat == [] and len(sig) == 1:
-                    if _is_scalar_integer(stmt.lhs.datatype):
+                    if (self.in_region_of_interest and
+                            self.opts.check_scalars and
+                            sig.var_name not in self.private_vars):
+                        # Only accumulate info about private variables
+                        # if we're inside the region of potential conflicts
+                        pass
+                    elif _is_scalar_integer(stmt.lhs.datatype):
                         rhs_smt = self._translate_integer_expr_with_subst(
                                     stmt.rhs)
                         self._add_integer_assignment(sig.var_name, rhs_smt)

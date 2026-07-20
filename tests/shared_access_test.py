@@ -14,7 +14,7 @@ subroutine sub(arr)
   end do
 end subroutine
 '''
-    stomp_test(code, [Msg.ParallelScalarConflict])
+    stomp_test(code, [Msg.DataRace])
 
 
 def test_loop_scalar_threadprivate():
@@ -90,4 +90,4 @@ subroutine sub(arr)
   !$omp end target teams
 endsubroutine
 '''
-    stomp_test(code, [Msg.ParallelArrayConflict])
+    stomp_test(code, [Msg.DataRace])

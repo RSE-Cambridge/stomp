@@ -96,6 +96,9 @@ class LoopConflictAnalysisOptions(ArrayIndexAnalysisOptions):
     :param succeed_on_timeout: interpret a timeout as a non-conflict.
        This means that analysis may report no conflicts when there is one,
        but it will have tried to find one.
+
+    :param check_scalars: whether to check scalar accesses as well as
+       array accesses.
     '''
     def __init__(self,
                  int_width: int = 32,
@@ -105,11 +108,14 @@ class LoopConflictAnalysisOptions(ArrayIndexAnalysisOptions):
                  handle_array_intrins: bool = True,
                  num_sweep_threads: int = 4,
                  sweep_seed: int = 1,
-                 succeed_on_timeout: bool = False):
+                 succeed_on_timeout: bool = False,
+                 check_scalars: bool = False):
         super().__init__(int_width=int_width,
                          use_bv=use_bv,
                          prohibit_overflow=prohibit_overflow,
-                         handle_array_intrins=handle_array_intrins)
+                         handle_array_intrins=handle_array_intrins,
+                         check_scalars=check_scalars
+                       )
         self.smt_timeout_ms = smt_timeout_ms
         self.num_sweep_threads = num_sweep_threads
         self.sweep_seed = sweep_seed
@@ -184,8 +190,6 @@ class LoopConflictAnalysis(ArrayIndexAnalysis):
         # We record two access dicts, representing two arbitrary but distinct
         # iterations of the loop to parallelise
         self.saved_access_dicts = []
-        # Are we currently analysing the loop to parallelise?
-        self.in_loop_to_parallelise = False
         # The SMT variables representing each loop iteration variable
         self.smt_loop_var_i = None
         self.smt_loop_var_j = None
@@ -201,12 +205,6 @@ class LoopConflictAnalysis(ArrayIndexAnalysis):
         # For handling stomp 'unique' clauses
         self.saved_unique_lists.append(self.unique_list)
         self.unique_list = []
-
-    def _add_all_array_accesses(self, node: Node, cond: z3.BoolRef):
-        '''Add all array accesses in the given node to the current
-        access dict.'''
-        if self.in_loop_to_parallelise:
-            super()._add_all_array_accesses(node, cond)
 
     def get_loop_conflicts(self,
                            loop: Loop,
@@ -241,7 +239,7 @@ class LoopConflictAnalysis(ArrayIndexAnalysis):
         # Start with an empty constraint set and substitution
         self._init_analysis()
         self.loop_to_parallelise = loop
-        self.ignore_arrays = private
+        self.private_vars = private
 
         # Resolve choice of integers v. bit vectors
         if self.opts.use_bv is None:
@@ -283,23 +281,21 @@ class LoopConflictAnalysis(ArrayIndexAnalysis):
                 z3.Implies(z3.And(unique_i[0], unique_j[0]),
                            unique_i[1] != unique_j[1]))
 
-        # Forumlate constraints for solving, considering the two iterations
-        iter_i = self.saved_access_dicts[0]
-        iter_j = self.saved_access_dicts[1]
-        for (i_arr_name, i_accesses) in iter_i.items():
-            for (j_arr_name, j_accesses) in iter_j.items():
-                if (i_arr_name == j_arr_name or
-                        i_arr_name.startswith(j_arr_name + "%") or
-                        j_arr_name.startswith(i_arr_name + "%")):
-                    # For each write access in the i iteration
-                    for i_access in i_accesses:
-                        if i_access.is_write:
-                            conflict = self._get_conflict(i_access, j_accesses)
-                            if conflict:
-                                conflicts.append(conflict)
-                                if not all_conflicts:
-                                    return conflicts
+        # Get the accesses pairs involving the same variable name
+        candidates = self._get_candidate_conflicts()
 
+        # We want to analyse scalar conflicts first, if there are any
+        scalar_candidates = []
+        array_candidates = []
+        for (i_accesses, j_accesses) in candidates:
+            if any([i_acc.is_scalar for i_acc in i_accesses]):
+                scalar_candidates.append((i_accesses, j_accesses))
+            else:
+                array_candidates.append((i_accesses, j_accesses))
+
+        conflicts = self._get_conflicts(scalar_candidates, all_conflicts)
+        if not conflicts or all_conflicts:
+            conflicts += self._get_conflicts(array_candidates, all_conflicts)
         return conflicts
 
     def _get_conflict(self, write: ArrayAccess, accs: list[ArrayAccess]) -> \
@@ -361,6 +357,39 @@ class LoopConflictAnalysis(ArrayIndexAnalysis):
         else:
             return None
 
+    def _get_candidate_conflicts(self) -> \
+            list[Tuple[list[ArrayAccess], list[ArrayAccess]]]:
+        '''Get the candidate conflicts (acceses to the same variable).'''
+        candidates = []
+        thread_i = self.saved_access_dicts[0]
+        thread_j = self.saved_access_dicts[1]
+        for (i_arr_name, i_accesses) in thread_i.items():
+            for (j_arr_name, j_accesses) in thread_j.items():
+                if (i_arr_name == j_arr_name or
+                        i_arr_name.startswith(j_arr_name + "%") or
+                        j_arr_name.startswith(i_arr_name + "%")):
+                    candidates.append((i_accesses, j_accesses))
+        return candidates
+
+    def _get_conflicts(self,
+                       candidates: list[Tuple[list[ArrayAccess],
+                                              list[ArrayAccess]]],
+                       all_conflicts: bool) -> \
+            Optional[Tuple[Signature, Optional[str]]]:
+        '''Get the conflicts in the given conflict candidates.'''
+        conflicts = []
+        # Formulate constraints for solving, considering the two threads
+        for (i_accesses, j_accesses) in candidates:
+            # For each write access in the i iteration
+            for i_access in i_accesses:
+                if i_access.is_write:
+                    conflict = self._get_conflict(i_access, j_accesses)
+                    if conflict:
+                        conflicts.append(conflict)
+                        if not all_conflicts:
+                            return conflicts
+        return conflicts
+
     def _step(self, stmt: Node, cond: z3.BoolRef):
         '''Analyse the given statement in recursive-descent fashion.'''
 
@@ -376,7 +405,7 @@ class LoopConflictAnalysis(ArrayIndexAnalysis):
             self._kill_integer_var(stmt.variable.name)
             # Have we reached the loop we'd like to parallelise?
             if stmt is self.loop_to_parallelise:
-                self.in_loop_to_parallelise = True
+                self.in_region_of_interest = True
                 # Consider two arbitary but distinct iterations
                 i_var = self._fresh_integer_var()
                 j_var = self._fresh_integer_var()

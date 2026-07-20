@@ -2,11 +2,10 @@
 All done. Analysed 23 directives and found 0 issues.
 
 # mat_mul.F90
-[91mParallelScalarConflict[0m
+[91mDataRace[0m
 [94mRoutine[0m: mat_mul_simple
 [94mDirective[0m: '!$omp target teams distribute parallel do collapse(2) !nowai'
-[94mNode[0m: 'acc = 0\ndo k = 1, SIZE(a, dim=1), 1\n  acc = acc + a(k,row_a)'
-[94mDescription[0m: Unprotected parallel write to shared variable 'acc'.
+[94mDescription[0m: Potential data race in parallel region. Thread (team=0,thread=0) and thread (team=0,thread=1) have conflicting accesses to acc.
 
 All done. Analysed 13 directives and found 1 issues.
 
@@ -14,11 +13,10 @@ All done. Analysed 13 directives and found 1 issues.
 All done. Analysed 14 directives and found 0 issues.
 
 # stencil.F90
-[91mParallelScalarConflict[0m
+[91mDataRace[0m
 [94mRoutine[0m: stencil_simple
 [94mDirective[0m: '!$omp target teams distribute parallel do collapse(2) !nowai'
-[94mNode[0m: 'total = mat_in(x,y - 1) + mat_in(x - 1,y) + mat_in(x,y) + ma'
-[94mDescription[0m: Unprotected parallel write to shared variable 'total'.
+[94mDescription[0m: Potential data race in parallel region. Thread (team=0,thread=0) and thread (team=0,thread=1) have conflicting accesses to total.
 
 All done. Analysed 12 directives and found 1 issues.
 

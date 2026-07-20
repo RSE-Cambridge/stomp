@@ -32,8 +32,7 @@ class StompMessageCode(Enum):
     ImpureParallelCall = 16
     BadUniqueDirective = 17
     UnresolvedCall = 18
-    ParallelArrayConflict = 100
-    ParallelScalarConflict = 101
+    DataRace = 100
     FoundParallelisableLoop = 200
 
 

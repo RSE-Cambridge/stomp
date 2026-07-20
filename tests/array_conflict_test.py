@@ -32,7 +32,7 @@ subroutine reverse(arr)
   end do
 end subroutine
 '''
-    stomp_test(code, [Msg.ParallelArrayConflict])
+    stomp_test(code, [Msg.DataRace])
 
 
 def test_simd_reverse_ok():
@@ -66,7 +66,7 @@ subroutine reverse(arr)
   end do
 end subroutine
 '''
-    stomp_test(code, [Msg.ParallelArrayConflict])
+    stomp_test(code, [Msg.DataRace])
 
 
 def test_transpose_untiled_ok():
@@ -103,7 +103,7 @@ subroutine trans_simple(mat)
   !$omp end target teams distribute parallel do
 end subroutine
 '''
-    stomp_test(code, [Msg.ParallelArrayConflict])
+    stomp_test(code, [Msg.DataRace])
 
 
 def test_transpose_tiled_ok():
@@ -172,7 +172,7 @@ subroutine trans_cl(mat_in, mat_out, tile_size)
   !$omp end target teams distribute
 end subroutine
 '''
-    stomp_test(code, [Msg.ParallelArrayConflict])
+    stomp_test(code, [Msg.DataRace])
 
 
 def test_mat_mul_untiled_ok():
@@ -287,7 +287,7 @@ subroutine mat_mul_cl(a, b, c, width_a, height_a, width_b, tile_size)
   !$omp end target teams distribute
 end subroutine
 '''
-    stomp_test(code, [Msg.ParallelArrayConflict])
+    stomp_test(code, [Msg.DataRace])
 
 
 def test_stencil_ok():
@@ -366,7 +366,7 @@ subroutine stencil_cl(mat_in, mat_out, tile_size)
   !$omp end target teams distribute
 end subroutine
 '''
-    stomp_test(code, [Msg.ParallelArrayConflict])
+    stomp_test(code, [Msg.DataRace])
 
 
 def test_consistent_scheduling_static():
@@ -417,7 +417,7 @@ subroutine sub(arr)
   !$omp end parallel
 end subroutine
 '''
-    stomp_test(code, [Msg.ParallelArrayConflict])
+    stomp_test(code, [Msg.DataRace])
 
 
 def test_nowait_do_path_to_self():
@@ -440,7 +440,7 @@ subroutine main()
   !$omp end parallel
 end subroutine
 '''
-    stomp_test(code, [Msg.ParallelArrayConflict])
+    stomp_test(code, [Msg.DataRace])
 
 
 def test_sections_ok():
@@ -478,7 +478,7 @@ subroutine sub(arr)
   !$omp end parallel
 end subroutine
 '''
-    stomp_test(code, [Msg.ParallelArrayConflict])
+    stomp_test(code, [Msg.DataRace])
 
 
 def test_stomp_assume_directive():
