@@ -36,7 +36,7 @@ def parse_module_spec_directives(
             threadprivate = get_threadprivate(spec)
             threadsafe = get_threadsafe(spec)
             for c in psyir.walk(Container):
-                if c.name == mod_name:
+                if c.name.lower() == mod_name:
                     for v in threadprivate:
                         try:
                             sym = c.symbol_table.lookup(v)

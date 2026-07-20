@@ -82,7 +82,7 @@ DRB087-static-data-member2-orig-yes: [32mTP[0m
 DRB088-dynamic-storage-orig-yes: [33mFN[0m
 DRB089-dynamic-storage2-orig-yes: [32mTP[0m
 DRB090-static-local-orig-yes: [32mTP[0m
-DRB091-threadprivate2-orig-no: [33mFP[0m
+DRB091-threadprivate2-orig-no: [32mTN[0m
 DRB092-threadprivatemissing2-orig-yes: [32mTP[0m
 DRB093-doall2-collapse-orig-no: [32mTN[0m
 DRB094-doall2-ordered-orig-no: [32mTN[0m
