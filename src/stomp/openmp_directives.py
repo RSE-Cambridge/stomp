@@ -293,6 +293,35 @@ class OpenMPDirective(Statement):
         of the directive.'''
         return v in self.get_always_private()
 
+    def get_private_shared(self: OpenMPDirective) -> Tuple[set[str], set[str]]:
+        '''Get the set of private variables/shared variables for the 
+        directives. For "teams" and "parallel" directives, the "default"
+        clause is resolved.'''
+
+        # Determine private variables
+        private = self.get_always_private()
+        private.update(self.clauses.get("private", []))
+        private.update(self.clauses.get("firstprivate", []))
+        private.update(self.clauses.get("lastprivate", []))
+        if "reduction" in self.clauses:
+            private.update([red[1] for red in self.clauses["reduction"]])
+
+        # Determine shared variables
+        shared = set(self.clauses.get("shared", []))
+
+        # Resolve the "default" clause
+        if "teams" in self.clauses or "parallel" in self.clauses:
+            unspecified = (self.get_all_vars() - private) - shared
+            default = self.clauses.get("default", "shared")
+            if default == "none":
+                pass
+            elif default == "shared":
+                shared.update(unspecified)
+            else:
+                private.update(unspecified)
+
+        return (private, shared)
+
 
 # Partial OpenMP parser
 # =====================
@@ -689,35 +718,6 @@ def get_enclosing_directives(origin: Node) -> List[OpenMPDirective]:
     origin.cached_omp_enclosing_dirs = enclosing
 
     return enclosing
-
-
-def get_private_shared(self: OpenMPDirective) -> Tuple[set[str], set[str]]:
-    '''Get the set of private variables/shared variables for the given
-    "parallel" or "teams" region.'''
-    assert "parallel" in self.clauses or \
-           "teams" in self.clauses
-    # Determine private variables
-    private = self.get_always_private()
-    private.update(self.clauses.get("private", []))
-    private.update(self.clauses.get("firstprivate", []))
-    private.update(self.clauses.get("lastprivate", []))
-    if "reduction" in self.clauses:
-        private.update([red[1] for red in self.clauses["reduction"]])
-
-    # Determine shared variables
-    shared = set(self.clauses.get("shared", []))
-
-    # Resolve the "default" clause
-    unspecified = (self.get_all_vars() - private) - shared
-    default = self.clauses.get("default", "shared")
-    if default == "none":
-        pass
-    elif default == "shared":
-        shared.update(unspecified)
-    else:
-        private.update(unspecified)
-
-    return (private, shared)
 
 
 def is_within_directive(node: Node,

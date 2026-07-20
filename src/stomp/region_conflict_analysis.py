@@ -47,7 +47,7 @@ from psyclone.core import Signature, AccessInfo
 from psyclone.psyir.symbols import TypedSymbol
 from stomp.openmp_directives import \
     OpenMPDirective, drop_omp_dir_bodies, get_enclosing_directives, \
-    get_sections, get_private_shared
+    get_sections
 from stomp.array_index_analysis import \
     ArrayIndexAnalysisOptions, ArrayIndexAnalysis, ArrayAccess, \
     _is_scalar_integer, _is_scalar_logical
@@ -609,7 +609,7 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
             # Track private variables for the region
             if ("teams" in stmt.clauses or
                     "parallel" in stmt.clauses):
-                (region_private_vars, _) = get_private_shared(stmt)
+                (region_private_vars, _) = stmt.get_private_shared()
                 region_private_vars = list(region_private_vars)
                 if "parallel" in stmt.clauses:
                     self.thread_private_vars = region_private_vars.copy()
