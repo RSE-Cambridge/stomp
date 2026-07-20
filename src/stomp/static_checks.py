@@ -211,15 +211,41 @@ def check_collapse_clause(d: OpenMPDirective):
 
 def check_data_sharing_clauses(d: OpenMPDirective):
     '''Basic checks for variables mentioned in data sharing clauses.'''
-    # Check that loop variables are not declared as shared
+    # Collect variables for each kind of data sharing attribute
+    private = set(d.clauses.get("private", []))
+    firstprivate = set(d.clauses.get("firstprivate", []))
+    lastprivate = set(d.clauses.get("lastprivate", []))
+    reduction_vars = set()
+    if "reduction" in d.clauses:
+        reduction_vars.update([red[1] for red in d.clauses["reduction"]])
+    shared = set(d.clauses.get("shared", []))
+
+    # Check that variables are not listed ambiguously
+    attrib = {
+        "private": private,
+        "firstprivate": firstprivate,
+        "lastprivate": lastprivate,
+        "reduction": reduction_vars,
+        "shared": shared
+    }
+    for (attrib_a, vars_a) in attrib.items():
+        for (attrib_b, vars_b) in attrib.items():
+            common = vars_a & vars_b
+            if attrib_a != attrib_b and common:
+                StompLogger.add_message(
+                    StompMessageCode.DataSharingConflict,
+                        description = f"Variables in set {common} are "
+                        f"declared as both '{attrib_a}' and '{attrib_b}'.",
+                        directive_node = d.original_directive)
+
+    # Check that must-be-private variables are not shared
     must_be_private = d.get_always_private()
-    (private, shared, red) = d.get_private_shared_red()
-    contradiction = must_be_private & shared
-    if contradiction:
+    common = must_be_private & shared
+    if must_be_private & shared:
         StompLogger.add_message(
             StompMessageCode.DataSharingConflict,
-            description = f"Variable '{contradiction.pop()}' "
-                f"must be private but is declared as 'shared'.",
+            description = f"Variables in set {common} "
+                f"must be private but are declared as 'shared'.",
             directive_node = d.original_directive)
 
 
@@ -284,69 +310,6 @@ def check_reduction_clauses(d: OpenMPDirective):
                       f"Unrecognised reduction operator '{op}'.",
                   directive_node = d.original_directive)
 
-
-# Parallel scalar access checks
-# =============================
-
-
-#def check_parallel_scalar_accesses(psyir: Node):
-#    '''Various checks for scalar accesses within parallel directives.'''
-#    # Iterate over all accesses that are enclosed by parallel directive
-#    par_region = [["parallel"], ["teams"]]
-#    par_loop = [["do"], ["distribute"], ["simd"]]
-#    par = par_region + par_loop
-#    safe = [["critical"], ["atomic"], ["single"], ["master"]]
-#    for routine in psyir.walk(Routine):
-#        accesses = routine.reference_accesses()
-#        for (sig, seq) in accesses.items():
-#            for (i, info) in enumerate(seq):
-#                d = is_within_directive(info.node, par)
-#
-#                # Write access to a shared variable must be protected
-#                bad = d and \
-#                      info.is_any_write() and \
-#                      not is_array_access(info) and \
-#                      d.is_shared_var(sig.var_name) and \
-#                      not is_within_directive(info.node, safe)
-#                if bad:
-#                    StompLogger.add_message(
-#                        StompMessageCode.ParallelScalarConflict,
-#                        description = f"Unprotected parallel write to shared "
-#                            f"variable '{sig.var_name}'.",
-#                        node = info.node,
-#                        directive_node = d.original_directive,
-#                        routine_name = routine.name)
-#                    break
-#
-#                # Read of private (not firstprivate) scalar must
-#                # be initialised
-#                code = StompMessageCode.ReadUninitialisedPrivate
-#                if code not in StompLogger.ignore:
-#                    region = is_within_directive(info.node, par_region)
-#                    bad = d and \
-#                          info.is_any_read() and \
-#                          not is_array_access(info) and \
-#                          d.is_private_var(sig.var_name) and \
-#                          not d.is_firstprivate_var(sig.var_name) and \
-#                          not d.is_always_private(sig.var_name)
-#                    if bad:
-#                        # Look for preceeding initialiser
-#                        ok = False
-#                        for pre in reversed(seq[0:i]):
-#                            ok = pre.is_any_write() and \
-#                                     (region is None or
-#                                      is_child_directive(pre.node, region))
-#                            if ok: break
-#                        if not ok:
-#                            StompLogger.add_message(
-#                                StompMessageCode.ReadUninitialisedPrivate,
-#                                description = f"Parallel loop reads "
-#                                    f"uninitialised private variable "
-#                                    f"'{sig.var_name}'.",
-#                                node = info.node,
-#                                directive_node = d.original_directive,
-#                                routine_name = routine.name)
-#                            break
 
 # Data race checks
 # ================

@@ -293,171 +293,6 @@ class OpenMPDirective(Statement):
         of the directive.'''
         return v in self.get_always_private()
 
-    def is_private_var(
-            self,
-            v: str,
-            kinds: List[str] = ["private", "firstprivate", "lastprivate"]
-            ) -> bool:
-        '''Determine if the given variable is private within the
-        scope of the directive.'''
-        # Check immediate clauses
-        for kind in kinds:
-            if v in self.clauses.get(kind, []): return True
-        if v in self.clauses.get("shared", []): return False
-        reduction_vars = [x for (op, x) in self.clauses.get("reduction", [])]
-        if v in reduction_vars: return False
-        if "private" in kinds and self.is_always_private(v): return True
-        # Get enclosing directives
-        enclosing = get_enclosing_directives(self)
-        # Lookup variable in symbol table
-        try:
-            symbol = self.scope.symbol_table.lookup(v)
-        except Exception:
-            symbol = None
-        # For some directives, we need to look at enclosing directives
-        inherits_from = [("do", "parallel"),
-                         ("sections", "parallel"),
-                         ("distribute", "teams")]
-        for (child, parent) in inherits_from:
-            if child in self.clauses and parent not in self.clauses:
-                for d in enclosing:
-                    if parent in d.clauses:
-                        return d.is_private_var(v, kinds)
-                # If we reach here, we must be in a subroutine/function that
-                # is called from a parallel/teams region, in which case
-                # the variable is private iff it is a local variable, i.e.
-                # not an argument or global.
-                if "private" in kinds:
-                    if symbol:
-                        return symbol.is_automatic
-                    else:
-                        return False
-        # If we are a parent directive, we need to resolve the default clause
-        for (child, parent) in inherits_from:
-            default = self.clauses.get("default", "shared")
-            return default.strip() in kinds
-        return False
-
-    def is_firstprivate_var(self, v: str) -> bool:
-        return self.is_private_var(v, kinds=["firstprivate"])
-
-    def is_reduction_var(self, v: str) -> Optional[str]:
-        '''Determine if given variable is a reduction variable within
-        the scope of the directive. If not, return None, otherwise
-        return the assoicated reduction operator.'''
-        for (op, x) in self.clauses.get("reduction", []):
-            if v == x:
-                return op
-        # For some directives, we need to look at enclosing directives
-        inherits_from = [("do", "parallel"),
-                         ("sections", "parallel"),
-                         ("distribute", "teams")]
-        for (child, parent) in inherits_from:
-            if child in self.clauses and parent not in self.clauses:
-                enclosing = get_enclosing_directives(self)
-                for d in enclosing:
-                    if parent in d.clauses:
-                        return d.is_reduction_var(v)
-        return None
-
-    def is_shared_var(self, v: str) -> bool:
-        '''Determine if the given variable is shared within the
-        scope of the directive.'''
-        if (self.is_private_var(v) or
-               self.is_reduction_var(v) or
-               self.is_always_private(v)):
-            return False
-        return True
-
-    def get_private_shared_red(self) \
-            -> Tuple[Set[str], Set[str], Set[Tuple[str, str]]]:
-        '''Get the set of private variables, shared variables, and reduction
-        clauses for the scope of the directive.'''
-        all_vars = self.get_all_vars()
-        private = set([])
-        shared = set([])
-        red = set([])
-        for v in all_vars:
-            if self.is_private_var(v):
-                private.add(v)
-            else:
-                red_op = self.is_reduction_var(v)
-                if red_op:
-                    red.add((red_op, v))
-                else:
-                    shared.add(v)
-        return (private, shared, red)
-
-
-def get_enclosing_directives(origin: Node) -> List[OpenMPDirective]:
-    '''Get the stack of OpenMP directives that enlose the given node,
-    innermost first. If the node itself is a directive, it will not
-    be counted as an enclosing directive.'''
-    # Enclosing directives are cached, so first check the cache
-    if hasattr(origin, "cached_omp_enclosing_dirs"):
-        return origin.cached_omp_enclosing_dirs
-
-    # Find the enclosing directives
-    enclosing = []
-    cursor = origin
-    while cursor:
-        if isinstance(cursor, Statement):
-            start_pos = cursor.position
-            pos = start_pos
-            while pos >= 0:
-                node = cursor.siblings[pos]
-                if isinstance(node, OpenMPDirective):
-                    if node.started_by is not None:
-                        # Skip over directive body
-                        pos = node.started_by.position
-                    elif node.is_standalone():
-                        # Ignore standalone directives
-                        pass
-                    elif node.is_singleton() and pos+1 != start_pos:
-                        # Skip singleton directives
-                        pass
-                    else:
-                        if node is not origin:
-                            enclosing.append(node)
-                pos -= 1
-        cursor = cursor.parent
-
-    # Cache the result
-    origin.cached_omp_enclosing_dirs = enclosing
-
-    return enclosing
-
-
-def is_within_directive(node: Node,
-                        within: List[List[str]],
-                        not_within: List[List[str]] = []) -> OpenMPDirective:
-    '''Determine if the given node is enslosed by one of a list of directives
-    (within) before being enclosed by one of a list of other directives
-    (not_within). If the node itself is a directive, it will be considered
-    as an enclosing directive.'''
-    enclosing = []
-    if isinstance(node, OpenMPDirective):
-        enclosing.append(node)
-    enclosing.extend(get_enclosing_directives(node))
-    for enc in enclosing:
-        for dir_list in not_within:
-            if all([d in enc.clauses for d in dir_list]):
-                return None
-        for dir_list in within:
-            if all([d in enc.clauses for d in dir_list]):
-                return enc
-    return None
-
-
-def is_child_directive(child: Node, parent: OpenMPDirective) -> bool:
-    '''Determine if the given node is enslosed by the parent directive node.'''
-    if child is parent:
-        return True
-    for enc in get_enclosing_directives(child):
-        if enc is parent:
-            return True
-    return False
-
 
 # Partial OpenMP parser
 # =====================
@@ -815,6 +650,105 @@ def insert_end_directives(psyir: Node):
 
 # Helper functions for OpenMP directives
 # ======================================
+
+
+def get_enclosing_directives(origin: Node) -> List[OpenMPDirective]:
+    '''Get the stack of OpenMP directives that enlose the given node,
+    innermost first. If the node itself is a directive, it will not
+    be counted as an enclosing directive.'''
+    # Enclosing directives are cached, so first check the cache
+    if hasattr(origin, "cached_omp_enclosing_dirs"):
+        return origin.cached_omp_enclosing_dirs
+
+    # Find the enclosing directives
+    enclosing = []
+    cursor = origin
+    while cursor:
+        if isinstance(cursor, Statement):
+            start_pos = cursor.position
+            pos = start_pos
+            while pos >= 0:
+                node = cursor.siblings[pos]
+                if isinstance(node, OpenMPDirective):
+                    if node.started_by is not None:
+                        # Skip over directive body
+                        pos = node.started_by.position
+                    elif node.is_standalone():
+                        # Ignore standalone directives
+                        pass
+                    elif node.is_singleton() and pos+1 != start_pos:
+                        # Skip singleton directives
+                        pass
+                    else:
+                        if node is not origin:
+                            enclosing.append(node)
+                pos -= 1
+        cursor = cursor.parent
+
+    # Cache the result
+    origin.cached_omp_enclosing_dirs = enclosing
+
+    return enclosing
+
+
+def get_private_shared(self: OpenMPDirective) -> Tuple[set[str], set[str]]:
+    '''Get the set of private variables/shared variables for the given
+    "parallel" or "teams" region.'''
+    assert "parallel" in self.clauses or \
+           "teams" in self.clauses
+    # Determine private variables
+    private = self.get_always_private()
+    private.update(self.clauses.get("private", []))
+    private.update(self.clauses.get("firstprivate", []))
+    private.update(self.clauses.get("lastprivate", []))
+    if "reduction" in self.clauses:
+        private.update([red[1] for red in self.clauses["reduction"]])
+
+    # Determine shared variables
+    shared = set(self.clauses.get("shared", []))
+
+    # Resolve the "default" clause
+    unspecified = (self.get_all_vars() - private) - shared
+    default = self.clauses.get("default", "shared")
+    if default == "none":
+        pass
+    elif default == "shared":
+        shared.update(unspecified)
+    else:
+        private.update(unspecified)
+
+    return (private, shared)
+
+
+def is_within_directive(node: Node,
+                        within: List[List[str]],
+                        not_within: List[List[str]] = []) -> OpenMPDirective:
+    '''Determine if the given node is enslosed by one of a list of directives
+    (within) before being enclosed by one of a list of other directives
+    (not_within). If the node itself is a directive, it will be considered
+    as an enclosing directive.'''
+    enclosing = []
+    if isinstance(node, OpenMPDirective):
+        enclosing.append(node)
+    enclosing.extend(get_enclosing_directives(node))
+    for enc in enclosing:
+        for dir_list in not_within:
+            if all([d in enc.clauses for d in dir_list]):
+                return None
+        for dir_list in within:
+            if all([d in enc.clauses for d in dir_list]):
+                return enc
+    return None
+
+
+def is_child_directive(child: Node, parent: OpenMPDirective) -> bool:
+    '''Determine if the given node is enslosed by the parent directive node.'''
+    if child is parent:
+        return True
+    for enc in get_enclosing_directives(child):
+        if enc is parent:
+            return True
+    return False
 
 
 def drop_omp_dir_bodies(stmts: List[Statement]):

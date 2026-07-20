@@ -360,6 +360,7 @@ class LoopConflictAnalysis(ArrayIndexAnalysis):
     def _get_candidate_conflicts(self) -> \
             list[Tuple[list[ArrayAccess], list[ArrayAccess]]]:
         '''Get the candidate conflicts (acceses to the same variable).'''
+        # TODO: This could be more efficient
         candidates = []
         thread_i = self.saved_access_dicts[0]
         thread_j = self.saved_access_dicts[1]

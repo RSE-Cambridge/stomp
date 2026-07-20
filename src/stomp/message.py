@@ -5,7 +5,7 @@ tool to the user.
 '''
 
 import re
-from enum import Enum
+from enum import Enum, auto
 from typing import Optional
 from psyclone.psyir.nodes import Node
 from psyclone.psyir.backend.fortran import FortranWriter
@@ -14,26 +14,26 @@ from stomp.colours import red, blue
 
 class StompMessageCode(Enum):
     '''A unique message code capturing the kind of issue found.'''
-    OpenMPParseError = 1
-    LoopDirectiveHasNoLoop = 2
-    UnmatchedEnd = 3
-    SingleStatementExpected = 4
-    SingletonDirEmpty = 5
-    EndStandaloneDir = 6
-    UnrecognisedDirective = 7
-    InvalidCollapseClause = 8
-    NonRectangularLoop = 9
-    DataSharingConflict = 10
-    ReadUninitialisedPrivate = 11
-    StrayOrderedDirective = 12
-    DisallowedNestedDirective = 13
-    BadReductionClause = 14
-    UnsupportedArrayReduction = 15
-    ImpureParallelCall = 16
-    BadUniqueDirective = 17
-    UnresolvedCall = 18
-    DataRace = 100
-    FoundParallelisableLoop = 200
+    OpenMPParseError           = auto()
+    LoopDirectiveHasNoLoop     = auto()
+    UnmatchedEnd               = auto()
+    SingleStatementExpected    = auto()
+    SingletonDirEmpty          = auto()
+    EndStandaloneDir           = auto()
+    UnrecognisedDirective      = auto()
+    InvalidCollapseClause      = auto()
+    NonRectangularLoop         = auto()
+    DataSharingConflict        = auto()
+    ReadUninitialisedPrivate   = auto()
+    StrayOrderedDirective      = auto()
+    DisallowedNestedDirective  = auto()
+    BadReductionClause         = auto()
+    UnsupportedArrayReduction  = auto()
+    ImpureParallelCall         = auto()
+    BadUniqueDirective         = auto()
+    UnresolvedCall             = auto()
+    DataRace                   = auto()
+    FoundParallelisableLoop    = auto()
 
 
 class StompMessage:
