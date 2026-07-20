@@ -616,6 +616,10 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
                 new_private_vars = []
                 if "private" in stmt.clauses:
                     new_private_vars.extend(stmt.clauses["private"])
+                if "firstprivate" in stmt.clauses:
+                    new_private_vars.extend(stmt.clauses["firstprivate"])
+                if "lastprivate" in stmt.clauses:
+                    new_private_vars.extend(stmt.clauses["lastprivate"])
                 if "reduction" in stmt.clauses:
                     new_private_vars.extend(
                         [red[1] for red in stmt.clauses["reduction"]])
