@@ -127,7 +127,8 @@ class StompMessage:
 
 
 class StompLogger:
-    '''Global logger class for recording messages'''
+    '''Global logger class for recording messages. Currently not
+    thread safe.'''
 
     # List of messages gathered so far
     messages: list[StompMessage] = []
