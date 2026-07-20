@@ -149,6 +149,24 @@ def check_stomp_unique_directives(d: OpenMPDirective):
                     "a scalar integer reference as its argument.",
                 directive_node = d.original_directive)
 
+def check_sections_directive(d: OpenMPDirective):
+    '''Check that the first statement in the body of a "sections"
+    directive is a "section" directive.'''
+    if "sections" in d.clauses:
+        body = d.get_body()
+        if body is None: return
+        for stmt in body:
+            if isinstance(stmt, OpenMPDirective):
+                if "section" in stmt.clauses:
+                    return
+                else:
+                    break
+        StompLogger.add_message(
+            StompMessageCode.MalformedSectionsDirective,
+            description = "The first statement in the body of "
+                "'sections' directive must be a 'section' directive.",
+            directive_node = d.original_directive)
+
 
 # Collapsed loop checks
 # =====================

@@ -23,6 +23,7 @@ class StompMessageCode(Enum):
     UnrecognisedDirective      = auto()
     InvalidCollapseClause      = auto()
     NonRectangularLoop         = auto()
+    MalformedSectionsDirective = auto()
     DataSharingConflict        = auto()
     ReadUninitialisedPrivate   = auto()
     StrayOrderedDirective      = auto()

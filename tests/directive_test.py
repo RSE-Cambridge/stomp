@@ -141,3 +141,36 @@ subroutine sub()
 end subroutine
 '''
     stomp_test(code, [Msg.DisallowedNestedDirective])
+
+
+def test_sections_malformed():
+    '''Simple test of a malformed 'sections' directive.'''
+    code = '''
+subroutine sub(arr)
+  integer, intent(inout) :: arr(:)
+  !$omp parallel
+    !$omp sections
+      arr(1) = 100
+    !$omp end sections
+  !$omp end parallel
+end subroutine
+'''
+    stomp_test(code, [Msg.MalformedSectionsDirective])
+
+
+def test_sections_wellformed():
+    '''Simple test of a well-formed 'sections' directive.'''
+    code = '''
+subroutine sub(arr)
+  integer, intent(inout) :: arr(:)
+  !$omp parallel
+    !$omp sections
+      ! Hello world
+
+      !$omp section
+      arr(1) = 100
+    !$omp end sections
+  !$omp end parallel
+end subroutine
+'''
+    stomp_test(code, [])

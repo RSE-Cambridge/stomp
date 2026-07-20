@@ -29,6 +29,7 @@ def main(psyir,
         checks.check_standalone_directive_not_end(d)
         checks.check_directive_is_recognised(d)
         checks.check_stomp_unique_directives(d)
+        checks.check_sections_directive(d)
 
     if len(StompLogger.get_messages()) > 0:
         return None
