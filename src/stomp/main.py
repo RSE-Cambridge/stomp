@@ -30,9 +30,15 @@ def main(psyir,
         checks.check_directive_is_recognised(d)
         checks.check_stomp_unique_directives(d)
         checks.check_sections_directive(d)
-
+    
     if len(StompLogger.get_messages()) > 0:
         return None
+
+    # Check for poorly supported subroutine-local wildcard imports
+    checks.check_wildcard_imports(psyir)
+
+    if len(StompLogger.get_messages()) > 0:
+        return 0
 
     # Count number of directives analaysed
     num_omp_dir = len(psyir.walk(OpenMPDirective))

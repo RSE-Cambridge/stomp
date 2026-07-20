@@ -4,7 +4,8 @@
 
 from psyclone.core import Signature
 from psyclone.psyir.nodes import \
-  Node, Routine, Loop, Call, IntrinsicCall, ArrayReference, Reference
+  Node, Routine, Loop, Call, IntrinsicCall, ArrayReference, Reference, \
+  FileContainer
 from psyclone.psyir.tools import ReductionInferenceTool
 from stomp.openmp_directives import \
     OpenMPDirective, \
@@ -481,3 +482,33 @@ def check_calls(d: OpenMPDirective, assume_pure: set[str] = set()):
                                 f"that all calls are pure.",
                             directive_node = d.original_directive,
                             node = call)
+
+
+# Wildcard import checks
+# ======================
+
+
+def check_wildcard_imports(psyir: Node):
+    '''Report wilcard imports in subroutines containing parallel regions.'''
+    for routine in psyir.walk(Routine):
+        omp_dirs = routine.walk(OpenMPDirective)
+        has_par_region = any([d for d in omp_dirs
+                                  if "parallel" in d.clauses
+                                  or "teams" in d.clauses])
+        if not has_par_region: continue
+        if isinstance(routine.parent, FileContainer): continue
+        wildcard_imports = set(
+            routine.symbol_table.wildcard_imports(scope_limit=routine))
+        if wildcard_imports:
+            module = wildcard_imports.pop()
+            StompLogger.add_message(
+                StompMessageCode.WildcardImportInSubroutine,
+                description =
+                    f"Found wildcard import 'use {module.name}' "
+                    f"inside a subroutine, which is not well supported "
+                    f"by the tool. You can swap it for a module-level "
+                    f"import, or for a named import of the form "
+                    f"'use {module.name}, only: ...', or you can disable "
+                    f"this warning, but the latter may lead to symbol "
+                    f"resolution issues.",
+                routine_name = routine.name)

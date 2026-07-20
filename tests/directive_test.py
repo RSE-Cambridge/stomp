@@ -174,3 +174,37 @@ subroutine sub(arr)
 end subroutine
 '''
     stomp_test(code, [])
+
+
+def test_wildcard_import():
+    '''Simple test of wildcard imports in a subroutine.'''
+    code = '''
+module m
+contains
+  subroutine sub()
+    use foo
+    integer :: i, arr(10)
+    !$omp parallel do
+    do i = 1, 10
+      arr(i) = i
+    end do
+  end subroutine
+end module
+'''
+    stomp_test(code, [Msg.WildcardImportInSubroutine])
+
+def test_non_wildcard_imports():
+    '''Simple test of non-wildcard imports in a subroutine.'''
+    code = '''
+module m
+contains
+  subroutine sub()
+    integer :: i, arr(10)
+    !$omp parallel do
+    do i = 1, 10
+      arr(i) = i
+    end do
+  end subroutine
+end module
+'''
+    stomp_test(code, [])

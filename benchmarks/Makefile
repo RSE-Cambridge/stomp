@@ -13,6 +13,7 @@ DRB_EXCLUDE := -e ReadUninitialisedPrivate
 DRB_EXCLUDE += -e UnsupportedArrayReduction
 DRB_EXCLUDE += -e BadReductionClause
 DRB_EXCLUDE += -e ImpureParallelCall
+DRB_EXCLUDE += -e WildcardImportInSubroutine
 
 .phony: top
 top:
