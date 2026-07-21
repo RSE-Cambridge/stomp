@@ -497,6 +497,8 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         '''
         sum_of_prods = []
         for acc in accs:
+            if write.psyir_node is acc.psyir_node and write.no_self_conflict:
+                continue
             if self._needs_conflict_check(write, acc):
                 indices_equal = []
                 for (i_idxs, j_idxs) in zip(write.indices, acc.indices):
@@ -597,14 +599,40 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
             self._restore_subst()
             return
 
+        # Handle OpenMP "end" directives
         if (self.in_region_of_interest and
-                isinstance(stmt, OpenMPDirective)):
+                isinstance(stmt, OpenMPDirective) and
+                "end" in stmt.clauses):
+            # A reduction clause implies a write at the end of the region
+            if stmt.started_by and "reduction" in stmt.started_by.clauses:
+                for (op, x) in stmt.started_by.clauses["reduction"]:
+                    self._add_array_access(
+                        ArrayAccess(Signature(x), cond, is_write=True,
+                            indices=[[]], psyir_node=stmt,
+                            is_team_private=False, is_scalar=True,
+                            no_self_conflict=True))
+
+        # Handle OpenMP non-"end" directives
+        if (self.in_region_of_interest and
+                isinstance(stmt, OpenMPDirective) and
+                "end" not in stmt.clauses):
             # Save some state that needs to be restored after analysing
             # the directive's body
             save_inside_parallel = self.inside_parallel
             save_thread_private_vars = self.thread_private_vars.copy()
             save_team_private_vars = self.team_private_vars.copy()
             self._save_subst()
+
+            # A reduction clause implies an access
+            if stmt is not self.region_of_interest:
+                if "reduction" in stmt.clauses:
+                    for (op, x) in stmt.clauses["reduction"]:
+                        if stmt.ended_by:
+                            self._add_array_access(
+                                ArrayAccess(Signature(x), cond, is_write=True,
+                                    indices=[[]], psyir_node=stmt.ended_by,
+                                    is_team_private=False, is_scalar=True,
+                                    no_self_conflict=True))
 
             # Track private variables for the region
             if ("teams" in stmt.clauses or
@@ -765,8 +793,8 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         from_par = any([is_parallel(d) for d in enclosing_from])
         to_par = any([is_parallel(d) for d in enclosing_to])
         if from_par and to_par:
-            stmt_from = node_from.ancestor(Statement)
-            stmt_to = node_to.ancestor(Statement)
+            stmt_from = node_from.ancestor(Statement, include_self=True)
+            stmt_to = node_to.ancestor(Statement, include_self=True)
             if stmt_from and stmt_to:
                 return barrier_free_path(stmt_from, stmt_to) or \
                        barrier_free_path(stmt_to, stmt_from)

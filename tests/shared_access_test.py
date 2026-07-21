@@ -91,3 +91,109 @@ subroutine sub(arr)
 endsubroutine
 '''
     stomp_test(code, [Msg.DataRace])
+
+
+def test_reduction_var_race_1():
+    # A reduction clause implies an implict write access, which can
+    # lead to a data race
+    code = '''
+subroutine sub()
+  integer :: arr(10)
+  integer :: a, i
+  !$omp parallel
+    !$omp master
+    a = 0
+    !$omp end master
+
+    !$omp do reduction(+:a)
+    do i = 1, 10
+        a = a+arr(i)
+    end do
+    !$omp end do
+  !$omp end parallel
+end subroutine'''
+    stomp_test(code, [Msg.DataRace])
+
+
+def test_reduction_var_race_2():
+    # A reduction clause implies an implict write access, which can
+    # lead to a data race, but the data race can be avoided with a barrier.
+    code = '''
+subroutine sub()
+  integer :: arr(10)
+  integer :: a, i
+  !$omp parallel
+    !$omp master
+    a = 0
+    !$omp end master
+
+    !$omp barrier
+
+    !$omp do reduction(+:a)
+    do i = 1, 10
+        a = a+arr(i)
+    end do
+    !$omp end do
+  !$omp end parallel
+end subroutine'''
+    stomp_test(code, [])
+
+
+def test_reduction_var_race_3():
+    # A reduction clause implies an implict write access, which can
+    # lead to a data race with a subsequent access if there is a nowait
+    # clause
+    code = '''
+subroutine sub()
+  integer :: arr(10)
+  integer :: a, i
+  !$omp parallel
+    !$omp master
+    a = 0
+    !$omp end master
+
+    !$omp barrier
+
+    !$omp do reduction(+:a)
+    do i = 1, 10
+        a = a+arr(i)
+    end do
+    !$omp end do nowait
+
+    !$omp master
+    a = a+1
+    !$omp end master
+  !$omp end parallel
+end subroutine'''
+    stomp_test(code, [Msg.DataRace])
+
+
+def test_reduction_var_race_4():
+    # A reduction clause implies an implict write access, which can
+    # lead to a data race with a subsequent access if there is a nowait
+    # clause, but can be avoided using a barrier.
+    code = '''
+subroutine sub()
+  integer :: arr(10)
+  integer :: a, i
+  !$omp parallel
+    !$omp master
+    a = 0
+    !$omp end master
+
+    !$omp barrier
+
+    !$omp do reduction(+:a)
+    do i = 1, 10
+        a = a+arr(i)
+    end do
+    !$omp end do nowait
+
+    !$omp barrier
+
+    !$omp master
+    a = a+1
+    !$omp end master
+  !$omp end parallel
+end subroutine'''
+    stomp_test(code, [])

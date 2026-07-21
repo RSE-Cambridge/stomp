@@ -118,13 +118,14 @@ class ArrayAccess:
     :param is_scalar: is it an access to a scalar rather than an array?
     '''
     def __init__(self,
-                 name:            Signature,
-                 cond:            z3.BoolRef,
-                 is_write:        bool,
-                 indices:         list[list[z3.ExprRef]],
-                 psyir_node:      Node,
-                 is_team_private: bool = False,
-                 is_scalar:       bool = False):
+                 name:             Signature,
+                 cond:             z3.BoolRef,
+                 is_write:         bool,
+                 indices:          list[list[z3.ExprRef]],
+                 psyir_node:       Node,
+                 is_team_private:  bool = False,
+                 is_scalar:        bool = False,
+                 no_self_conflict: bool = False):
         self.name = name
         self.cond = cond
         self.is_write = is_write
@@ -132,6 +133,7 @@ class ArrayAccess:
         self.psyir_node = psyir_node
         self.is_team_private = is_team_private
         self.is_scalar = is_scalar
+        self.no_self_conflict = no_self_conflict
 
 
 # Analysis
