@@ -293,7 +293,9 @@ class OpenMPDirective(Statement):
         of the directive.'''
         return v in self.get_always_private()
 
-    def get_private_shared(self: OpenMPDirective) -> Tuple[set[str], set[str]]:
+    def get_private_shared(self: OpenMPDirective,
+                           ignore_firstprivate: bool = False) -> \
+            Tuple[set[str], set[str]]:
         '''Get the set of private variables/shared variables for the 
         directives. For "teams" and "parallel" directives, the "default"
         clause is resolved.'''
@@ -301,7 +303,9 @@ class OpenMPDirective(Statement):
         # Determine private variables
         private = self.get_always_private()
         private.update(self.clauses.get("private", []))
-        private.update(self.clauses.get("firstprivate", []))
+        firstprivate = set(self.clauses.get("firstprivate", []))
+        if not ignore_firstprivate:
+            private.update(firstprivate)
         private.update(self.clauses.get("lastprivate", []))
         if "reduction" in self.clauses:
             private.update([red[1] for red in self.clauses["reduction"]])
@@ -311,12 +315,15 @@ class OpenMPDirective(Statement):
 
         # Resolve the "default" clause
         if "teams" in self.clauses or "parallel" in self.clauses:
-            unspecified = (self.get_all_vars() - private) - shared
+            unspecified = (self.get_all_vars() - private -
+                firstprivate - shared)
             default = self.clauses.get("default", "shared")
             if default == "none":
                 pass
             elif default == "shared":
                 shared.update(unspecified)
+            elif default == "firstprivate" and ignore_firstprivate:
+                pass
             else:
                 private.update(unspecified)
 

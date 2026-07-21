@@ -221,12 +221,11 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
 
     def _get_private_vars(self) -> list[str]:
         '''Override parent class method: get the list of private variables'''
-        private = self.explicit_private_vars
+        private = list(self.explicit_private_vars)
         if self.inside_parallel:
-            private.update(self.thread_private_vars)
-        else:
-            private.update(self.team_private_vars)
-        return list(private)
+            
+            return private + self.thread_private_vars
+        return private + self.team_private_vars
 
     def _kill_scalar_vars(self, vs: List[str]):
         '''Kill the scalar variables in the given list of variables.'''
