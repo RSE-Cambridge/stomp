@@ -7,6 +7,7 @@ from psyclone.psyir.nodes import \
   Node, Routine, Loop, Call, IntrinsicCall, ArrayReference, Reference, \
   FileContainer
 from psyclone.psyir.tools import ReductionInferenceTool
+from psyclone.core.access_type import AccessType
 from stomp.openmp_directives import \
     OpenMPDirective, \
     get_enclosing_directives, \
@@ -512,3 +513,29 @@ def check_wildcard_imports(psyir: Node):
                     f"this warning, but the latter may lead to symbol "
                     f"resolution issues.",
                 routine_name = routine.name)
+
+
+# Uninitialised read checks
+# =========================
+
+
+def check_uninitialised_read(d: OpenMPDirective):
+    '''Check for reads of uninitialised private variables.'''
+    accesses = d.body_reference_accesses()
+    if accesses:
+        (private, _) = d.get_private_shared(ignore_firstprivate=True,
+                                            ignore_reduction=True)
+        for p in private:
+            sig = Signature(p)
+            if sig not in accesses: continue
+            for info in accesses[sig]:
+                if info.access_type == AccessType.WRITE: break
+                if (info.access_type == AccessType.READ or
+                        info.access_type == AccessType.READWRITE):
+                    StompLogger.add_message(
+                        StompMessageCode.ReadUninitialisedPrivate,
+                        description = f"Parallel region reads "
+                            f"uninitialised private variable '{p}'.",
+                        node = info.node,
+                        directive_node = d.original_directive)
+                    break

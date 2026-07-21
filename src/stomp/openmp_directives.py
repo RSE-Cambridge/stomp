@@ -294,7 +294,8 @@ class OpenMPDirective(Statement):
         return v in self.get_always_private()
 
     def get_private_shared(self: OpenMPDirective,
-                           ignore_firstprivate: bool = False) -> \
+                           ignore_firstprivate: bool = False,
+                           ignore_reduction: bool = False) -> \
             Tuple[set[str], set[str]]:
         '''Get the set of private variables/shared variables for the 
         directives. For "teams" and "parallel" directives, the "default"
@@ -307,8 +308,9 @@ class OpenMPDirective(Statement):
         if not ignore_firstprivate:
             private.update(firstprivate)
         private.update(self.clauses.get("lastprivate", []))
-        if "reduction" in self.clauses:
-            private.update([red[1] for red in self.clauses["reduction"]])
+        if not ignore_reduction:
+            if "reduction" in self.clauses:
+                private.update([red[1] for red in self.clauses["reduction"]])
 
         # Determine shared variables
         shared = set(self.clauses.get("shared", []))
