@@ -194,9 +194,10 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         self.saved_access_dicts.append(self.access_dict)
         self.access_dict = {}
 
-    def _add_array_access(self, array_name: str, access: ArrayAccess):
+    def _add_array_access(self, access: ArrayAccess):
         '''Override parent method: add an array access to the current
         access dict.'''
+        array_name = str(access.name)
         # Ignore accesses outside region of interest
         if not self.in_region_of_interest:
             return
@@ -206,18 +207,18 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         # If we are not inside a "parallel" region then constrain the
         # thread id to zero as only the master thread is active
         if not self.inside_parallel:
-            access._cond = z3.And(access._cond, self.smt_thread_var == 0)
+            access.cond = z3.And(access.cond, self.smt_thread_var == 0)
         # For team-private variables, the two threads must be in the same
         # team for there to be a conflict
         if array_name in self.team_private_vars:
-            access._cond = z3.And(access._cond,
+            access.cond = z3.And(access.cond,
                                   self.smt_team_var_i == self.smt_team_var_j)
-            access._is_team_private = True
+            access.is_team_private = True
         # If not analysing a teams region, every array is team-private
         if not self.is_teams_region:
-            access._is_team_private = True
+            access.is_team_private = True
         # Call parent method with possibly-modified access
-        super()._add_array_access(array_name, access)
+        super()._add_array_access(access)
 
     def _get_private_vars(self) -> list[str]:
         '''Override parent class method: get the list of private variables'''
@@ -516,7 +517,7 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
             )
 
         # Determine return value
-        (sig, sig_inds) = write.psyir_node.get_signature_and_indices()
+        (sig, sig_inds) = (write.name, write.indices)
         if result == z3.sat:
             # Produce message
             team_i = str(result_values.pop(0))
@@ -743,8 +744,8 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         # If we are in a teams region but accessing a non-team-private
         # array then return True because "crtical" and "barrier" only
         # prevent conflicts within a team not between teams
-        if (not (access_from._is_team_private and
-                 access_to._is_team_private)):
+        if (not (access_from.is_team_private and
+                 access_to.is_team_private)):
             return True
 
         # Return false if both nodes are enlosed by a "critical" directive

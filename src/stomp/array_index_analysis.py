@@ -45,6 +45,7 @@ from psyclone.psyir.nodes import Loop, DataNode, Literal, Assignment, \
     Reference, IntrinsicCall, \
     Routine, Node, IfBlock, Schedule, Range, WhileLoop, \
     CodeBlock
+from psyclone.core import Signature
 from psyclone.psyir.symbols import DataType, ScalarType, ArrayType
 from fparser.two import Fortran2003, Fortran2008
 from stomp.misc import if_else_chain
@@ -105,6 +106,7 @@ class ArrayAccess:
     '''This class is used to record details of each array access
     encountered during the analysis.
 
+    :param name: name of the variable being accesses.
     :param cond: a boolean SMT expression representing the current
        condition at the point the array access is made.
     :param is_write: whether the access is a read or a write.
@@ -116,38 +118,20 @@ class ArrayAccess:
     :param is_scalar: is it an access to a scalar rather than an array?
     '''
     def __init__(self,
+                 name:            Signature,
                  cond:            z3.BoolRef,
                  is_write:        bool,
                  indices:         list[list[z3.ExprRef]],
                  psyir_node:      Node,
                  is_team_private: bool = False,
                  is_scalar:       bool = False):
-        self._cond = cond
-        self._is_write = is_write
-        self._indices = indices
-        self._psyir_node = psyir_node
-        self._is_team_private = is_team_private
-        self._is_scalar = is_scalar
-
-    @property
-    def cond(self):
-        return self._cond
-
-    @property
-    def is_write(self):
-        return self._is_write
-
-    @property
-    def indices(self):
-        return self._indices
-
-    @property
-    def psyir_node(self):
-        return self._psyir_node
-
-    @property
-    def is_scalar(self):
-        return self._is_scalar
+        self.name = name
+        self.cond = cond
+        self.is_write = is_write
+        self.indices = indices
+        self.psyir_node = psyir_node
+        self.is_team_private = is_team_private
+        self.is_scalar = is_scalar
 
 
 # Analysis
@@ -446,8 +430,9 @@ class ArrayIndexAnalysis:
         '''Get the list of private variables'''
         return self.explicit_private_vars
 
-    def _add_array_access(self, array_name: str, access: ArrayAccess):
+    def _add_array_access(self, access: ArrayAccess):
         '''Add an array access to the current access dict.'''
+        array_name = str(access.name)
         if array_name in self._get_private_vars():
             return
         if array_name in self.access_dict:
@@ -484,9 +469,8 @@ class ArrayIndexAnalysis:
                                         ind))
                             smt_indices.append(smt_inds)
                         self._add_array_access(
-                            str(s),
                             ArrayAccess(
-                              cond, access_info.is_any_write(),
+                              s, cond, access_info.is_any_write(),
                               smt_indices, access_info.node,
                               not is_array_access))
 

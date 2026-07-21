@@ -329,7 +329,7 @@ class LoopConflictAnalysis(ArrayIndexAnalysis):
             )
 
         # Determine return value
-        (sig, sig_inds) = write.psyir_node.get_signature_and_indices()
+        (sig, sig_inds) = (write.name, write.indices)
         if result == z3.sat:
             # Produce message
             i_val = str(result_values.pop(0))
