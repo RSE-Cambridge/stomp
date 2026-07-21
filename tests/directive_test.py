@@ -140,7 +140,7 @@ subroutine sub()
   !$omp end parallel
 end subroutine
 '''
-    stomp_test(code, [Msg.DisallowedNestedDirective])
+    stomp_test(code, [Msg.MisplacedDirective])
 
 
 def test_sections_malformed():
@@ -236,4 +236,4 @@ subroutine sub()
   !$omp end teams
 end subroutine
 '''
-    stomp_test(code, [Msg.MisplacedBarrier])
+    stomp_test(code, [Msg.MisplacedDirective])

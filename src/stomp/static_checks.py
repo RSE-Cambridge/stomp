@@ -116,26 +116,6 @@ def check_ordered_directives(d: OpenMPDirective):
                 break
 
 
-def check_nested_directives(d: OpenMPDirective):
-    '''Check for nested directives that are not supported
-    by the checker.'''
-    if "end" in d.clauses: return
-    enclosing = get_enclosing_directives(d)
-    disallowed_nested_dirs = ["parallel", "teams", "distribute",
-        "do", "sections"]
-    for disallow in disallowed_nested_dirs:
-        if disallow in d.clauses:
-            bad = any([disallow in e.clauses for e in enclosing])
-            if bad:
-                StompLogger.add_message(
-                   StompMessageCode.DisallowedNestedDirective,
-                   description = f"Found nested '{disallow}' directive, "
-                       "which is either not allowed by OpenMP or not "
-                       "supported by the checker.",
-                   directive_node = d.original_directive)
-                break
-
-
 def check_stomp_unique_directives(d: OpenMPDirective):
     '''Check that stomp 'unique' directives contain a scalar integer
     Reference.'''
@@ -150,6 +130,7 @@ def check_stomp_unique_directives(d: OpenMPDirective):
                 description = "The 'unique' directive must contain "
                     "a scalar integer reference as its argument.",
                 directive_node = d.original_directive)
+
 
 def check_sections_directive(d: OpenMPDirective):
     '''Check that the first statement in the body of a "sections"
@@ -198,19 +179,42 @@ def check_nowait(d: OpenMPDirective):
                     node = d.ended_by)
 
 
-def check_misplaced_barrier(d: OpenMPDirective):
-    '''Check for misplaced barriers.'''
-    if "barrier" in d.clauses:
-        enclosing = get_enclosing_directives(d)
-        # Allow barriers with no enclosing directives
-        if not enclosing: return
-        # Otherwise, they must be enclosed by "parallel"
-        if not any(["parallel" in e.clauses for e in enclosing]):
-            StompLogger.add_message(
-                StompMessageCode.MisplacedBarrier,
-                description = "The 'barrier' directive can only occur "
-                    "in the body of a 'parallel' directive.",
-                directive_node = d.original_directive)
+def check_misplaced_directive(d: OpenMPDirective):
+    '''Check that directives are used within a valid context.'''
+    valid_nesting = {
+        "teams": ["target"],
+        "distribute": ["teams"],
+        "parallel": ["teams", "distribute", "target"],
+        "do": ["parallel"],
+        "single": ["parallel"],
+        "master": ["parallel"],
+        "sections": ["parallel"],
+        "barrier": ["parallel"],
+        "critical": ["parallel"]
+    }
+    # Ignore "end" directives
+    if "end" in d.clauses: return
+    # Get enclosing directives
+    enclosing = get_enclosing_directives(d)
+    # Allow no enclosing directives
+    if not enclosing: return
+    # Otherwise, check for a valid nesting
+    for (inner, outers) in valid_nesting.items():
+        if inner in d.clauses:
+            if any([outer in d.clauses for outer in outers]): continue
+            ok = False
+            for outer in outers:
+                ok = any([outer in e.clauses for e in enclosing])
+                if ok: break
+            if not ok:
+                StompLogger.add_message(
+                    StompMessageCode.MisplacedDirective,
+                    description = f"A '{inner}' directive can only occur "
+                        f"in the body of the following directives: "
+                        f"{outers}. (Note that stomp does not support "
+                        f"nested parallelism.)",
+                    directive_node = d.original_directive)
+                return
 
 
 # Collapsed loop checks
