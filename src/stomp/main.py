@@ -46,6 +46,7 @@ def main(psyir,
     # Maskable directive checks
     for d in psyir.walk(OpenMPDirective):
         checks.check_nowait(d)
+        checks.check_misplaced_barrier(d)
         checks.check_collapse_clause(d)
         checks.check_data_sharing_clauses(d)
         checks.check_ordered_directives(d)

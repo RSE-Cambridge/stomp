@@ -192,10 +192,25 @@ def check_nowait(d: OpenMPDirective):
         if "nowait" in d.ended_by.clauses:
                  StompLogger.add_message(
                     StompMessageCode.BadNowait,
-                    description = f"The 'nowait' clause is not allowed "
-                        f"in combination with the 'copyprivate' clause.",
+                    description = "The 'nowait' clause is not allowed "
+                        "in combination with the 'copyprivate' clause.",
                     directive_node = d.original_directive,
                     node = d.ended_by)
+
+
+def check_misplaced_barrier(d: OpenMPDirective):
+    '''Check for misplaced barriers.'''
+    if "barrier" in d.clauses:
+        enclosing = get_enclosing_directives(d)
+        # Allow barriers with no enclosing directives
+        if not enclosing: return
+        # Otherwise, they must be enclosed by "parallel"
+        if not any(["parallel" in e.clauses for e in enclosing]):
+            StompLogger.add_message(
+                StompMessageCode.MisplacedBarrier,
+                description = "The 'barrier' directive can only occur "
+                    "in the body of a 'parallel' directive.",
+                directive_node = d.original_directive)
 
 
 # Collapsed loop checks

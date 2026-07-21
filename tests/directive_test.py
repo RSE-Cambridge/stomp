@@ -210,7 +210,7 @@ end module
     stomp_test(code, [])
 
 
-def test_nowait():
+def test_disallowed_nowait():
     '''Simple test of disallowed "nowait" clause.'''
     code = '''
 subroutine sub()
@@ -223,3 +223,17 @@ subroutine sub()
 end subroutine
 '''
     stomp_test(code, [Msg.BadNowait])
+
+def test_misplaced_barrier():
+    '''Simple test of misplaced "barrier" directive.'''
+    code = '''
+subroutine sub()
+  integer :: i, arr(10)
+  !$omp teams private(i)
+    i = 100
+    !$omp barrier
+    i = 101
+  !$omp end teams
+end subroutine
+'''
+    stomp_test(code, [Msg.MisplacedBarrier])

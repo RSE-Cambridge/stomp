@@ -26,6 +26,7 @@ class StompMessageCode(Enum):
     InvalidCollapseClause      = auto()
     LoopDirectiveHasNoLoop     = auto()
     MalformedSectionsDirective = auto()
+    MisplacedBarrier           = auto()
     NonRectangularLoop         = auto()
     OpenMPParseError           = auto()
     ReadUninitialisedPrivate   = auto()
