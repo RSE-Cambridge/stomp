@@ -208,3 +208,18 @@ contains
 end module
 '''
     stomp_test(code, [])
+
+
+def test_nowait():
+    '''Simple test of disallowed "nowait" clause.'''
+    code = '''
+subroutine sub()
+  integer :: i, arr(10)
+  !$omp parallel do
+  do i = 1, 10
+    arr(i) = i
+  end do
+  !$omp end parallel do nowait
+end subroutine
+'''
+    stomp_test(code, [Msg.BadNowait])

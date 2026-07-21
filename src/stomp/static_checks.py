@@ -170,6 +170,34 @@ def check_sections_directive(d: OpenMPDirective):
             directive_node = d.original_directive)
 
 
+def check_nowait(d: OpenMPDirective):
+    '''Check for directives where "nowait" is used but not allowed.'''
+    if "end" not in d.clauses and "nowait" in d.clauses:
+        StompLogger.add_message(
+            StompMessageCode.BadNowait,
+            description = "The 'nowait' clause is only allowed"
+                "in an 'end' directive.",
+            directive_node = d.original_directive)
+    if "end" in d.clauses and "nowait" in d.clauses:
+        disallowed = ["parallel"]
+        for c in disallowed:
+            if c in d.clauses:
+                StompLogger.add_message(
+                    StompMessageCode.BadNowait,
+                    description = f"The 'nowait' clause is not allowed "
+                        f"in a '{c}' directive.",
+                    directive_node = d.original_directive)
+                return
+    if "copyprivate" in d.clauses and d.ended_by:
+        if "nowait" in d.ended_by.clauses:
+                 StompLogger.add_message(
+                    StompMessageCode.BadNowait,
+                    description = f"The 'nowait' clause is not allowed "
+                        f"in combination with the 'copyprivate' clause.",
+                    directive_node = d.original_directive,
+                    node = d.ended_by)
+
+
 # Collapsed loop checks
 # =====================
 

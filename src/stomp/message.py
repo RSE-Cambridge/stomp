@@ -34,6 +34,7 @@ class StompMessageCode(Enum):
     ImpureParallelCall         = auto()
     BadUniqueDirective         = auto()
     UnresolvedCall             = auto()
+    BadNowait                  = auto()
     DataRace                   = auto()
     FoundParallelisableLoop    = auto()
 
