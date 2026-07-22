@@ -192,7 +192,11 @@ def entry():
         mod_manager.add_files(args.F)
 
     # Load added files
-    mod_manager.load_all_module_infos()
+    try:
+        mod_manager.load_all_module_infos()
+    except Exception as err:
+        print(f"Failed to load specified modules {args.F}: " + str(err))
+        return
 
     # Determine file type
     free_form_exts = (".f90", ".f95", ".f03", ".f08",
