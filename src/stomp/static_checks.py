@@ -2,6 +2,7 @@
 
 '''This module implements static checks.'''
 
+from typing import Optional
 from psyclone.core import Signature
 from psyclone.psyir.nodes import \
   Node, Routine, Loop, Call, IntrinsicCall, ArrayReference, Reference, \
@@ -16,9 +17,11 @@ from stomp.message import StompMessageCode, StompLogger
 from stomp.array_index_analysis import _is_scalar_integer
 from stomp.loop_conflict_analysis import \
     LoopConflictAnalysis, LoopConflictAnalysisOptions
-from stomp.region_conflict_analysis import RegionConflictAnalysis
+from stomp.region_conflict_analysis import \
+    RegionConflictAnalysis, RegionConflictAnalysisOptions
 from stomp.misc import is_array_access, get_nested_loops
 from stomp.module_spec_directives import is_threadsafe
+from stomp.solver_options import SMTSolverOptions
 
 
 # Basic checks that apply to every directive
@@ -382,7 +385,8 @@ def check_reduction_clauses(d: OpenMPDirective):
 # ================
 
 
-def check_data_races(psyir: Node):
+def check_data_races(psyir: Node, 
+                     solver_options: Optional[SMTSolverOptions] = None):
     '''Check all OpenMP teams/parallel regions for data races,
     where at least two accesses (one of which is a write)
     access the same indices of the same array in different threads,
@@ -402,7 +406,15 @@ def check_data_races(psyir: Node):
             if not ok: continue
 
             # Apply the region conflict analysis
-            analysis = RegionConflictAnalysis()
+            opts = RegionConflictAnalysisOptions()
+            if solver_options:
+                opts.sweep_seed = solver_options.sweep_seed
+                opts.num_sweep_threads = solver_options.sweep_threads
+                opts.smt_timeout_ms = solver_options.solver_timeout_ms
+                opts.use_bv = solver_options.use_bit_vec
+                opts.int_width = solver_options.bit_vec_width
+                opts.prohibit_overflow = opts.use_bv
+            analysis = RegionConflictAnalysis(opts)
             conflicts = analysis.get_region_conflicts(d)
             for (sig, msg) in conflicts:
                 if msg is None:
@@ -419,7 +431,8 @@ def check_data_races(psyir: Node):
 # ================
 
 
-def check_simd_loops(psyir: Node):
+def check_simd_loops(psyir: Node,
+                     solver_options: Optional[SMTSolverOptions] = None):
     '''Check that 'simd' directives have non-conflicting loop iterations.
     The 'safelen' clause is not yet supported.'''
     for routine in psyir.walk(Routine):
@@ -446,6 +459,13 @@ def check_simd_loops(psyir: Node):
                 # Analyse loop
                 opts = LoopConflictAnalysisOptions()
                 opts.check_scalars = True
+                if solver_options:
+                    opts.sweep_seed = solver_options.sweep_seed
+                    opts.num_sweep_threads = solver_options.sweep_threads
+                    opts.smt_timeout_ms = solver_options.solver_timeout_ms
+                    opts.use_bv = solver_options.use_bit_vec
+                    opts.int_width = solver_options.bit_vec_width
+                    opts.prohibit_overflow = opts.use_bv
                 analysis = LoopConflictAnalysis(opts)
                 for loop in par_loops:
                     conflicts = analysis.get_loop_conflicts(loop,

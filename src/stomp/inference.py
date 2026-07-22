@@ -2,22 +2,26 @@
 
 '''This module infers parallel loops.'''
 
+from typing import Optional
 from psyclone.psyir.nodes import Node, Routine, Loop
 from psyclone.psyir.tools import ReductionInferenceTool
 from psyclone.psyir.nodes.omp_directives import MAP_REDUCTION_OP_TO_OMP
 from stomp.openmp_directives import \
     MAP_REDUCTION_OP_TO_STR, get_enclosing_directives
 from stomp.message import StompMessageCode, StompLogger
-from stomp.loop_conflict_analysis import LoopConflictAnalysis
+from stomp.loop_conflict_analysis import \
+    LoopConflictAnalysis, LoopConflictAnalysisOptions
 from stomp.liveness_analysis import is_live_out
 from stomp.misc import is_array_access
+from stomp.solver_options import SMTSolverOptions
 
 
 # Infer parallel loops
 # ====================
 
 
-def infer_parallel_loops(psyir: Node):
+def infer_parallel_loops(psyir: Node,
+                         solver_options: Optional[SMTSolverOptions] = None):
     '''Look for loops not enclosed by OpenMP directives which don't
     contain any conflicts between iterations.'''
     for routine in psyir.walk(Routine):
@@ -69,7 +73,15 @@ def infer_parallel_loops(psyir: Node):
                 continue
 
             # Check for array conflicts
-            analysis = LoopConflictAnalysis()
+            opts = LoopConflictAnalysisOptions()
+            if solver_options:
+                opts.sweep_seed = solver_options.sweep_seed
+                opts.num_sweep_threads = solver_options.sweep_threads
+                opts.smt_timeout_ms = solver_options.solver_timeout_ms
+                opts.use_bv = solver_options.use_bit_vec
+                opts.int_width = solver_options.bit_vec_width
+                opts.prohibit_overflow = opts.use_bv
+            analysis = LoopConflictAnalysis(opts)
             conflicts = analysis.get_loop_conflicts(loop)
             if not conflicts:
                 clauses = []

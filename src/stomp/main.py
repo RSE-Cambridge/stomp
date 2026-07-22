@@ -6,11 +6,13 @@ from stomp.openmp_directives import \
 from stomp.message import StompLogger
 import stomp.static_checks as checks
 import stomp.inference as inference
+from stomp.solver_options import SMTSolverOptions
 
 
 def main(psyir,
          infer: bool = False,
-         assume_pure: List[str] = []) -> Optional[int]:
+         assume_pure: List[str] = [],
+         solver_options: Optional[SMTSolverOptions] = None) -> Optional[int]:
     '''Returns the number of directives analysed, or None if there
     was non-recoverable error.'''
 
@@ -40,9 +42,6 @@ def main(psyir,
     if len(StompLogger.get_messages()) > 0:
         return 0
 
-    # Count number of directives analaysed
-    num_omp_dir = len(psyir.walk(OpenMPDirective))
-
     # Maskable directive checks
     for d in psyir.walk(OpenMPDirective):
         checks.check_misplaced_directive(d)
@@ -54,17 +53,20 @@ def main(psyir,
         checks.check_calls(d, assume_pure=set(assume_pure))
         checks.check_uninitialised_read(d)
 
+    # Count number of directives analaysed
+    num_omp_dir = len(psyir.walk(OpenMPDirective))
+
     if len(StompLogger.get_messages()) > 0:
         return num_omp_dir
 
     # Data race checks
-    checks.check_data_races(psyir)
+    checks.check_data_races(psyir, solver_options)
 
-    # SIMD loop checks
-    checks.check_simd_loops(psyir)
+    # Lone SIMD loop data race checks
+    checks.check_simd_loops(psyir, solver_options)
 
     # Parallel loop inference
     if infer:
-        inference.infer_parallel_loops(psyir)
+        inference.infer_parallel_loops(psyir, solver_options)
 
     return num_omp_dir

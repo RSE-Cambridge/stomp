@@ -10,6 +10,7 @@ from stomp.preprocessor import enable_preprocessor, preprocess
 from stomp.message import StompLogger, StompMessageCode
 from stomp.main import main
 from stomp.module_spec_directives import parse_module_spec_directives
+from stomp.solver_options import SMTSolverOptions
 
 def entry():
     # Arguments
@@ -41,7 +42,7 @@ def entry():
         default=[])
     arg_parser.add_argument(
         "--cpp",
-        help="enable preprocessor",
+        help="enable preprocessor (auto-enabled for .F* files)",
         action="store_true")
     arg_parser.add_argument(
         "--nocpp",
@@ -89,6 +90,41 @@ def entry():
         metavar="NAME",
         action="append",
         default=[])
+    arg_parser.add_argument(
+        "--sweep-seed",
+        type=int,
+        help="specify the random seed for the SMT solver",
+        metavar="N",
+        action="store",
+        default=1)
+    arg_parser.add_argument(
+        "--sweep-threads",
+        type=int,
+        help="specify number of threads to use when solving SMT formulae "
+             "(default=4)",
+        metavar="N",
+        action="store",
+        default=4)
+    arg_parser.add_argument(
+        "--smt-timeout",
+        type=int,
+        help="specify the SMT solver timeout in milliseconds "
+             "(default=5000)",
+        metavar="MS",
+        action="store",
+        default=5000)
+    arg_parser.add_argument(
+        "--smt-use-bit-vec",
+        help="use bit vectors (rather than unbounded integers) in the SMT "
+             "solver",
+        action="store_true")
+    arg_parser.add_argument(
+        "--smt-bit-vec-width",
+        type=int,
+        help="SMT bit-vector width (default=32)",
+        metavar="WIDTH",
+        action="store",
+        default=32)
 
     args = arg_parser.parse_args()
 
@@ -204,8 +240,18 @@ def entry():
     # Parse directives in the specification part of Fortran modules
     parse_module_spec_directives(source_code, psyir, mod_manager)
 
+    # SMT solver options
+    solver_opts = SMTSolverOptions(args.sweep_seed,
+                                   args.sweep_threads,
+                                   args.smt_timeout,
+                                   args.smt_use_bit_vec,
+                                   args.smt_bit_vec_width)
+
     # Invoke the tool
-    num_omp_dir = main(psyir, infer=args.infer, assume_pure=args.pure)
+    num_omp_dir = main(psyir,
+                       infer=args.infer,
+                       assume_pure=args.pure,
+                       solver_options=solver_opts)
 
     note = ""
     if num_omp_dir is not None:
