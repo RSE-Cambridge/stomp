@@ -9,6 +9,7 @@ from psyclone.psyir.nodes import \
   FileContainer
 from psyclone.psyir.tools import ReductionInferenceTool
 from psyclone.core.access_type import AccessType
+from psyclone.psyir.symbols import DataTypeSymbol
 from stomp.openmp_directives import \
     OpenMPDirective, \
     get_enclosing_directives, \
@@ -507,6 +508,10 @@ def check_calls(d: OpenMPDirective, assume_pure: set[str] = set()):
 
                     # Skip intrinsic calls
                     if isinstance(call, IntrinsicCall): continue
+
+                    # Skip data constructors
+                    if isinstance(call.routine.symbol, DataTypeSymbol):
+                        continue
 
                     # Skip ignored calls
                     if name in ignore_calls: continue
