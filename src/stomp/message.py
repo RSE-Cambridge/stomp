@@ -157,6 +157,10 @@ class StompLogger:
         return msgs
 
     @classmethod
+    def has_message(cls, code: StompMessageCode):
+        return code in [msg.code for msg in cls.get_messages()]
+
+    @classmethod
     def get_all_messages(cls):
         return cls.messages
 

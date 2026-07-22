@@ -3,7 +3,7 @@ from stomp.openmp_directives import \
     OpenMPDirective, \
     identify_openmp_directives, \
     merge_multiline_directives
-from stomp.message import StompLogger
+from stomp.message import StompLogger, StompMessageCode
 import stomp.static_checks as checks
 import stomp.inference as inference
 from stomp.solver_options import SMTSolverOptions
@@ -32,17 +32,18 @@ def main(psyir,
         checks.check_directive_is_recognised(d)
         checks.check_stomp_unique_directives(d)
         checks.check_sections_directive(d)
-    
-    if len(StompLogger.get_messages()) > 0:
-        return None
+
+    # Exit early if a mandatory check fails
+    if len(StompLogger.get_messages()) > 0: return None
 
     # Check for poorly supported subroutine-local wildcard imports
     checks.check_wildcard_imports(psyir)
+    if len(StompLogger.get_messages()) > 0: return None
 
-    if len(StompLogger.get_messages()) > 0:
-        return 0
+    # Count number of directives present
+    num_dir = len(psyir.walk(OpenMPDirective))
 
-    # Maskable directive checks
+    # Basic checks
     for d in psyir.walk(OpenMPDirective):
         checks.check_misplaced_directive(d)
         checks.check_nowait(d)
@@ -51,13 +52,17 @@ def main(psyir,
         checks.check_ordered_directives(d)
         checks.check_reduction_clauses(d)
         checks.check_calls(d, assume_pure=set(assume_pure))
+
+    # Exit early for unresolved/impure calls as they lead to too many
+    # false positives
+    if StompLogger.has_message(StompMessageCode.UnresolvedCall):
+        return num_dir
+    if StompLogger.has_message(StompMessageCode.ImpureParallelCall):
+        return num_dir
+
+    # Uninitialised read checks
+    for d in psyir.walk(OpenMPDirective):
         checks.check_uninitialised_read(d)
-
-    # Count number of directives analaysed
-    num_omp_dir = len(psyir.walk(OpenMPDirective))
-
-    if len(StompLogger.get_messages()) > 0:
-        return num_omp_dir
 
     # Data race checks
     checks.check_data_races(psyir, solver_options)
@@ -69,4 +74,4 @@ def main(psyir,
     if infer:
         inference.infer_parallel_loops(psyir, solver_options)
 
-    return num_omp_dir
+    return num_dir
