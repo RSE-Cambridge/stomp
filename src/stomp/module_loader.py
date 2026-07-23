@@ -30,6 +30,7 @@ def get_modules(report: ModuleLoaderReport,
     mod_to_file_info = {}
     for info in file_infos:
         if not quiet:
+            print("\r\033[K", end="")
             print(f"Loading file '{info.filename}'...\r", end="")
         try:
             tree = info.get_fparser_tree()
@@ -126,6 +127,7 @@ def load_modules(mod_manager: ModuleManager,
     mod_loaded_list = []
     for mod_name in mod_list:
         if not quiet:
+            print("\r\033[K", end="")
             print(f"Loading module '{mod_name}'...\r", end="")
         processor = Fparser2Reader(resolve_modules=mod_loaded_list)
         try:
@@ -141,7 +143,7 @@ def load_modules(mod_manager: ModuleManager,
             mod_psyir)
         mod_manager._modules[mod_name] = mod_infos[mod_name]
 
-    # Clear interactive output
+    # Clear output line
     if not quiet:
         print("\r\033[K", end="")
 
