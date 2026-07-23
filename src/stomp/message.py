@@ -101,7 +101,14 @@ class StompMessage:
                     node = self.node
                     # Look at node's ancestors for more detail
                     for i in range(0, 3):
+                        # For efficiency, isolate node by removing parent link
+                        parent = node.parent
+                        node.parent = None
+                        # Convert the PSyIR to Fortran text
                         text = writer(node)
+                        # Restore the node's parent
+                        node.parent = parent
+                        # Trim the text and step back for more detail if needed
                         text = text.strip()
                         re.sub(" +", " ", text)
                         if self.node.parent and len(text) < 60:
