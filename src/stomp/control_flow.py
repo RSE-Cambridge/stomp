@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
-'''This module provides functions for analysing control flow.'''
+'''A poor man's control-flow analysis.'''
 
 from typing import List
 from psyclone.psyir.nodes import \

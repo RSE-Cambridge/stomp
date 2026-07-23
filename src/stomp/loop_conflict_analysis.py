@@ -347,7 +347,7 @@ class LoopConflictAnalysis(ArrayIndexAnalysis):
                     components.append(field)
             access_str = '%'.join(components)
             msg = (f"Iterations {i_val} and {j_val} have conflicting "
-                   f"accesses to {access_str}")
+                   f"accesses to '{access_str}'")
             return (sig, msg)
         elif result == z3.unknown:  # pragma: no cover
             if self.opts.succeed_on_timeout:

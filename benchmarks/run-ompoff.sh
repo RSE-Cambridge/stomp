@@ -16,7 +16,9 @@ FILES=$(ls OMPOff/src/OpenMP/*.F90)
 for FILE in $FILES; do
   SHORT=$(basename $FILE .out)
   echo "# $SHORT" >> ompoff-results.txt
-  stomp -I OMPOff/platforms/mn416-laptop/ $FILE 2> /dev/null \
+  stomp --no-progress \
+        -I OMPOff/platforms/mn416-laptop/ \
+        $FILE 2> /dev/null \
      >> ompoff-results.txt
   echo >> ompoff-results.txt
 done

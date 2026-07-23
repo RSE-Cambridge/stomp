@@ -16,6 +16,9 @@ def main(psyir,
     '''Returns the number of directives analysed, or None if there
     was non-recoverable error.'''
 
+    # Number of messages currently in the logger
+    num_msgs = len(StompLogger.get_messages())
+
     # Merge multiline directives into a single line
     merge_multiline_directives(psyir)
 
@@ -34,11 +37,11 @@ def main(psyir,
         checks.check_sections_directive(d)
 
     # Exit early if a mandatory check fails
-    if len(StompLogger.get_messages()) > 0: return None
+    if len(StompLogger.get_messages()) > num_msgs: return None
 
     # Check for poorly supported subroutine-local wildcard imports
     checks.check_wildcard_imports(psyir)
-    if len(StompLogger.get_messages()) > 0: return None
+    if len(StompLogger.get_messages()) > num_msgs: return None
 
     # Count number of directives present
     num_dir = len(psyir.walk(OpenMPDirective))

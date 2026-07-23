@@ -9,7 +9,7 @@ from enum import Enum, auto
 from typing import Optional
 from psyclone.psyir.nodes import Node
 from psyclone.psyir.backend.fortran import FortranWriter
-from stomp.colours import red, blue
+from stomp.colours import red, blue, amber
 
 
 class StompMessageCode(Enum):
@@ -20,12 +20,14 @@ class StompMessageCode(Enum):
     DataRace                   = auto()
     DataSharingConflict        = auto()
     EndStandaloneDir           = auto()
+    FileLoadFailure            = auto()
     FoundParallelisableLoop    = auto()
     ImpureParallelCall         = auto()
     InvalidCollapseClause      = auto()
     LoopDirectiveHasNoLoop     = auto()
     MalformedSectionsDirective = auto()
     MisplacedDirective         = auto()
+    ModuleLoadFailure          = auto()
     NonRectangularLoop         = auto()
     OpenMPParseError           = auto()
     ReadUninitialisedPrivate   = auto()
@@ -37,6 +39,10 @@ class StompMessageCode(Enum):
     UnresolvedCall             = auto()
     UnsupportedArrayReduction  = auto()
     WildcardImportInSubroutine = auto()
+
+    def is_warning(self):
+        return self in [StompMessageCode.FileLoadFailure,
+                        StompMessageCode.ModuleLoadFailure]
 
 
 class StompMessage:
@@ -72,9 +78,13 @@ class StompMessage:
 
         # Message code
         if enable_colours:
-            out = red(self.code.name)
+            out = header("Issue")
+            if self.code.is_warning():
+                out += amber(self.code.name)
+            else:
+                out += red(self.code.name)
         else:
-            out = self.code.name
+            out = "Issue: " + self.code.name
         out += "\n"
 
         # Location

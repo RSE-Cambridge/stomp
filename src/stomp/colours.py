@@ -9,6 +9,7 @@ class Colour:
     CYAN = '\033[96m'
     GREEN = '\033[92m'
     RED = '\033[91m'
+    AMBER = '\033[38;2;255;191;0m'
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
     ENDC = '\033[0m'
@@ -28,6 +29,10 @@ def green(text: str):
 
 def red(text: str):
     return Colour.RED + text + Colour.ENDC
+
+
+def amber(text: str):
+    return Colour.AMBER + text + Colour.ENDC
 
 
 def bold(text: str):

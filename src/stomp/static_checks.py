@@ -528,11 +528,11 @@ def check_calls(d: OpenMPDirective, assume_pure: set[str] = set()):
                         StompLogger.add_message(
                             StompMessageCode.UnresolvedCall,
                             description = f"Call to unresolved "
-                                f"function/subroutine '{name}' in parallel "
+                                f"symbol '{name}' in parallel "
                                 f"region. The reason for the resolution "
                                 f"failure is: '{reason}'. "
-                                f"To find missing source code, consider "
-                                f"using stomp's -F, -M, or -R options.",
+                                f"Additional source files can be loaded "
+                                f"using stomp's -F option.",
                             directive_node = d.original_directive,
                             node = call)
                         break

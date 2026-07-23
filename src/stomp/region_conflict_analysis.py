@@ -540,7 +540,7 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
             access_str = '%'.join(components)
             msg = (f"Thread (team={team_i},thread={thread_i}) and thread "
                    f"(team={team_j},thread={thread_j}) have conflicting "
-                   f"accesses to {access_str}")
+                   f"accesses to '{access_str}'")
             return (sig, msg)
         elif result == z3.unknown:  # pragma: no cover
             if self.opts.succeed_on_timeout:

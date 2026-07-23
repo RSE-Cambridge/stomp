@@ -8,9 +8,11 @@ from psyclone.errors import InternalError
 from psyclone.psyir.frontend.fortran import FortranReader
 from stomp.preprocessor import enable_preprocessor, preprocess
 from stomp.message import StompLogger, StompMessageCode
+from stomp.colours import green, red, amber, blue
 from stomp.main import main
 from stomp.module_spec_directives import parse_module_spec_directives
 from stomp.solver_options import SMTSolverOptions
+from stomp.module_loader import load_modules, ModuleLoaderReport
 
 def entry():
     # Arguments
@@ -23,23 +25,15 @@ def entry():
         help="infer parallel loops",
         action="store_true")
     arg_parser.add_argument(
-        "-M",
-        help="add search path for imported modules",
-        metavar="PATH",
-        action="append",
-        default=[])
-    arg_parser.add_argument(
-        "-R",
-        help="add recursive search path for imported modules",
-        metavar="PATH",
-        action="append",
-        default=[])
-    arg_parser.add_argument(
         "-F",
         help="add given Fortran file for imported modules",
         metavar="FILE",
         action="append",
         default=[])
+    arg_parser.add_argument(
+        "--no-progress",
+        help="disable progress reports",
+        action="store_true")
     arg_parser.add_argument(
         "--cpp",
         help="enable preprocessor (auto-enabled for .F* files)",
@@ -68,10 +62,6 @@ def entry():
         metavar="MACRO",
         action="append",
         default=[])
-    arg_parser.add_argument(
-        "--cache",
-        help="create '.psycache' module files to speed up loading",
-        action="store_true")
     arg_parser.add_argument(
         "--ignore",
         help="ignore (don't try to load) given module",
@@ -162,41 +152,36 @@ def entry():
             sys.exit(-1)
         StompLogger.add_ignore(code)
 
-    # Enable module caching
-    if args.cache:
-        mod_manager.cache_active = True
-
     # Disabling unnecessary check in module manager
     mod_manager._doesnt_need_preprocessing = lambda self: True
-
-    # Add working dir as a (non-recursive) search path
-    mod_manager.add_search_path("./", False)
 
     # Add modules to ignore
     for mod_ignore in args.ignore:
         mod_manager.add_ignore_module(mod_ignore)
 
-    # Add -M arguments to search path
-    for mod_path in args.M:
-        mod_manager.add_search_path(mod_path, False)
+    # Load modules from all input files
+    files = args.F + [args.input_file]
+    loader_report = load_modules(mod_manager, files, args.no_progress)
 
-    # Add -R arguments to search path
-    for mod_path in args.R:
-        mod_manager.add_search_path(mod_path, True)
+    # Report result loading
+    if loader_report.modules_loaded:
+        print(green("Modules loaded") + ":",
+              ", ".join(loader_report.modules_loaded))
+    if loader_report.modules_not_loaded:
+        print(amber("Modules not loaded") + ":",
+              ", ".join(loader_report.modules_not_loaded))
+    if loader_report.modules_loaded or loader_report.modules_not_loaded:
+        print()
 
-    # Add top-level file to module manager
-    mod_manager.add_files([args.input_file])
-
-    # Add any files specified by -F arguments
-    if args.F:
-        mod_manager.add_files(args.F)
-
-    # Load added files
-    try:
-        mod_manager.load_all_module_infos()
-    except Exception as err:
-        print(f"Failed to load specified modules {args.F}: " + str(err))
-        return
+    # Report loading errors as user messages
+    for (filename, err) in loader_report.file_errors.items():
+        StompLogger.add_message(
+            StompMessageCode.FileLoadFailure,
+            description = f"Failed to load '{filename}': " + err)
+    for (mod_name, err) in loader_report.module_errors.items():
+        StompLogger.add_message(
+            StompMessageCode.ModuleLoadFailure,
+            description = f"Failed to load module '{mod_name}': " + err)
 
     # Determine file type
     free_form_exts = (".f90", ".f95", ".f03", ".f08",
@@ -214,7 +199,7 @@ def entry():
 
     # Load Fortran code
     fortran_reader = FortranReader(
-        resolve_modules=True,
+        resolve_modules=loader_report.modules_loaded,
         ignore_comments=False,
         ignore_directives=False,
         conditional_openmp_statements=True,

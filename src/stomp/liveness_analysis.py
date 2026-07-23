@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
-'''This module provides functions for liveness analysis.'''
+'''A poor man's liveness analysis.'''
 
 from typing import Set, Optional
 from psyclone.psyir.nodes import \
