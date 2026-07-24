@@ -9,7 +9,7 @@ from enum import Enum, auto
 from typing import Optional
 from psyclone.psyir.nodes import Node
 from psyclone.psyir.backend.fortran import FortranWriter
-from stomp.colours import red, blue, amber
+from stomp.colours import red, blue, amber, green
 
 
 class StompMessageCode(Enum):
@@ -43,6 +43,9 @@ class StompMessageCode(Enum):
     def is_warning(self):
         return self in [StompMessageCode.FileLoadFailure,
                         StompMessageCode.ModuleLoadFailure]
+
+    def is_good(self):
+        return self in [StompMessageCode.FoundParallelisableLoop]
 
 
 class StompMessage:
@@ -81,6 +84,8 @@ class StompMessage:
             out = header("Issue")
             if self.code.is_warning():
                 out += amber(self.code.name)
+            elif self.code.is_good():
+                out += green(self.code.name)
             else:
                 out += red(self.code.name)
         else:
@@ -111,13 +116,9 @@ class StompMessage:
                     node = self.node
                     # Look at node's ancestors for more detail
                     for i in range(0, 3):
-                        # For efficiency, isolate node by removing parent link
-                        parent = node.parent
-                        node.parent = None
                         # Convert the PSyIR to Fortran text
-                        text = writer(node)
-                        # Restore the node's parent
-                        node.parent = parent
+                        # For efficiency, copy (hence isolate) the node
+                        text = writer(node.copy())
                         # Trim the text and step back for more detail if needed
                         text = text.strip()
                         re.sub(" +", " ", text)
@@ -127,7 +128,8 @@ class StompMessage:
                             break
                     text = repr(text[:60])
                     out += header("Node") + text + "\n"
-                except Exception:
+                except Exception as err:
+                    print(str(err), self.node.parent)
                     pass
 
         # Description
