@@ -9,7 +9,7 @@ from enum import Enum, auto
 from typing import Optional
 from psyclone.psyir.nodes import Node
 from psyclone.psyir.backend.fortran import FortranWriter
-from stomp.colours import red, blue, amber, green
+from stomp.colours import Colour
 
 
 class StompMessageCode(Enum):
@@ -67,29 +67,22 @@ class StompMessage:
 
     def render(self,
                filename: Optional[str] = None,
-               line_num: Optional[int] = None,
-               enable_colours: bool = True
+               line_num: Optional[int] = None
                ):
         '''Render the message as a string.'''
 
         # Helper function to display field header in colour
         def header(text: str):
-            if enable_colours:
-                text = blue(text)
-            text += ": "
-            return text
+            return Colour.blue(text) + ": "
 
         # Message code
-        if enable_colours:
-            out = header("Issue")
-            if self.code.is_warning():
-                out += amber(self.code.name)
-            elif self.code.is_good():
-                out += green(self.code.name)
-            else:
-                out += red(self.code.name)
+        out = header("Issue")
+        if self.code.is_warning():
+            out += Colour.amber(self.code.name)
+        elif self.code.is_good():
+            out += Colour.green(self.code.name)
         else:
-            out = "Issue: " + self.code.name
+            out += Colour.red(self.code.name)
         out += "\n"
 
         # Location

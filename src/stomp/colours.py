@@ -14,30 +14,40 @@ class Colour:
     UNDERLINE = '\033[4m'
     ENDC = '\033[0m'
 
+    # Is colour enabled?
+    enabled: bool = True
 
-def blue(text: str):
-    return Colour.BLUE + text + Colour.ENDC
+    @classmethod
+    def colour(cls, colour: str, text: str):
+        if cls.enabled:
+           return colour + text + cls.ENDC
+        else:
+           return text
 
+    @classmethod
+    def blue(cls, text: str):
+        return cls.colour(cls.BLUE, text)
 
-def cyan(text: str):
-    return Colour.CYAN + text + Colour.ENDC
+    @classmethod
+    def cyan(cls, text: str):
+        return cls.colour(cls.CYAN, text)
 
+    @classmethod
+    def green(cls, text: str):
+        return cls.colour(cls.GREEN, text)
 
-def green(text: str):
-    return Colour.GREEN + text + Colour.ENDC
+    @classmethod
+    def red(cls, text: str):
+        return cls.colour(cls.RED, text)
 
+    @classmethod
+    def amber(cls, text: str):
+        return cls.colour(cls.AMBER, text)
 
-def red(text: str):
-    return Colour.RED + text + Colour.ENDC
+    @classmethod
+    def bold(cls, text: str):
+        return cls.colour(cls.BOLD, text)
 
-
-def amber(text: str):
-    return Colour.AMBER + text + Colour.ENDC
-
-
-def bold(text: str):
-    return Colour.BOLD + text + Colour.ENDC
-
-
-def underline(text: str):
-    return Colour.UNDERLINE + text + Colour.ENDC
+    @classmethod
+    def underline(cls, text: str):
+        return cls.colour(cls.UNDERLINE, text)

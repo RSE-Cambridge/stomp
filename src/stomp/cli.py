@@ -9,12 +9,12 @@ from psyclone.errors import InternalError
 from psyclone.psyir.frontend.fortran import FortranReader
 from stomp.preprocessor import enable_preprocessor, preprocess
 from stomp.message import StompLogger, StompMessageCode
-from stomp.colours import green, amber
 from stomp.main import main
 from stomp.module_spec_directives import parse_module_spec_directives
 from stomp.solver_options import SMTSolverOptions
 from stomp.module_loader import load_modules
 from stomp.progress_reporter import ProgressReporter
+from stomp.colours import Colour
 
 def entry():
     # Arguments
@@ -40,8 +40,12 @@ def entry():
         action="append",
         default=[])
     arg_parser.add_argument(
+        "--no-colour",
+        help="disable colour output",
+        action="store_true")
+    arg_parser.add_argument(
         "--no-progress",
-        help="disable progress reports",
+        help="disable progress reporting",
         action="store_true")
     arg_parser.add_argument(
         "--cpp",
@@ -155,6 +159,11 @@ def entry():
     # Disable progress reporter?
     if args.no_progress: ProgressReporter.enabled = False
 
+    # Disable colour printing
+    if args.no_colour:
+        ProgressReporter.ansi_escape = False
+        Colour.enabled = False
+
     # Inform logger about isssues to exclude
     for code_str in args.e:
         try:
@@ -192,10 +201,10 @@ def entry():
 
     # Report result loading
     if loader_report.modules_loaded:
-        print(green("Modules loaded") + ":",
+        print(Colour.green("Modules loaded") + ":",
               ", ".join(loader_report.modules_loaded))
     if loader_report.modules_not_loaded:
-        print(amber("Modules not loaded") + ":",
+        print(Colour.amber("Modules not loaded") + ":",
               ", ".join(loader_report.modules_not_loaded))
     if loader_report.modules_loaded or loader_report.modules_not_loaded:
         print()

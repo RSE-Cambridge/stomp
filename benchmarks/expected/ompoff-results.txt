@@ -1,40 +1,40 @@
 # histogram.F90
-[92mModules loaded[0m: histo_kernels
-[38;2;255;191;0mModules not loaded[0m: omp_lib, iso_fortran_env
+Modules loaded: histo_kernels
+Modules not loaded: omp_lib, iso_fortran_env
 
 All done. Analysed 23 directives and found 0 issues.
 
 # mat_mul.F90
-[92mModules loaded[0m: mat_mul_kernels
-[38;2;255;191;0mModules not loaded[0m: omp_lib
+Modules loaded: mat_mul_kernels
+Modules not loaded: omp_lib
 
-[94mIssue[0m: [91mDataRace[0m
-[94mRoutine[0m: mat_mul_simple
-[94mDirective[0m: '!$omp target teams distribute parallel do collapse(2) !nowai'
-[94mDescription[0m: Potential data race in parallel region. Thread (team=0,thread=0) and thread (team=0,thread=1) have conflicting accesses to 'acc'.
+Issue: DataRace
+Routine: mat_mul_simple
+Directive: '!$omp target teams distribute parallel do collapse(2) !nowai'
+Description: Potential data race in parallel region. Thread (team=0,thread=0) and thread (team=0,thread=1) have conflicting accesses to 'acc'.
 
 All done. Analysed 13 directives and found 1 issues.
 
 # motion_est.F90
-[92mModules loaded[0m: motion_est_kernels
-[38;2;255;191;0mModules not loaded[0m: omp_lib
+Modules loaded: motion_est_kernels
+Modules not loaded: omp_lib
 
 All done. Analysed 14 directives and found 0 issues.
 
 # stencil.F90
-[92mModules loaded[0m: stencil_kernels
-[38;2;255;191;0mModules not loaded[0m: omp_lib
+Modules loaded: stencil_kernels
+Modules not loaded: omp_lib
 
-[94mIssue[0m: [91mDataRace[0m
-[94mRoutine[0m: stencil_simple
-[94mDirective[0m: '!$omp target teams distribute parallel do collapse(2) !nowai'
-[94mDescription[0m: Potential data race in parallel region. Thread (team=0,thread=0) and thread (team=0,thread=1) have conflicting accesses to 'total'.
+Issue: DataRace
+Routine: stencil_simple
+Directive: '!$omp target teams distribute parallel do collapse(2) !nowai'
+Description: Potential data race in parallel region. Thread (team=0,thread=0) and thread (team=0,thread=1) have conflicting accesses to 'total'.
 
 All done. Analysed 12 directives and found 1 issues.
 
 # transpose.F90
-[92mModules loaded[0m: transpose_kernels
-[38;2;255;191;0mModules not loaded[0m: omp_lib
+Modules loaded: transpose_kernels
+Modules not loaded: omp_lib
 
 All done. Analysed 12 directives and found 0 issues.
 
