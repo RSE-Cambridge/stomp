@@ -76,12 +76,6 @@ def entry():
         action="append",
         default=[])
     arg_parser.add_argument(
-        "--ignore",
-        help="ignore (don't try to load) given module",
-        metavar="MOD",
-        action="append",
-        default=[])
-    arg_parser.add_argument(
         "-e",
         help="exclude (don't report) issues with the given code",
         metavar="CODE",
@@ -175,10 +169,6 @@ def entry():
 
     # Disabling unnecessary check in module manager
     mod_manager._doesnt_need_preprocessing = lambda self: True
-
-    # Add modules to ignore
-    for mod_ignore in args.ignore:
-        mod_manager.add_ignore_module(mod_ignore)
 
     # Check file extension
     free_form_exts = (".f90", ".f95", ".f03", ".f08",
