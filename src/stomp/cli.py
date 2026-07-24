@@ -83,7 +83,7 @@ def entry():
         default=[])
     arg_parser.add_argument(
         "-e",
-        help="don't report (exclude) issues with the given code",
+        help="exclude (don't report) issues with the given code",
         metavar="CODE",
         action="append",
         default=[])
