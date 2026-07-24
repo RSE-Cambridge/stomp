@@ -269,8 +269,15 @@ def entry():
         issue_count += 1
 
     # Emit number of directives analysed
-    print(f"All done. Analysed {num_omp_dir} directives and "
-          f"found {issue_count} issues{note}.")
+    print(f"Directives found: {num_omp_dir}")
+    print(f"Issues found: {issue_count}{note}")
+    if StompLogger.smt_timeouts > 0:
+        smt_header = Colour.amber("SMT queries/timeouts")
+    else:
+        smt_header = "SMT queries/timeouts"
+    print(f"{smt_header}: "
+          f"{StompLogger.smt_queries}/"
+          f"{StompLogger.smt_timeouts}")
 
 if __name__ == "__main__":
     entry()

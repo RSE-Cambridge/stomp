@@ -54,6 +54,8 @@ from stomp.array_index_analysis import \
 from stomp.fortran_to_z3 import FortranToZ3
 from stomp.control_flow import \
     after_statement, next_statement, affects_control_flow
+from stomp.message import StompLogger
+from stomp.progress_reporter import ProgressReporter
 
 # Analysis Options
 # ================
@@ -507,6 +509,7 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
                 sum_of_prods.append(indices_equal + [write.cond, acc.cond])
 
         # Invoke solver
+        ProgressReporter.begin("Running SMT query...")
         (result, result_values) = self.trans.solve(
             self.constraints,
             sum_of_prods,
@@ -517,6 +520,8 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
             num_sweep_threads = self.opts.num_sweep_threads,
             sweep_seed = self.opts.sweep_seed
             )
+        ProgressReporter.end()
+        StompLogger.log_smt_query()
 
         # Determine return value
         (sig, sig_inds) = (write.name, write.indices)
@@ -543,6 +548,7 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
                    f"accesses to '{access_str}'")
             return (sig, msg)
         elif result == z3.unknown:  # pragma: no cover
+            StompLogger.log_smt_timeout()
             if self.opts.succeed_on_timeout:
                 return None
             else:

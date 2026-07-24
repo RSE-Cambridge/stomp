@@ -2,7 +2,9 @@
 Modules loaded: histo_kernels
 Modules not loaded: omp_lib, iso_fortran_env
 
-All done. Analysed 23 directives and found 0 issues.
+Directives found: 23
+Issues found: 0
+SMT queries/timeouts: 6/0
 
 # mat_mul.F90
 Modules loaded: mat_mul_kernels
@@ -13,13 +15,17 @@ Routine: mat_mul_simple
 Directive: '!$omp target teams distribute parallel do collapse(2) !nowai'
 Description: Potential data race in parallel region. Thread (team=0,thread=0) and thread (team=0,thread=1) have conflicting accesses to 'acc'.
 
-All done. Analysed 13 directives and found 1 issues.
+Directives found: 13
+Issues found: 1
+SMT queries/timeouts: 4/0
 
 # motion_est.F90
 Modules loaded: motion_est_kernels
 Modules not loaded: omp_lib
 
-All done. Analysed 14 directives and found 0 issues.
+Directives found: 14
+Issues found: 0
+SMT queries/timeouts: 5/0
 
 # stencil.F90
 Modules loaded: stencil_kernels
@@ -30,11 +36,15 @@ Routine: stencil_simple
 Directive: '!$omp target teams distribute parallel do collapse(2) !nowai'
 Description: Potential data race in parallel region. Thread (team=0,thread=0) and thread (team=0,thread=1) have conflicting accesses to 'total'.
 
-All done. Analysed 12 directives and found 1 issues.
+Directives found: 12
+Issues found: 1
+SMT queries/timeouts: 3/0
 
 # transpose.F90
 Modules loaded: transpose_kernels
 Modules not loaded: omp_lib
 
-All done. Analysed 12 directives and found 0 issues.
+Directives found: 12
+Issues found: 0
+SMT queries/timeouts: 3/0
 

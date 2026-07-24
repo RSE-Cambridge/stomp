@@ -149,6 +149,12 @@ class StompLogger:
     # List of messages to ignore
     ignore: list[StompMessageCode] = []
 
+    # Number of SMT solver queries
+    smt_queries: int = 0
+
+    # Number of SMT timeouts
+    smt_timeouts: int = 0
+
     @classmethod
     def add_ignore(cls, code: StompMessageCode):
         cls.ignore.append(code)
@@ -176,5 +182,15 @@ class StompLogger:
         return cls.messages
 
     @classmethod
+    def log_smt_query(cls):
+        cls.smt_queries += 1
+
+    @classmethod
+    def log_smt_timeout(cls):
+        cls.smt_timeouts += 1
+
+    @classmethod
     def clear(cls):
         cls.messages = []
+        cls.smt_queries = 0
+        cls.smt_timeouts = 0
