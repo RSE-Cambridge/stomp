@@ -63,7 +63,21 @@ def get_module_deps(mods: Dict[str, ast.Module]) -> Dict[str, Set[str]]:
     return deps
 
 
-def sort_deps(original_deps: Dict[str, Set[str]]):
+def get_imports(report: ModuleLoaderReport,
+                info: FileInfo) -> Set[str]:
+    '''Compute imports for given source file.'''
+    uses = set()
+    try:
+        tree = info.get_fparser_tree()
+    except Exception as err:
+        report.file_errors[info.filename] = str(err)
+        return uses
+    for use in ast.walk(tree, ast.Use_Stmt):
+        uses.add(str(use.items[2]).lower())
+    return uses
+
+
+def sort_deps(original_deps: Dict[str, Set[str]]) -> Dict[str, Set[str]]:
     '''Sort the dependencies such that any module comes before
     the modules that it depends on.'''
     deps = copy.deepcopy(original_deps)
@@ -71,14 +85,13 @@ def sort_deps(original_deps: Dict[str, Set[str]]):
     while deps:
        # Get all modules with no dependencies
        no_dep = None
-       no_deps = set()
        for (mod, uses) in deps.items():
            if not uses:
                no_dep = mod
                break
        # For a circular dependency, just pick arbitrarily
        if not no_dep:
-           no_dep = dep.keys()[0]
+           no_dep = deps.keys()[0]
        # Add module to sorted dependencies
        sorted_mods.append(no_dep)
        # Remove module from dependencies
@@ -93,7 +106,25 @@ def sort_deps(original_deps: Dict[str, Set[str]]):
     return sorted_deps
 
 
+def prune_deps(roots: Set[str], deps: Dict[str, Set[str]]) -> \
+        Dict[str, Set[str]]:
+    '''Prune dependencies that are not reachable from the given roots.'''
+    pruned = {}
+    frontier = copy.copy(roots)
+    visited = set()
+    while frontier:
+        mod_name = frontier.pop()
+        if mod_name in visited: continue
+        visited.add(mod_name)
+        if mod_name not in deps: continue
+        uses = deps[mod_name]
+        pruned[mod_name] = uses
+        frontier.update(uses - visited)
+    return pruned
+
+
 def load_modules(mod_manager: ModuleManager,
+                 top_file: str,
                  files: List[str],
                  quiet: bool) -> ModuleLoaderReport:
     '''Load all modules in given list of files.'''
@@ -101,8 +132,13 @@ def load_modules(mod_manager: ModuleManager,
     report = ModuleLoaderReport()
 
     # Add the files to the module manager
-    mod_manager.add_files(files)
+    mod_manager.add_files(files + [top_file])
     file_infos = mod_manager._filepath_to_file_info.values()
+
+    # Determine the root modules from the top file
+    top_file_info = mod_manager._filepath_to_file_info[top_file]
+    roots = get_imports(report, top_file_info)
+    if not roots: return report
 
     # Determine the contained modules and parse trees
     (mod_to_tree, mod_to_file_info) = get_modules(report, file_infos, quiet)
@@ -117,6 +153,9 @@ def load_modules(mod_manager: ModuleManager,
         report.modules_not_loaded.update(deps[mod] - mod_set)
         # Ignore modules that are not to be loaded
         deps[mod] &= mod_set
+
+    # Prune dependencies that are not reachable from the roots
+    deps = prune_deps(roots, deps)
 
     # Sort the dependencies
     deps = sort_deps(deps)

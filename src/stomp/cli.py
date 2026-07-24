@@ -2,17 +2,18 @@
 
 import sys
 import argparse
+from pathlib import Path
 from psyclone.configuration import Config
 from psyclone.parse import ModuleManager
 from psyclone.errors import InternalError
 from psyclone.psyir.frontend.fortran import FortranReader
 from stomp.preprocessor import enable_preprocessor, preprocess
 from stomp.message import StompLogger, StompMessageCode
-from stomp.colours import green, red, amber, blue
+from stomp.colours import green, amber
 from stomp.main import main
 from stomp.module_spec_directives import parse_module_spec_directives
 from stomp.solver_options import SMTSolverOptions
-from stomp.module_loader import load_modules, ModuleLoaderReport
+from stomp.module_loader import load_modules
 
 def entry():
     # Arguments
@@ -25,9 +26,16 @@ def entry():
         help="infer parallel loops",
         action="store_true")
     arg_parser.add_argument(
-        "-F",
-        help="add given Fortran file for imported modules",
+        "-l",
+        help="load given Fortran file for import resolution",
         metavar="FILE",
+        action="append",
+        default=[])
+    arg_parser.add_argument(
+        "-L",
+        help="load all Fortran files in given directory for "
+             "import resolution",
+        metavar="DIR",
         action="append",
         default=[])
     arg_parser.add_argument(
@@ -159,9 +167,24 @@ def entry():
     for mod_ignore in args.ignore:
         mod_manager.add_ignore_module(mod_ignore)
 
-    # Load modules from all input files
-    files = args.F + [args.input_file]
-    loader_report = load_modules(mod_manager, files, args.no_progress)
+    # Check file extension
+    free_form_exts = (".f90", ".f95", ".f03", ".f08",
+                      ".F90", ".F95", ".F03", ".F08")
+    if not args.input_file.endswith(free_form_exts):
+        print(f"Uncrecognised file extension in '{args.input_file}'")
+        sys.exit(1)
+
+    # Determine all files to load
+    files_to_load = []
+    files_to_load.extend(args.l)
+    for pathname in args.L:
+        path = Path(pathname)
+        for ext in free_form_exts:
+           files_to_load.extend([str(f) for f in path.glob("*" + ext)])
+
+    # Load modules
+    loader_report = load_modules(
+        mod_manager, args.input_file, files_to_load, args.no_progress)
 
     # Report result loading
     if loader_report.modules_loaded:
@@ -183,27 +206,13 @@ def entry():
             StompMessageCode.ModuleLoadFailure,
             description = f"Failed to load module '{mod_name}': " + err)
 
-    # Determine file type
-    free_form_exts = (".f90", ".f95", ".f03", ".f08",
-                      ".F90", ".F95", ".F03", ".F08",
-                      ".x90", ".xu90")
-    fixed_form_exts = (".f", ".for", ".fpp", ".ftn",
-                       ".F", ".FOR", ".FPP", ".FTN")
-    if args.input_file.endswith(free_form_exts):
-        free_form = True
-    elif args.input_file.endswith(fixed_form_exts):
-        free_form = False
-    else:
-        print(f"Uncrecognised file extension in '{args.input_file}'")
-        sys.exit(1)
-
     # Load Fortran code
     fortran_reader = FortranReader(
         resolve_modules=loader_report.modules_loaded,
         ignore_comments=False,
         ignore_directives=False,
         conditional_openmp_statements=True,
-        free_form=free_form
+        free_form=True
     )
     try:
         if apply_preprocessor:
