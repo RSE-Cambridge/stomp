@@ -1,6 +1,6 @@
 # histogram.F90
 [92mModules loaded[0m: histo_kernels
-[38;2;255;191;0mModules not loaded[0m: omp_lib, iso_fortran_env
+[38;2;255;191;0mModules not loaded[0m: iso_fortran_env, omp_lib
 
 All done. Analysed 23 directives and found 0 issues.
 

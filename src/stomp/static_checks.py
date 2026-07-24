@@ -596,7 +596,8 @@ def check_uninitialised_read(d: OpenMPDirective):
     accesses = d.body_reference_accesses()
     if accesses:
         (private, _) = d.get_private_shared(ignore_firstprivate=True,
-                                            ignore_reduction=True)
+                                            ignore_reduction=True,
+                                            ignore_always_private=True)
         for p in private:
             sig = Signature(p)
             if sig not in accesses: continue
