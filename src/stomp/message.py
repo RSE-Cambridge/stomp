@@ -128,8 +128,7 @@ class StompMessage:
                             break
                     text = repr(text[:60])
                     out += header("Node") + text + "\n"
-                except Exception as err:
-                    print(str(err), self.node.parent)
+                except Exception:
                     pass
 
         # Description
