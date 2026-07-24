@@ -52,7 +52,7 @@ def entry():
         help="enable preprocessor (auto-enabled for .F* files)",
         action="store_true")
     arg_parser.add_argument(
-        "--nocpp",
+        "--no-cpp",
         help="disable preprocessor",
         action="store_true")
     arg_parser.add_argument(
@@ -146,7 +146,7 @@ def entry():
     apply_preprocessor = False
     if args.cpp or args.input_file.endswith(preprocess_exts):
         apply_preprocessor = True
-    if args.nocpp:
+    if args.no_cpp:
         apply_preprocessor = False
     preprocessor_command = args.cpp_cmd
     for inc_path in args.I:
