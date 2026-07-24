@@ -14,6 +14,7 @@ from stomp.main import main
 from stomp.module_spec_directives import parse_module_spec_directives
 from stomp.solver_options import SMTSolverOptions
 from stomp.module_loader import load_modules
+from stomp.progress_reporter import ProgressReporter
 
 def entry():
     # Arguments
@@ -151,6 +152,9 @@ def entry():
     if apply_preprocessor:
         enable_preprocessor(preprocessor_command)
 
+    # Disable progress reporter?
+    if args.no_progress: ProgressReporter.enabled = False
+
     # Inform logger about isssues to exclude
     for code_str in args.e:
         try:
@@ -184,7 +188,7 @@ def entry():
 
     # Load modules
     loader_report = load_modules(
-        mod_manager, args.input_file, files_to_load, args.no_progress)
+        mod_manager, args.input_file, files_to_load)
 
     # Report result loading
     if loader_report.modules_loaded:

@@ -4,6 +4,7 @@ from psyclone.parse import ModuleManager, FileInfo, ModuleInfo
 from psyclone.psyir.nodes import Container
 from psyclone.psyir.frontend.fparser2 import Fparser2Reader
 import fparser.two.Fortran2003 as ast
+from stomp.progress_reporter import ProgressReporter
 
 
 class ModuleLoaderReport:
@@ -20,8 +21,7 @@ class ModuleLoaderReport:
 
 
 def get_modules(report: ModuleLoaderReport,
-                file_infos: List[FileInfo],
-                quiet: bool) -> \
+                file_infos: List[FileInfo]) -> \
         Tuple[Dict[str, ast.Module], Dict[str, FileInfo]]:
     '''Get the modules defined in the given files. Returns a mapping
     from module name to module abstract syntax tree and a mapping
@@ -29,14 +29,13 @@ def get_modules(report: ModuleLoaderReport,
     mod_to_tree = {}
     mod_to_file_info = {}
     for info in file_infos:
-        if not quiet:
-            print("\r\033[K", end="")
-            print(f"Loading file '{info.filename}'...\r", end="")
+        ProgressReporter.begin(f"Loading file '{info.filename}'...")
         try:
             tree = info.get_fparser_tree()
         except Exception as err:
             report.file_errors[info.filename] = str(err)
             continue
+        ProgressReporter.end()
         for mod in ast.walk(tree, ast.Module):
             # Get the module name
             mod_name = None
@@ -125,8 +124,7 @@ def prune_deps(roots: Set[str], deps: Dict[str, Set[str]]) -> \
 
 def load_modules(mod_manager: ModuleManager,
                  top_file: str,
-                 files: List[str],
-                 quiet: bool) -> ModuleLoaderReport:
+                 files: List[str]) -> ModuleLoaderReport:
     '''Load all modules in given list of files.'''
     # Create the report
     report = ModuleLoaderReport()
@@ -141,7 +139,7 @@ def load_modules(mod_manager: ModuleManager,
     if not roots: return report
 
     # Determine the contained modules and parse trees
-    (mod_to_tree, mod_to_file_info) = get_modules(report, file_infos, quiet)
+    (mod_to_tree, mod_to_file_info) = get_modules(report, file_infos)
 
     # Determine the contained modules and their dependencies
     deps = get_module_deps(mod_to_tree)
@@ -165,9 +163,7 @@ def load_modules(mod_manager: ModuleManager,
     mod_list = list(deps.keys())
     mod_loaded_list = []
     for mod_name in mod_list:
-        if not quiet:
-            print("\r\033[K", end="")
-            print(f"Loading module '{mod_name}'...\r", end="")
+        ProgressReporter.begin(f"Loading module '{mod_name}'...")
         processor = Fparser2Reader(resolve_modules=mod_loaded_list)
         try:
             mod_psyir = module_to_psyir(processor, mod_to_tree[mod_name])
@@ -175,16 +171,13 @@ def load_modules(mod_manager: ModuleManager,
             report.module_errors[mod_name] = str(err)
             report.modules_not_loaded.add(mod_name)
             continue
+        ProgressReporter.end()
         mod_loaded_list.append(mod_name)
         mod_infos[mod_name] = ModuleInfo(
             mod_name,
             mod_to_file_info[mod_name], 
             mod_psyir)
         mod_manager._modules[mod_name] = mod_infos[mod_name]
-
-    # Clear output line
-    if not quiet:
-        print("\r\033[K", end="")
 
     report.modules_loaded.extend(mod_loaded_list)
     return report
