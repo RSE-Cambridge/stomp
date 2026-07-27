@@ -14,7 +14,7 @@ subroutine sub(arr)
   end do
 end subroutine
 '''
-    stomp_test(code, [Msg.DataRace])
+    stomp_test(code, [Msg.ScalarDataRace])
 
 
 def test_loop_scalar_threadprivate():
@@ -90,7 +90,7 @@ subroutine sub(arr)
   !$omp end target teams
 endsubroutine
 '''
-    stomp_test(code, [Msg.DataRace])
+    stomp_test(code, [Msg.ArrayDataRace])
 
 
 def test_reduction_var_race_1():
@@ -112,7 +112,7 @@ subroutine sub()
     !$omp end do
   !$omp end parallel
 end subroutine'''
-    stomp_test(code, [Msg.DataRace])
+    stomp_test(code, [Msg.ScalarDataRace])
 
 
 def test_reduction_var_race_2():
@@ -165,7 +165,7 @@ subroutine sub()
     !$omp end master
   !$omp end parallel
 end subroutine'''
-    stomp_test(code, [Msg.DataRace])
+    stomp_test(code, [Msg.ScalarDataRace])
 
 
 def test_reduction_var_race_4():

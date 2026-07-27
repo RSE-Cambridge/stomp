@@ -10,7 +10,7 @@ SMT queries/timeouts: 6/0
 Modules loaded: mat_mul_kernels
 Modules not loaded: omp_lib
 
-Issue: DataRace
+Issue: ScalarDataRace
 Routine: mat_mul_simple
 Directive: '!$omp target teams distribute parallel do collapse(2) !nowai'
 Description: Potential data race in parallel region. Thread (team=0,thread=0) and thread (team=0,thread=1) have conflicting accesses to 'acc'.
@@ -31,7 +31,7 @@ SMT queries/timeouts: 5/0
 Modules loaded: stencil_kernels
 Modules not loaded: omp_lib
 
-Issue: DataRace
+Issue: ScalarDataRace
 Routine: stencil_simple
 Directive: '!$omp target teams distribute parallel do collapse(2) !nowai'
 Description: Potential data race in parallel region. Thread (team=0,thread=0) and thread (team=0,thread=1) have conflicting accesses to 'total'.

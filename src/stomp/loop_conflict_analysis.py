@@ -45,7 +45,7 @@ from typing import Optional, Tuple, Set
 from psyclone.psyir.nodes import Loop, IntrinsicCall, Routine, Node
 from psyclone.core import Signature
 from stomp.array_index_analysis import \
-    ArrayIndexAnalysisOptions, ArrayIndexAnalysis, ArrayAccess
+    ArrayIndexAnalysisOptions, ArrayIndexAnalysis, ArrayAccess, Conflict
 from stomp.fortran_to_z3 import FortranToZ3
 from stomp.openmp_directives import OpenMPDirective
 from stomp.message import StompLogger
@@ -295,9 +295,13 @@ class LoopConflictAnalysis(ArrayIndexAnalysis):
             else:
                 array_candidates.append((i_accesses, j_accesses))
 
-        conflicts = self._get_conflicts(scalar_candidates, all_conflicts)
-        if not conflicts or all_conflicts:
-            conflicts += self._get_conflicts(array_candidates, all_conflicts)
+        scalar_conflicts = self._get_conflicts(
+            scalar_candidates, all_conflicts)
+        for c in scalar_conflicts:
+            conflicts.append(Conflict(c[0], c[1], is_scalar=True))
+        if not scalar_conflicts or all_conflicts:
+            for c in self._get_conflicts(array_candidates, all_conflicts):
+                conflicts.append(Conflict(c[0], c[1], is_scalar=False))
         return conflicts
 
     def _get_conflict(self, write: ArrayAccess, accs: list[ArrayAccess]) -> \

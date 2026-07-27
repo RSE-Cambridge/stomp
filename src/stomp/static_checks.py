@@ -417,13 +417,17 @@ def check_data_races(psyir: Node,
                 opts.prohibit_overflow = opts.use_bv
             analysis = RegionConflictAnalysis(opts)
             conflicts = analysis.get_region_conflicts(d)
-            for (sig, msg) in conflicts:
-                if msg is None:
+            for c in conflicts:
+                if c.msg is None:
                     continue
+                if c.is_scalar:
+                    code = StompMessageCode.ScalarDataRace
+                else:
+                    code = StompMessageCode.ArrayDataRace
                 StompLogger.add_message(
-                    StompMessageCode.DataRace,
+                    code,
                     description = "Potential data race in "
-                        "parallel region. " + msg + ".",
+                        "parallel region. " + c.msg + ".",
                     directive_node = d.original_directive,
                     routine_name = routine.name)
 
@@ -470,11 +474,18 @@ def check_simd_loops(psyir: Node,
                 analysis = LoopConflictAnalysis(opts)
                 for loop in par_loops:
                     conflicts = analysis.get_loop_conflicts(loop,
-                                    private=private_vars)
-                    if conflicts:
+                                   private=private_vars)
+                    for c in conflicts:
+                        if c.msg is None:
+                            continue
+                        if c.is_scalar:
+                            code = StompMessageCode.ScalarDataRace
+                        else:
+                            code = StompMessageCode.ArrayDataRace
                         StompLogger.add_message(
-                            StompMessageCode.DataRace,
-                            description = conflicts[0][1] + ".",
+                            code,
+                            description = "Potential data race in "
+                                "SIMD loop. " + c.msg + ".",
                             node = outer_loop,
                             directive_node = d.original_directive,
                             routine_name = routine.name)

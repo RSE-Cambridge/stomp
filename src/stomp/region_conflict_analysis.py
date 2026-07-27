@@ -50,7 +50,7 @@ from stomp.openmp_directives import \
     get_sections
 from stomp.array_index_analysis import \
     ArrayIndexAnalysisOptions, ArrayIndexAnalysis, ArrayAccess, \
-    _is_scalar_integer, _is_scalar_logical
+    _is_scalar_integer, _is_scalar_logical, Conflict
 from stomp.fortran_to_z3 import FortranToZ3
 from stomp.control_flow import \
     after_statement, next_statement, affects_control_flow
@@ -447,10 +447,16 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
             else:
                 array_candidates.append((i_accesses, j_accesses))
 
-        conflicts = self._get_conflicts(scalar_candidates, all_conflicts)
-        if not conflicts or all_conflicts:
-            conflicts += self._get_conflicts(array_candidates, all_conflicts)
+        conflicts = []
+        scalar_conflicts = self._get_conflicts(
+            scalar_candidates, all_conflicts)
+        for c in scalar_conflicts:
+            conflicts.append(Conflict(c[0], c[1], is_scalar=True))
+        if not scalar_conflicts or all_conflicts:
+            for c in self._get_conflicts(array_candidates, all_conflicts):
+                conflicts.append(Conflict(c[0], c[1], is_scalar=False))
         return conflicts
+
 
     def _get_candidate_conflicts(self) -> \
             list[Tuple[list[ArrayAccess], list[ArrayAccess]]]:

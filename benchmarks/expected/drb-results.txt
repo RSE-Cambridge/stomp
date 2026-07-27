@@ -135,11 +135,11 @@ DRB140-reduction-barrier-orig-yes: [32mTP[0m
 DRB141-reduction-barrier-orig-no: [32mTN[0m
 DRB142-acquirerelease-orig-omp50-yes: [33mFN[0m
 DRB143-acquirerelease-orig-omp50-no: [32mTN[0m
-DRB144-critical-missingreduction-orig-gpu-yes: [33mFN[0m
+DRB144-critical-missingreduction-orig-gpu-yes: [32mTP[0m
 DRB145-atomiccritical-orig-gpu-no: [32mTN[0m
 DRB146-atomicupdate-orig-gpu-no: [33mFP[0m
 DRB147-critical1-orig-gpu-no: [32mTN[0m
-DRB148-critical1-orig-gpu-yes: [33mFN[0m
+DRB148-critical1-orig-gpu-yes: [32mTP[0m
 DRB149-missingdata1-orig-gpu-no: [32mTN[0m
 DRB150-missinglock1-orig-gpu-yes: [32mTP[0m
 DRB151-missinglock3-orig-gpu-yes: [32mTP[0m

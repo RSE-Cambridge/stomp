@@ -14,10 +14,10 @@ from stomp.colours import Colour
 
 class StompMessageCode(Enum):
     '''A unique message code capturing the kind of issue found.'''
+    ArrayDataRace              = auto()
     BadNowait                  = auto()
     BadReductionClause         = auto()
     BadUniqueDirective         = auto()
-    DataRace                   = auto()
     DataSharingConflict        = auto()
     EndStandaloneDir           = auto()
     FileLoadFailure            = auto()
@@ -31,6 +31,7 @@ class StompMessageCode(Enum):
     NonRectangularLoop         = auto()
     OpenMPParseError           = auto()
     ReadUninitialisedPrivate   = auto()
+    ScalarDataRace             = auto()
     SingleStatementExpected    = auto()
     SingletonDirEmpty          = auto()
     StrayOrderedDirective      = auto()

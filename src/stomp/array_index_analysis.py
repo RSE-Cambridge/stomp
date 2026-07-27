@@ -41,6 +41,7 @@ constraint. This allows the use of an SMT solver to answer questions about
 array accesses, such as whether or they can safely execute in parallel.'''
 
 import z3
+from typing import Optional
 from psyclone.psyir.nodes import Loop, DataNode, Literal, Assignment, \
     Reference, IntrinsicCall, \
     Routine, Node, IfBlock, Schedule, Range, WhileLoop, \
@@ -474,7 +475,7 @@ class ArrayIndexAnalysis:
                             ArrayAccess(
                               s, cond, access_info.is_any_write(),
                               smt_indices, access_info.node,
-                              not is_array_access))
+                              is_scalar = not is_array_access))
 
     def _step(self, stmt: Node, cond: z3.BoolRef):
         '''Analyse the given statement in recursive-descent fashion.'''
@@ -587,6 +588,30 @@ class ArrayIndexAnalysis:
         # Fall through
         self._add_all_array_accesses(stmt, cond)
         self._kill_all_written_vars(stmt)
+
+
+# Conflict class
+# ==============
+
+
+class Conflict:
+    '''A class that captures a conflict found by the analysis/solver.
+
+    :param sig: the signature of the variable involved in the conflict.
+
+    :param msg: a description of the conflict. A 'None' message indicates
+       a timeout.
+
+    :param is_scalar: 'True' if it is a scalar conflict. (Otherwise it
+       is an array conflict.)
+    '''
+    def __init__(self,
+                 sig: Signature,
+                 msg: Optional[str],
+                 is_scalar: bool):
+        self.sig = sig
+        self.msg = msg
+        self.is_scalar = is_scalar
 
 
 # Helper functions
