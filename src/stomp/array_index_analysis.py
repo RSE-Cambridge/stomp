@@ -602,15 +602,19 @@ class Conflict:
     :param msg: a description of the conflict. A 'None' message indicates
        a timeout.
 
+    :param node: the PSyIR node containing the first conflict write.
+
     :param is_scalar: 'True' if it is a scalar conflict. (Otherwise it
        is an array conflict.)
     '''
     def __init__(self,
                  sig: Signature,
                  msg: Optional[str],
+                 node: Optional[Node],
                  is_scalar: bool):
         self.sig = sig
         self.msg = msg
+        self.node = node
         self.is_scalar = is_scalar
 
 

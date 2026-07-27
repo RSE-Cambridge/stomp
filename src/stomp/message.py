@@ -9,6 +9,7 @@ from enum import Enum, auto
 from typing import Optional
 from psyclone.psyir.nodes import Node
 from psyclone.psyir.backend.fortran import FortranWriter
+from stomp.misc import statement_text
 from stomp.colours import Colour
 
 
@@ -105,25 +106,8 @@ class StompMessage:
                 except Exception:
                     pass
             if self.node:
-                try:
-                    writer = FortranWriter()
-                    node = self.node
-                    # Look at node's ancestors for more detail
-                    for i in range(0, 3):
-                        # Convert the PSyIR to Fortran text
-                        # For efficiency, copy (hence isolate) the node
-                        text = writer(node.copy())
-                        # Trim the text and step back for more detail if needed
-                        text = text.strip()
-                        re.sub(" +", " ", text)
-                        if self.node.parent and len(text) < 60:
-                            node = node.parent
-                        else:
-                            break
-                    text = repr(text[:60])
-                    out += header("Node") + text + "\n"
-                except Exception:
-                    pass
+                text = statement_text(self.node, max_len=60)
+                out += header("Statement") + text + "\n"
 
         # Description
         if self.description:

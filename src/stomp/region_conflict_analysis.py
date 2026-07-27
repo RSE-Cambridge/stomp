@@ -447,14 +447,11 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
             else:
                 array_candidates.append((i_accesses, j_accesses))
 
-        conflicts = []
-        scalar_conflicts = self._get_conflicts(
+        conflicts = self._get_conflicts(
             scalar_candidates, all_conflicts)
-        for c in scalar_conflicts:
-            conflicts.append(Conflict(c[0], c[1], is_scalar=True))
-        if not scalar_conflicts or all_conflicts:
-            for c in self._get_conflicts(array_candidates, all_conflicts):
-                conflicts.append(Conflict(c[0], c[1], is_scalar=False))
+        if not conflicts or all_conflicts:
+            conflicts.extend(self._get_conflicts(
+                array_candidates, all_conflicts))
         return conflicts
 
 
@@ -476,8 +473,7 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
     def _get_conflicts(self,
                        candidates: list[Tuple[list[ArrayAccess],
                                               list[ArrayAccess]]],
-                       all_conflicts: bool) -> \
-            Optional[Tuple[Signature, Optional[str]]]:
+                       all_conflicts: bool) -> List[Conflict]:
         '''Get the conflicts in the given conflict candidates.'''
         conflicts = []
         # Formulate constraints for solving, considering the two threads
@@ -493,15 +489,15 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         return conflicts
 
     def _get_conflict(self, write: ArrayAccess, accs: list[ArrayAccess]) -> \
-            Optional[Tuple[Signature, Optional[str]]]:
+            Optional[Conflict]:
         '''Get the conflict between the write access 'write' and
            any access in 'accs', if there is one.
 
            :param write: a write access from one thread.
            :param accs: a list of accesses from another thread.
-           :return: a pair containing an array name and a message string,
-              if a conflict exists, and None otherwise. If the solver
-              times out, the message is None.
+           :return: a description of the conflict if a conflict exists
+              or 'None' otherwise. If the solver times out then the
+              conflict message is 'None'.
         '''
         sum_of_prods = []
         for acc in accs:
@@ -549,16 +545,20 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
                 else:
                     components.append(field)
             access_str = '%'.join(components)
-            msg = (f"Thread (team={team_i},thread={thread_i}) and thread "
-                   f"(team={team_j},thread={thread_j}) have conflicting "
-                   f"accesses to '{access_str}'")
-            return (sig, msg)
+            thread_i_str = f"(team={team_i},thread={thread_i})" \
+                if self.is_teams_region else str(thread_i)
+            thread_j_str = f"(team={team_j},thread={thread_j})" \
+                if self.is_teams_region else str(thread_j)
+            msg = (f"Thread {thread_i_str} and thread "
+                   f"{thread_j_str} have conflicting accesses to "
+                   f"'{access_str}'")
+            return Conflict(sig, msg, write.psyir_node, write.is_scalar)
         elif result == z3.unknown:  # pragma: no cover
             StompLogger.log_smt_timeout()
             if self.opts.succeed_on_timeout:
                 return None
             else:
-                return (sig, None)
+                return Conflict(sig, None, write.psyir_node, write.is_scalar)
         else:
             return None
 

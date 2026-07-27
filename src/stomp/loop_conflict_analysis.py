@@ -211,8 +211,7 @@ class LoopConflictAnalysis(ArrayIndexAnalysis):
     def get_loop_conflicts(self,
                            loop: Loop,
                            private: Set[str] = set(),
-                           all_conflicts: bool = False) -> \
-            list[Tuple[Signature, Optional[str]]]:
+                           all_conflicts: bool = False) -> list[Conflict]:
         '''Determine whether or not distinct iterations of the given loop
            can generate conflicting array accesses.
 
@@ -295,25 +294,23 @@ class LoopConflictAnalysis(ArrayIndexAnalysis):
             else:
                 array_candidates.append((i_accesses, j_accesses))
 
-        scalar_conflicts = self._get_conflicts(
+        conflicts = self._get_conflicts(
             scalar_candidates, all_conflicts)
-        for c in scalar_conflicts:
-            conflicts.append(Conflict(c[0], c[1], is_scalar=True))
-        if not scalar_conflicts or all_conflicts:
-            for c in self._get_conflicts(array_candidates, all_conflicts):
-                conflicts.append(Conflict(c[0], c[1], is_scalar=False))
+        if not conflicts or all_conflicts:
+            conflicts.extend(self._get_conflicts(
+                array_candidates, all_conflicts))
         return conflicts
 
     def _get_conflict(self, write: ArrayAccess, accs: list[ArrayAccess]) -> \
-            Optional[Tuple[Signature, Optional[str]]]:
+            Optional[Conflict]:
         '''Get the conflict between the write access 'write' and
            any access in 'accs', if there is one.
 
            :param write: a write access from one iteration.
            :param accs: a list of accesses from another iteration.
-           :return: a pair containing an array name and a message string,
-              if a conflict exists, and None otherwise. If the solver
-              times out, the message is None.
+           :return: a description of the conflict if a conflict exists
+              or 'None' otherwise. If the solver times out then the
+              conflict message is 'None'.
         '''
         sum_of_prods = []
         for acc in accs:
@@ -357,13 +354,13 @@ class LoopConflictAnalysis(ArrayIndexAnalysis):
             access_str = '%'.join(components)
             msg = (f"Iterations {i_val} and {j_val} have conflicting "
                    f"accesses to '{access_str}'")
-            return (sig, msg)
+            return Conflict(sig, msg, write.psyir_node, write.is_scalar)
         elif result == z3.unknown:  # pragma: no cover
             StompLogger.log_smt_timeout()
             if self.opts.succeed_on_timeout:
                 return None
             else:
-                return (sig, None)
+                return Conflict(sig, None, write.psyir_node, write.is_scalar)
         else:
             return None
 

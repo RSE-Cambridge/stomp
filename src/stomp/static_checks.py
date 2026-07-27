@@ -429,6 +429,7 @@ def check_data_races(psyir: Node,
                     description = "Potential data race in "
                         "parallel region. " + c.msg + ".",
                     directive_node = d.original_directive,
+                    node = c.node,
                     routine_name = routine.name)
 
 
@@ -486,7 +487,7 @@ def check_simd_loops(psyir: Node,
                             code,
                             description = "Potential data race in "
                                 "SIMD loop. " + c.msg + ".",
-                            node = outer_loop,
+                            node = c.node,
                             directive_node = d.original_directive,
                             routine_name = routine.name)
 

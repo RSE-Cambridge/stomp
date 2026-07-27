@@ -2,12 +2,15 @@
 
 '''This module provides miscelaneous functions.'''
 
+import re
 from typing import Union, Optional, List
-from psyclone.psyir.nodes import Reference, IfBlock, Schedule, Node, Loop
+from psyclone.psyir.nodes import \
+    Reference, IfBlock, Schedule, Node, Loop, Statement
 from psyclone.core import AccessInfo
 from psyclone.psyir.symbols import ArrayType, SymbolTable
 from psyclone.psyir.frontend.fortran import FortranReader
 from psyclone.errors import InternalError
+from psyclone.psyir.backend.fortran import FortranWriter
 
 
 def is_array_access(info: AccessInfo) -> bool:
@@ -70,3 +73,23 @@ def parse_fortran_expr(code: str,
     except (InternalError, ValueError, IOError) as err:
         return str(err)
     return psyir
+
+
+def statement_text(node: Node, max_len: int) -> str:
+    '''Return Fortran text for the statement holding the given
+    PSyIR node.'''
+    if node is None: return ""
+    node = node.ancestor(Statement, include_self=True)
+    text = ""
+    try:
+        writer = FortranWriter()
+        # Convert the PSyIR to Fortran text
+        # For efficiency, copy (hence isolate) the node
+        text = writer(node.copy())
+        # Trim the text and step back for more detail if needed
+        text = text.strip()
+        re.sub(" +", " ", text)
+        text = repr(text[:max_len]).strip("'")
+    except Exception:
+        pass
+    return text
