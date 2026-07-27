@@ -611,19 +611,6 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
             self._restore_subst()
             return
 
-        # Handle OpenMP "end" directives
-        if (self.in_region_of_interest and
-                isinstance(stmt, OpenMPDirective) and
-                "end" in stmt.clauses):
-            # A reduction clause implies a write at the end of the region
-            if stmt.started_by and "reduction" in stmt.started_by.clauses:
-                for (op, x) in stmt.started_by.clauses["reduction"]:
-                    self._add_array_access(
-                        ArrayAccess(Signature(x), cond, is_write=True,
-                            indices=[[]], psyir_node=stmt,
-                            is_team_private=False, is_scalar=True,
-                            no_self_conflict=True))
-
         # Handle OpenMP non-"end" directives
         if (self.in_region_of_interest and
                 isinstance(stmt, OpenMPDirective) and
