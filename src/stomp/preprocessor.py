@@ -3,6 +3,7 @@
 '''This module provides functions that enable a preprocessor to applied
 to source code as it is loaded by PSyclone'''
 
+import os
 import shlex
 import subprocess
 import logging
@@ -33,9 +34,15 @@ def preprocess(preprocessor_command: str, filename: str):
 
 
 # Monkey patch FileInfo with support for preprocessing
-def enable_preprocessor(command: str):
+def enable_preprocessor(command: str, always_preprocess: bool):
+    old_method = FileInfo.get_source_code
+
     # Replace FileInfo.get_source_code() with the following method
     def get_source_code(self) -> str:
+        (_, extension) = os.path.splitext(self._filename)
+        if not always_preprocess and not extension.startswith(".F"):
+            return old_method(self)
+
         if self._source_code:
             return self._source_code
 

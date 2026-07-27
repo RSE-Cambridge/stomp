@@ -134,7 +134,7 @@ def entry():
     # Create module manager
     mod_manager = ModuleManager.get()
 
-    # Enable preprocessor?
+    # Enable preprocessor for top-level source file?
     preprocess_exts = (".F", ".F90", ".F95", ".F03",
                        ".F08", ".fpp", ".FPP", ".FOR", ".FTN")
     apply_preprocessor = False
@@ -147,16 +147,16 @@ def entry():
         preprocessor_command += f" -I'{inc_path}'"
     for macro in args.D:
         preprocessor_command += f" -D'{macro}'"
-    if apply_preprocessor:
-        enable_preprocessor(preprocessor_command)
 
-    # Disable progress reporter?
+    # Enable preprocessing when loading modules?
+    if not args.no_cpp:
+        enable_preprocessor(preprocessor_command, args.cpp)
+
+    # Disable progress reporting?
     if args.no_progress: ProgressReporter.enabled = False
 
-    # Disable colour printing
-    if args.no_colour:
-        ProgressReporter.ansi_escape = False
-        Colour.enabled = False
+    # Disable colour printing?
+    if args.no_colour: Colour.enabled = False
 
     # Inform logger about isssues to exclude
     for code_str in args.e:
@@ -183,7 +183,8 @@ def entry():
     for pathname in args.L:
         path = Path(pathname)
         for ext in free_form_exts:
-           files_to_load.extend([str(f) for f in path.glob("*" + ext)])
+           files_to_load.extend(
+               sorted([str(f) for f in path.glob("*" + ext)]))
 
     # Load modules
     loader_report = load_modules(
@@ -192,10 +193,10 @@ def entry():
     # Report result loading
     if loader_report.modules_loaded:
         print(Colour.green("Modules loaded") + ":",
-              ", ".join(loader_report.modules_loaded))
+              ", ".join(sorted(loader_report.modules_loaded)))
     if loader_report.modules_not_loaded:
         print(Colour.amber("Modules not loaded") + ":",
-              ", ".join(loader_report.modules_not_loaded))
+              ", ".join(sorted(loader_report.modules_not_loaded)))
     if loader_report.modules_loaded or loader_report.modules_not_loaded:
         print()
 
