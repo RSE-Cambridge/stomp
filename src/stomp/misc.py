@@ -89,7 +89,7 @@ def statement_text(node: Node, max_len: int) -> str:
         # Trim the text and step back for more detail if needed
         text = text.strip()
         re.sub(" +", " ", text)
-        text = repr(text[:max_len]).strip("'")
+        text = repr(text[:max_len])
     except Exception:
         pass
     return text
