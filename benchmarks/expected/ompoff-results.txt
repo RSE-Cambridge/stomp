@@ -13,8 +13,8 @@ Modules not loaded: omp_lib
 Issue: ScalarDataRace
 Routine: mat_mul_simple
 Directive: '!$omp target teams distribute parallel do collapse(2) !nowai'
-Statement: acc = 0
-Description: Potential data race in parallel region. Thread (team=0,thread=0) and thread (team=0,thread=1) have conflicting accesses to 'acc'.
+Statement: 'acc = 0'
+Description: Data race in parallel region. Thread (team=0,thread=0) and thread (team=0,thread=1) have conflicting accesses to 'acc'.
 
 Directives found: 13
 Issues found: 1
@@ -35,8 +35,8 @@ Modules not loaded: omp_lib
 Issue: ScalarDataRace
 Routine: stencil_simple
 Directive: '!$omp target teams distribute parallel do collapse(2) !nowai'
-Statement: total = mat_in(x,y - 1) + mat_in(x - 1,y) + mat_in(x,y) + ma
-Description: Potential data race in parallel region. Thread (team=0,thread=0) and thread (team=0,thread=1) have conflicting accesses to 'total'.
+Statement: 'total = mat_in(x,y - 1) + mat_in(x - 1,y) + mat_in(x,y) + ma'
+Description: Data race in parallel region. Thread (team=0,thread=0) and thread (team=0,thread=1) have conflicting accesses to 'total'.
 
 Directives found: 12
 Issues found: 1

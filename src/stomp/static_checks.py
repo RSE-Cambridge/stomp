@@ -426,7 +426,7 @@ def check_data_races(psyir: Node,
                     code = StompMessageCode.ArrayDataRace
                 StompLogger.add_message(
                     code,
-                    description = "Potential data race in "
+                    description = "Data race in "
                         "parallel region. " + c.msg + ".",
                     directive_node = d.original_directive,
                     node = c.node,
@@ -485,7 +485,7 @@ def check_simd_loops(psyir: Node,
                             code = StompMessageCode.ArrayDataRace
                         StompLogger.add_message(
                             code,
-                            description = "Potential data race in "
+                            description = "Data race in "
                                 "SIMD loop. " + c.msg + ".",
                             node = c.node,
                             directive_node = d.original_directive,
