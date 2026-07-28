@@ -8,7 +8,6 @@ import re
 from enum import Enum, auto
 from typing import Optional
 from psyclone.psyir.nodes import Node
-from psyclone.psyir.backend.fortran import FortranWriter
 from stomp.misc import statement_text
 from stomp.colours import Colour
 
@@ -100,8 +99,7 @@ class StompMessage:
                 out += header("Routine") + self.routine_name + "\n"
             if self.directive_node:
                 try:
-                    writer = FortranWriter()
-                    text = writer(self.directive_node)
+                    text = "!$" + self.directive_node._directive_string
                     text = text.strip()
                     re.sub(" +", " ", text)
                     text = repr(text[:60])
