@@ -91,7 +91,10 @@ def node_text(node: Node, max_len: int) -> str:
         writer = FortranWriter()
         # Convert the PSyIR to Fortran text
         # For efficiency, copy (hence isolate) the node
-        text = writer(node.copy())
+        isolated_node = node.copy()
+        # Ignore preceeding comment, if there is one
+        isolated_node._preceding_comment = None
+        text = writer(isolated_node)
         # Trim the text and step back for more detail if needed
         text = text.strip()
         re.sub(" +", " ", text)
