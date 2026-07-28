@@ -14,6 +14,7 @@ DRB_FLAGS += -e UnsupportedArrayReduction
 DRB_FLAGS += -e BadReductionClause
 DRB_FLAGS += -e ImpureParallelCall
 DRB_FLAGS += -e WildcardImportInSubroutine
+DRB_FLAGS += -e UnsupportedTaskDirective
 
 # Disable progress/colour output from stomp
 DRB_FLAGS += --no-progress

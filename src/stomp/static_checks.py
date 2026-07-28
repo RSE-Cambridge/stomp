@@ -221,6 +221,23 @@ def check_misplaced_directive(d: OpenMPDirective):
                 return
 
 
+def check_unsupported_directives(d: OpenMPDirective):
+    '''Check for unsupported directives.'''
+    if "end" in d.clauses: return
+    if "task" in d.clauses:
+        StompLogger.add_message(
+            StompMessageCode.UnsupportedTaskDirective,
+            description = "'task' directives are not currently "
+                "supported by stomp.",
+            directive_node = d.original_directive)
+    elif "workshare" in d.clauses:
+        StompLogger.add_message(
+            StompMessageCode.UnsupportedTaskDirective,
+            description = "'workshare' directives are not currently "
+                "supported by stomp.",
+            directive_node = d.original_directive)
+
+
 # Collapsed loop checks
 # =====================
 

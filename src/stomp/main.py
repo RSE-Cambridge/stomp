@@ -48,6 +48,7 @@ def main(psyir,
 
     # Basic checks
     for d in psyir.walk(OpenMPDirective):
+        checks.check_unsupported_directives(d)
         checks.check_misplaced_directive(d)
         checks.check_nowait(d)
         checks.check_collapse_clause(d)
