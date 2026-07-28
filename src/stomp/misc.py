@@ -80,6 +80,12 @@ def statement_text(node: Node, max_len: int) -> str:
     PSyIR node.'''
     if node is None: return ""
     node = node.ancestor(Statement, include_self=True)
+    return node_text(node, max_len)
+
+
+def node_text(node: Node, max_len: int) -> str:
+    '''Return Fortran text for the given PSyIR node.'''
+    if node is None: return ""
     text = ""
     try:
         writer = FortranWriter()

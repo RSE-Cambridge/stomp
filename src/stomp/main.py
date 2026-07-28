@@ -33,8 +33,8 @@ def main(psyir,
         checks.check_singleton_directive_not_empty(d)
         checks.check_standalone_directive_not_end(d)
         checks.check_directive_is_recognised(d)
-        checks.check_stomp_unique_directives(d)
         checks.check_sections_directive(d)
+        checks.check_stomp_directive(d)
 
     # Exit early if a mandatory check fails
     if len(StompLogger.get_messages()) > num_msgs: return None

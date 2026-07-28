@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "Running stomp on dataracebench"
+echo "Running stomp on DataRaceBench"
 echo "=============================="
 ./run-drb.sh
 echo

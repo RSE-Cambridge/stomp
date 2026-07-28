@@ -498,6 +498,23 @@ end subroutine'''
     stomp_test(code, [])
 
 
+def test_stomp_assume_directive_bad():
+    '''Test of a bad stomp 'assume' directive.'''
+    code = '''
+subroutine sub(arr, offset, n)
+  integer, intent(inout) :: arr(:)
+  integer, intent(in) :: n, offset
+  integer :: i
+  !$stomp assume (arr(offset) > n)
+  !$omp parallel do
+  do i = 1, n
+    arr(i) = 0
+    arr(offset+i) = 1
+  end do
+end subroutine'''
+    stomp_test(code, [Msg.BadAssumeDirective])
+
+
 def test_stomp_unique_directive():
     '''Test of stomp's 'unique' directive.'''
     code = '''

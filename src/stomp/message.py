@@ -18,6 +18,7 @@ class StompMessageCode(Enum):
     ArrayDataRace                 = auto()
     BadNowait                     = auto()
     BadReductionClause            = auto()
+    BadAssumeDirective            = auto()
     BadUniqueDirective            = auto()
     DataSharingConflict           = auto()
     EndStandaloneDir              = auto()

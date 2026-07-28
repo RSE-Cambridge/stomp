@@ -67,16 +67,23 @@ class FortranToZ3:
           'ubound(<arr>,<dim>)' will be translated to Z3 integer variables
           of the form '#size_<arr>_<dim>', '#lbound_<arr>_<dim>', and
           '#ubound_<arr>_<dim>'.
+
+       :param allow_unsupported: if False, raise a TranslationNotSupported
+          exception when trying to translate an expression that we don't
+          currently support translation of. If True, introduce unconstrained
+          fresh variables for unsupported expressions.
     '''
     def __init__(self,
                  use_bv: bool = False,
                  int_width: int = 32,
                  prohibit_overflow: bool = False,
-                 handle_array_intrins: bool = False):
+                 handle_array_intrins: bool = False,
+                 allow_unsupported: bool = True):
         self.use_bv = use_bv
         self.int_width = int_width
         self.prohibit_overflow = prohibit_overflow
         self.handle_array_intrins = handle_array_intrins
+        self.allow_unsupported = allow_unsupported
         self.custom_call_mapping = {}
 
     def add_custom_call_mapping(self, fun_name: str, expr: z3.ExprRef):
@@ -280,10 +287,13 @@ class FortranToZ3:
                     return self.custom_call_mapping[e.routine.name]
 
             # Fall through: return a fresh, unconstrained symbol
-            if self.use_bv:
-                return z3.FreshConst(z3.BitVecSort(self.int_width))
+            if self.allow_unsupported:
+                if self.use_bv:
+                    return z3.FreshConst(z3.BitVecSort(self.int_width))
+                else:
+                    return z3.FreshInt()
             else:
-                return z3.FreshInt()
+                raise TranslationNotSupported(e)
 
         # Invoke the recursive function
         expr_root_smt = trans(expr_root)
@@ -371,7 +381,10 @@ class FortranToZ3:
                         return left_smt <= right_smt
 
             # Fall through: return a fresh, unconstrained symbol
-            return z3.FreshBool()
+            if self.allow_unsupported:
+                return z3.FreshBool()
+            else:
+                raise TranslationNotSupported(expr)
 
         expr_root_smt = trans(expr_root)
         return (expr_root_smt, constraints)
@@ -557,3 +570,10 @@ class FortranToZ3:
                     break
 
         return (result[0], result_values)
+
+
+class TranslationNotSupported(Exception):
+    def __init__(self, expr):
+        super().__init__("FortranToZ3: encountered an expression "
+                         "that can't be translated to Z3.")
+        self.expr = expr

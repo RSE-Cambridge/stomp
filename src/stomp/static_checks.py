@@ -5,7 +5,7 @@
 from typing import Optional
 from psyclone.core import Signature
 from psyclone.psyir.nodes import \
-  Node, Routine, Loop, Call, IntrinsicCall, ArrayReference, Reference, \
+  Node, Routine, Loop, Call, IntrinsicCall, \
   FileContainer
 from psyclone.psyir.tools import ReductionInferenceTool
 from psyclone.core.access_type import AccessType
@@ -15,12 +15,13 @@ from stomp.openmp_directives import \
     get_enclosing_directives, \
     MAP_REDUCTION_OP_TO_STR
 from stomp.message import StompMessageCode, StompLogger
-from stomp.array_index_analysis import _is_scalar_integer
+from stomp.fortran_to_z3 import \
+    FortranToZ3, TranslationNotSupported
 from stomp.loop_conflict_analysis import \
     LoopConflictAnalysis, LoopConflictAnalysisOptions
 from stomp.region_conflict_analysis import \
     RegionConflictAnalysis, RegionConflictAnalysisOptions
-from stomp.misc import is_array_access, get_nested_loops
+from stomp.misc import is_array_access, get_nested_loops, node_text
 from stomp.module_spec_directives import is_threadsafe
 from stomp.solver_options import SMTSolverOptions
 
@@ -118,22 +119,6 @@ def check_ordered_directives(d: OpenMPDirective):
                             "clause.",
                         directive_node = d.original_directive)
                 break
-
-
-def check_stomp_unique_directives(d: OpenMPDirective):
-    '''Check that stomp 'unique' directives contain a scalar integer
-    Reference.'''
-    if d.is_stomp_directive and "unique" in d.clauses:
-        expr = d.clauses["unique"]
-        ok = isinstance(expr, Reference) and \
-             not isinstance(expr, ArrayReference) and \
-             _is_scalar_integer(expr.datatype)
-        if not ok:
-            StompLogger.add_message(
-                StompMessageCode.BadUniqueDirective,
-                description = "The 'unique' directive must contain "
-                    "a scalar integer reference as its argument.",
-                directive_node = d.original_directive)
 
 
 def check_sections_directive(d: OpenMPDirective):
@@ -641,3 +626,39 @@ def check_uninitialised_read(d: OpenMPDirective):
                         node = info.node,
                         directive_node = d.original_directive)
                     break
+
+
+# Stomp directive checks
+# ======================
+
+
+def check_stomp_directive(d: OpenMPDirective):
+    '''Check that the "expr" in a "!$stomp assume(expr)" directive or
+    a "!$stomp unique(expr)" has a fully supported translation to Z3.'''
+    if "end" in d.clauses: return
+    if "assume" in d.clauses:
+        trans = FortranToZ3(handle_array_intrins=True,
+                            allow_unsupported=False)
+        try:
+            trans.translate_logical_expr(d.clauses["assume"])
+        except TranslationNotSupported as err:
+            text = node_text(err.expr, max_len=40)
+            StompLogger.add_message(
+                StompMessageCode.BadAssumeDirective,
+                description = f"The 'assume' clause contains a "
+                    f"subexpression for which there is no supported "
+                    f"translation to a Z3 boolean: {text}.",
+                directive_node = d.original_directive)
+    if "unique" in d.clauses:
+        trans = FortranToZ3(handle_array_intrins=True,
+                            allow_unsupported=False)
+        try:
+            trans.translate_integer_expr(d.clauses["unique"])
+        except TranslationNotSupported as err:
+            text = node_text(err.expr, max_len=40)
+            StompLogger.add_message(
+                StompMessageCode.BadUniqueDirective,
+                description = f"The 'unique' clause contains a "
+                    f"subexpression for which there is no supported "
+                    f"translation to a Z3 integer: {text}.",
+                directive_node = d.original_directive)
