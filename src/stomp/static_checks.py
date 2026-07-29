@@ -678,6 +678,16 @@ def check_stomp_directive(d: OpenMPDirective):
                     f"translation to a Z3 boolean: {text}.",
                 directive_node = d.original_directive)
     if "unique" in d.clauses:
+        # First, check that we are inside an appropriate region
+        within = ["parallel", "teams", "simd"]
+        if not is_within_directive(d, within):
+             StompLogger.add_message(
+                StompMessageCode.BadUniqueDirective,
+                description = f"The 'unique' clause must reside "
+                    f"within one of the following directives: {within}.",
+                directive_node = d.original_directive)
+             return
+        # Second, check the translation
         trans = FortranToZ3(handle_array_intrins=True,
                             allow_unsupported=False)
         try:

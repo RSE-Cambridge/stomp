@@ -530,3 +530,19 @@ subroutine sub(arr, indirection)
   end do
 end subroutine'''
     stomp_test(code, [])
+
+
+def test_stomp_unique_directive_bad():
+    '''Test of a badly placed 'unique' directive.'''
+    code = '''
+subroutine sub(arr, indirection)
+  integer, intent(inout) :: arr(:)
+  integer, intent(in) :: indirection(:)
+  integer :: i, j
+  do i = 1, size(arr)
+    j = indirection(i)
+    !$stomp unique(j)
+    arr(j) = 1
+  end do
+end subroutine'''
+    stomp_test(code, [Msg.BadUniqueDirective])
