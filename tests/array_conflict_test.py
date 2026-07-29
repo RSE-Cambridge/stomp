@@ -66,7 +66,7 @@ subroutine reverse(arr)
   end do
 end subroutine
 '''
-    stomp_test(code, [Msg.ArrayDataRace])
+    stomp_test(code, [Msg.SIMDArrayDataRace])
 
 
 def test_transpose_untiled_ok():

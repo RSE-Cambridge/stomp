@@ -34,6 +34,8 @@ class StompMessageCode(Enum):
     PSyIRLimitation               = auto()
     ReadUninitialisedPrivate      = auto()
     ScalarDataRace                = auto()
+    SIMDArrayDataRace             = auto()
+    SIMDScalarDataRace            = auto()
     SingleStatementExpected       = auto()
     SingletonDirEmpty             = auto()
     StrayOrderedDirective         = auto()

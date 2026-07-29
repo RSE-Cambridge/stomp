@@ -483,9 +483,9 @@ def check_simd_loops(psyir: Node,
                         if c.msg is None:
                             continue
                         if c.is_scalar:
-                            code = StompMessageCode.ScalarDataRace
+                            code = StompMessageCode.SIMDScalarDataRace
                         else:
-                            code = StompMessageCode.ArrayDataRace
+                            code = StompMessageCode.SIMDArrayDataRace
                         StompLogger.add_message(
                             code,
                             description = "Data race in "
