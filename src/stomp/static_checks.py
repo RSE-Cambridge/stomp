@@ -13,7 +13,8 @@ from psyclone.psyir.symbols import DataTypeSymbol
 from stomp.openmp_directives import \
     OpenMPDirective, \
     get_enclosing_directives, \
-    MAP_REDUCTION_OP_TO_STR
+    MAP_REDUCTION_OP_TO_STR, \
+    is_within_directive
 from stomp.message import StompMessageCode, StompLogger
 from stomp.fortran_to_z3 import \
     FortranToZ3, TranslationNotSupported
@@ -512,7 +513,8 @@ def check_calls(d: OpenMPDirective, assume_pure: set[str] = set()):
     }
 
     # Scan calls in parallel regions
-    is_parallel_region = "parallel" in d.clauses or "teams" in d.clauses
+    is_parallel_region = "teams" in d.clauses or (
+        "parallel" in d.clauses and not is_within_directive(d, ["teams"]))
     if is_parallel_region:
         region_body = d.get_body()
         if region_body:
@@ -635,7 +637,8 @@ def check_uninitialised_read(d: OpenMPDirective):
 def check_codeblocks(d: OpenMPDirective):
     '''Report calls to PSyIR CodeBlocks in parallel regions.'''
     if "end" in d.clauses: return
-    is_parallel_region = "parallel" in d.clauses or "teams" in d.clauses
+    is_parallel_region = "teams" in d.clauses or (
+        "parallel" in d.clauses and not is_within_directive(d, ["teams"]))
     if is_parallel_region:
         region_body = d.get_body()
         if region_body:

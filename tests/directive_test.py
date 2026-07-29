@@ -237,3 +237,22 @@ subroutine sub()
 end subroutine
 '''
     stomp_test(code, [Msg.MisplacedDirective])
+
+
+def test_codeblock_in_parallel_region():
+    '''Simple test of a PSyIR CodeBlock in a parallel region.'''
+    code = '''
+subroutine reverse(arr)
+  integer, intent(inout) :: arr(:)
+  integer :: i, n, tmp
+  n = size(arr)
+  !$omp parallel do private(tmp)
+  do i = 1, n/2
+    tmp = arr(i)
+    arr(i) = arr(n+1-i)
+    arr(n+1-i) = tmp
+    print *, "Hello"
+  end do
+end subroutine
+'''
+    stomp_test(code, [Msg.PSyIRLimitation])

@@ -186,19 +186,13 @@ class OpenMPDirective(Statement):
                 kws.pop(-1)
         return []
 
-    def is_loop(self, isolated: bool = False) -> bool:
-        '''Is it a loop directive? If the isolated flag is provided,
-        the loop must not be enclosed within a parallel region.'''
+    def is_loop(self) -> bool:
+        '''Is it a loop directive?'''
         if "end" in self.clauses:
             return False
-        inherits_from = [("do", "parallel"),
-                         ("simd", "parallel"),
-                         ("distribute", "teams")]
-        for (child, parent) in inherits_from:
-            if child in self.clauses:
-                if isolated and is_within_directive(self, [[parent]]):
-                    return False
-                return True
+        loop_kinds = ["do", "simd", "distribute"]
+        for kind in loop_kinds:
+            if kind in self.clauses: return True
         return False
 
     def is_parallel_region(self) -> bool:
@@ -733,24 +727,15 @@ def get_enclosing_directives(origin: Node) -> List[OpenMPDirective]:
     return enclosing
 
 
-def is_within_directive(node: Node,
-                        within: List[List[str]],
-                        not_within: List[List[str]] = []) -> OpenMPDirective:
-    '''Determine if the given node is enslosed by one of a list of directives
-    (within) before being enclosed by one of a list of other directives
-    (not_within). If the node itself is a directive, it will be considered
+def is_within_directive(node: Node, within: List[str]) \
+        -> Optional[OpenMPDirective]:
+    '''Determine if the given node is enslosed by one of a list of
+    directives. If the node itself is a directive, it will not be considered
     as an enclosing directive.'''
-    enclosing = []
-    if isinstance(node, OpenMPDirective):
-        enclosing.append(node)
-    enclosing.extend(get_enclosing_directives(node))
+    enclosing = get_enclosing_directives(node)
     for enc in enclosing:
-        for dir_list in not_within:
-            if all([d in enc.clauses for d in dir_list]):
-                return None
-        for dir_list in within:
-            if all([d in enc.clauses for d in dir_list]):
-                return enc
+        for d in within:
+            if d in enc.clauses: return enc
     return None
 
 

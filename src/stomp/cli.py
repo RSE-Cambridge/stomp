@@ -9,7 +9,7 @@ from psyclone.errors import InternalError
 from psyclone.psyir.frontend.fortran import FortranReader
 from stomp.preprocessor import enable_preprocessor, preprocess
 from stomp.message import StompLogger, StompMessageCode
-from stomp.main import main, MainResult
+from stomp.main import main
 from stomp.module_spec_directives import parse_module_spec_directives
 from stomp.solver_options import SMTSolverOptions
 from stomp.module_loader import load_modules
@@ -260,7 +260,6 @@ def entry():
     if result.failed_mandatory is not None:
         msgs = StompLogger.get_messages()
     else:
-        num_omp_dir = 0
         note = " (non-excludable)"
         msgs = StompLogger.get_all_messages()
 
