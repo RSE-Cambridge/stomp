@@ -15,6 +15,7 @@ DRB_FLAGS += -e BadReductionClause
 DRB_FLAGS += -e ImpureParallelCall
 DRB_FLAGS += -e WildcardImportInSubroutine
 DRB_FLAGS += -e UnsupportedTaskDirective
+DRB_FLAGS += -e PSyIRLimitation
 
 # Disable progress/colour output from stomp
 DRB_FLAGS += --no-progress
