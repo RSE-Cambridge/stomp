@@ -9,12 +9,24 @@ import stomp.inference as inference
 from stomp.solver_options import SMTSolverOptions
 
 
+class MainResult:
+    '''Return type of the 'main()' function.'''
+    def __init__(self,
+                 failed_mandatory: bool = False,
+                 num_directives: int = 0,
+                 ran_all_checks: bool = False,
+                 ):
+        self.failed_mandatory = failed_mandatory
+        self.num_directives = num_directives
+        self.ran_all_checks = ran_all_checks
+
+
 def main(psyir,
          infer: bool = False,
          assume_pure: List[str] = [],
-         solver_options: Optional[SMTSolverOptions] = None) -> Optional[int]:
-    '''Returns the number of directives analysed, or None if there
-    was non-recoverable error.'''
+         solver_options: Optional[SMTSolverOptions] = None) -> MainResult:
+    # Create initial return value
+    result = MainResult()
 
     # Number of messages currently in the logger
     num_msgs = len(StompLogger.get_messages())
@@ -37,14 +49,18 @@ def main(psyir,
         checks.check_stomp_directive(d)
 
     # Exit early if a mandatory check fails
-    if len(StompLogger.get_messages()) > num_msgs: return None
+    if len(StompLogger.get_messages()) > num_msgs:
+        result.failed_mandatory = True
+        return result
 
     # Check for poorly supported subroutine-local wildcard imports
     checks.check_wildcard_imports(psyir)
-    if len(StompLogger.get_messages()) > num_msgs: return None
+    if len(StompLogger.get_messages()) > num_msgs:
+        result.failed_mandatory = True
+        return result
 
-    # Count number of directives present
-    num_dir = len(psyir.walk(OpenMPDirective))
+    # Record number of directives present
+    result.num_directives = len(psyir.walk(OpenMPDirective))
 
     # Basic checks
     for d in psyir.walk(OpenMPDirective):
@@ -56,13 +72,15 @@ def main(psyir,
         checks.check_ordered_directives(d)
         checks.check_reduction_clauses(d)
         checks.check_calls(d, assume_pure=set(assume_pure))
+        checks.check_codeblocks(d)
 
-    # Exit early for unresolved/impure calls as they lead to too many
-    # false positives
+    # Exit early for issues that may lead to excessive false positives
     if StompLogger.has_message(StompMessageCode.UnresolvedCall):
-        return num_dir
+        return result
     if StompLogger.has_message(StompMessageCode.ImpureParallelCall):
-        return num_dir
+        return result
+    if StompLogger.has_message(StompMessageCode.PSyIRLimitation):
+        return result
 
     # Uninitialised read checks
     for d in psyir.walk(OpenMPDirective):
@@ -78,4 +96,5 @@ def main(psyir,
     if infer:
         inference.infer_parallel_loops(psyir, solver_options)
 
-    return num_dir
+    result.ran_all_checks = True
+    return result

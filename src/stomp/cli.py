@@ -9,7 +9,7 @@ from psyclone.errors import InternalError
 from psyclone.psyir.frontend.fortran import FortranReader
 from stomp.preprocessor import enable_preprocessor, preprocess
 from stomp.message import StompLogger, StompMessageCode
-from stomp.main import main
+from stomp.main import main, MainResult
 from stomp.module_spec_directives import parse_module_spec_directives
 from stomp.solver_options import SMTSolverOptions
 from stomp.module_loader import load_modules
@@ -250,13 +250,14 @@ def entry():
                                    args.smt_bit_vec_width)
 
     # Invoke the tool
-    num_omp_dir = main(psyir,
-                       infer=args.infer,
-                       assume_pure=args.pure,
-                       solver_options=solver_opts)
+    result = main(psyir,
+                  infer=args.infer,
+                  assume_pure=args.pure,
+                  solver_options=solver_opts)
 
+    # Generate output
     note = ""
-    if num_omp_dir is not None:
+    if result.failed_mandatory is not None:
         msgs = StompLogger.get_messages()
     else:
         num_omp_dir = 0
@@ -269,8 +270,9 @@ def entry():
         print(msg.render())
         issue_count += 1
 
-    # Emit number of directives analysed
-    print(f"Directives found: {num_omp_dir}")
+    # Emit summary
+    print(Colour.underline("Summary"))
+    print(f"Directives found: {result.num_directives}")
     print(f"Issues found: {issue_count}{note}")
     if StompLogger.smt_timeouts > 0:
         smt_header = Colour.amber("SMT queries/timeouts")
@@ -279,6 +281,14 @@ def entry():
     print(f"{smt_header}: "
           f"{StompLogger.smt_queries}/"
           f"{StompLogger.smt_timeouts}")
+    if result.ran_all_checks:
+        if issue_count == 0:
+            print(Colour.green("All checks passed!"))
+        else:
+            print("All checks completed: yes")
+    else:
+        print("All checks completed: no")
+
 
 if __name__ == "__main__":
     entry()

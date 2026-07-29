@@ -31,6 +31,7 @@ class StompMessageCode(Enum):
     ModuleLoadFailure             = auto()
     NonRectangularLoop            = auto()
     OpenMPParseError              = auto()
+    PSyIRLimitation               = auto()
     ReadUninitialisedPrivate      = auto()
     ScalarDataRace                = auto()
     SingleStatementExpected       = auto()
@@ -46,7 +47,8 @@ class StompMessageCode(Enum):
 
     def is_warning(self):
         return self in [StompMessageCode.FileLoadFailure,
-                        StompMessageCode.ModuleLoadFailure]
+                        StompMessageCode.ModuleLoadFailure,
+                        StompMessageCode.PSyIRLimitation]
 
     def is_good(self):
         return self in [StompMessageCode.FoundParallelisableLoop]

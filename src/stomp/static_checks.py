@@ -6,7 +6,7 @@ from typing import Optional
 from psyclone.core import Signature
 from psyclone.psyir.nodes import \
   Node, Routine, Loop, Call, IntrinsicCall, \
-  FileContainer
+  FileContainer, CodeBlock
 from psyclone.psyir.tools import ReductionInferenceTool
 from psyclone.core.access_type import AccessType
 from psyclone.psyir.symbols import DataTypeSymbol
@@ -626,6 +626,31 @@ def check_uninitialised_read(d: OpenMPDirective):
                         node = info.node,
                         directive_node = d.original_directive)
                     break
+
+
+# PSyIR CodeBlock checks
+# ======================
+
+
+def check_codeblocks(d: OpenMPDirective):
+    '''Report calls to PSyIR CodeBlocks in parallel regions.'''
+    if "end" in d.clauses: return
+    is_parallel_region = "parallel" in d.clauses or "teams" in d.clauses
+    if is_parallel_region:
+        region_body = d.get_body()
+        if region_body:
+            for stmt in region_body:
+                for block in stmt.walk(CodeBlock):
+                    StompLogger.add_message(
+                        StompMessageCode.PSyIRLimitation,
+                        description = "Parallel region contains "
+                            "a PSyIR CodeBlock, which captures a block of "
+                            "code that is not fully understood by PSyclone. "
+                            "This message can be ignored with the "
+                            "'-e PSyIRLimitation' option but that "
+                            "may lead to false positives.",
+                        directive_node = d.original_directive,
+                        node = block)
 
 
 # Stomp directive checks
