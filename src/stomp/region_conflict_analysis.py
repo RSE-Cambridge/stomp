@@ -726,8 +726,13 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
                            stmt.clauses["unique"])
                 # Require each thread's expression to be different.
                 # For convenience, this is done via 'parallel_do_vars'
-                self.parallel_do_vars.append(
-                    CollapsedLoopInfo(stmt, [LoopInfo(expr)], cond=cond))
+                # and 'distribute_vars'.
+                if self.inside_parallel:
+                    self.parallel_do_vars.append(
+                        CollapsedLoopInfo(stmt, [LoopInfo(expr)], cond=cond))
+                else:
+                    self.distribute_vars.append(
+                        CollapsedLoopInfo(stmt, [LoopInfo(expr)], cond=cond))
                 return
 
             # Analyse region body
