@@ -513,8 +513,11 @@ def check_calls(d: OpenMPDirective, assume_pure: set[str] = set()):
     }
 
     # Scan calls in parallel regions
-    is_parallel_region = "teams" in d.clauses or (
-        "parallel" in d.clauses and not is_within_directive(d, ["teams"]))
+    is_parallel_region = ("teams" in d.clauses or
+        "parallel" in d.clauses and not
+            is_within_directive(d, ["teams"]) or
+        "simd" in d.clauses and not
+            is_within_directive(d, ["parallel", "teams"]))
     if is_parallel_region:
         region_body = d.get_body()
         if region_body:
@@ -637,8 +640,11 @@ def check_uninitialised_read(d: OpenMPDirective):
 def check_codeblocks(d: OpenMPDirective):
     '''Report calls to PSyIR CodeBlocks in parallel regions.'''
     if "end" in d.clauses: return
-    is_parallel_region = "teams" in d.clauses or (
-        "parallel" in d.clauses and not is_within_directive(d, ["teams"]))
+    is_parallel_region = ("teams" in d.clauses or
+        "parallel" in d.clauses and
+            not is_within_directive(d, ["teams"]) or
+        "simd" in d.clauses and not
+            is_within_directive(d, ["parallel", "teams"]))
     if is_parallel_region:
         region_body = d.get_body()
         if region_body:
