@@ -132,3 +132,15 @@ def is_stop(node: Node) -> bool:
                 isinstance(stmt, Fortran2008.Error_Stop_Stmt)):
             return True
     return False
+
+
+def is_exit(node: Node) -> bool:
+    '''Determines whether or not the given PSyIR node represents a
+    Fortran "exit" statement with no argument, i.e. it returns True
+    for an "exit" statement but False for an "exit named_construct"
+    statement'''
+    if isinstance(node, CodeBlock) and len(node.parse_tree_nodes) == 1:
+        stmt = node.parse_tree_nodes[0]
+        if isinstance(stmt, Fortran2003.Exit_Stmt):
+            return True
+    return False

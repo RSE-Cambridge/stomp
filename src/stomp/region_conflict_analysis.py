@@ -606,8 +606,12 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
             if self.collapse_distribute > 0:
                 self.distribute_vars[-1].loop_infos.append(loop_info)
                 self.collapse_distribute -= 1
+            # Create new constraint for the scope of the loop body
+            self.constraint_stack.append(z3.BoolVal(True))
             # Analyse loop body
             self._step(stmt.loop_body, cond)
+            # Forget info that is now out of scope
+            self.constraint_stack.pop()
             self._restore_subst()
             return
 

@@ -546,3 +546,33 @@ subroutine sub(arr, indirection)
   end do
 end subroutine'''
     stomp_test(code, [Msg.MisplacedDirective])
+
+
+def test_exit_statement_ok():
+    code = '''
+subroutine sub()
+  integer :: i, arr(10)
+  !$omp parallel do
+  do i = 1, 10
+    if (i > 5) exit
+    arr(i) = 0
+    arr(10-i) = 0
+  end do
+end subroutine
+'''
+    stomp_test(code, [])
+
+
+def test_exit_statement_bad():
+    code = '''
+subroutine sub()
+  integer :: i, arr(10)
+  !$omp parallel do
+  do i = 1, 10
+    if (i > 7) exit
+    arr(i) = 0
+    arr(10-i) = 0
+  end do
+end subroutine
+'''
+    stomp_test(code, [Msg.ArrayDataRace])

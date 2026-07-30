@@ -47,7 +47,7 @@ from psyclone.psyir.nodes import Loop, DataNode, Literal, Assignment, \
     Routine, Node, IfBlock, Schedule, Range, WhileLoop
 from psyclone.core import Signature
 from psyclone.psyir.symbols import DataType, ScalarType, ArrayType
-from stomp.misc import if_else_chain, is_stop
+from stomp.misc import if_else_chain, is_stop, is_exit
 from stomp.openmp_directives import OpenMPDirective
 
 
@@ -234,6 +234,9 @@ class ArrayIndexAnalysis:
         self.constraints = []
         # The access dict maps each array name to a list of array accesses
         self.access_dict = {}
+        # A stack of constraints that can grow and contract as we enter
+        # and exit scopes
+        self.constraint_stack = []
         # Has the analaysis finished?
         self.finished = False
         # We map array intrinsic calls (e.g. size, lbound, ubound) to SMT
@@ -469,9 +472,10 @@ class ArrayIndexAnalysis:
                                       self._translate_integer_expr_with_subst(
                                         ind))
                             smt_indices.append(smt_inds)
+                        access_cond = z3.And(cond, *self.constraint_stack)
                         self._add_array_access(
                             ArrayAccess(
-                              s, cond, access_info.is_any_write(),
+                              s, access_cond, access_info.is_any_write(),
                               smt_indices, access_info.node,
                               is_scalar = not is_array_access))
 
@@ -547,8 +551,12 @@ class ArrayIndexAnalysis:
             self.subst[smt_loop_var] = var
             self._constrain_loop_var(
                 var, stmt.start_expr, stmt.stop_expr, stmt.step_expr)
+            # Create new constraint for the scope of the loop body
+            self.constraint_stack.append(z3.BoolVal(True))
             # Analyse loop body
             self._step(stmt.loop_body, cond)
+            # Forget info that is now out of scope
+            self.constraint_stack.pop()
             self._restore_subst()
             return
 
@@ -563,7 +571,9 @@ class ArrayIndexAnalysis:
               stmt.condition)
             # Recursively step into loop body
             self._save_subst()
+            self.constraint_stack.append(z3.BoolVal(True))
             self._step(stmt.loop_body, z3.And(cond, smt_condition))
+            self.constraint_stack.pop()
             self._restore_subst()
             return
 
@@ -572,6 +582,14 @@ class ArrayIndexAnalysis:
             # We can assume that the current condition doesn't hold anywhere
             # beyond this point
             self._add_constraint(z3.Not(cond))
+            return
+
+        # Exit statement
+        if is_exit(stmt):
+            # We can assume that the current condition doesn't hold for
+            # the remainder of the body of the loop
+            if self.constraint_stack:
+                self.constraint_stack[-1] &= z3.Not(cond)
             return
 
         # Stomp directive

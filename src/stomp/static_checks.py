@@ -22,7 +22,8 @@ from stomp.loop_conflict_analysis import \
     LoopConflictAnalysis, LoopConflictAnalysisOptions
 from stomp.region_conflict_analysis import \
     RegionConflictAnalysis, RegionConflictAnalysisOptions
-from stomp.misc import is_array_access, get_nested_loops, node_text, is_stop
+from stomp.misc import \
+    is_array_access, get_nested_loops, node_text, is_stop, is_exit
 from stomp.module_spec_directives import is_threadsafe
 from stomp.solver_options import SMTSolverOptions
 
@@ -652,6 +653,7 @@ def check_codeblocks(d: OpenMPDirective):
                 for block in stmt.walk(CodeBlock):
                     # Skip CodeBlocks that are allowed
                     if is_stop(block): continue
+                    if is_exit(block): continue
                     # Otherwise, log an issue
                     StompLogger.add_message(
                         StompMessageCode.PSyIRLimitation,

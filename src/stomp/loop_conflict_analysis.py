@@ -433,10 +433,14 @@ class LoopConflictAnalysis(ArrayIndexAnalysis):
                 # Introduce constraints on loop variable
                 self._constrain_loop_var(
                     var, stmt.start_expr, stmt.stop_expr, stmt.step_expr)
+                # Create new constraint for the scope of the loop body
+                self.constraint_stack.append(z3.BoolVal(True))
                 # Analyse loop body
                 self._step(stmt.loop_body, cond)
                 if stmt is self.loop_to_parallelise:
                     self._save_access_dict()
+                # Forget info that is now out of scope
+                self.constraint_stack.pop()
                 self._restore_subst()
             # Record whether the analysis has finished
             if stmt is self.loop_to_parallelise:
