@@ -49,12 +49,5 @@ RUN printf "\
 \nalias ls='ls --color' \
 \nalias grep='grep --color'\n" >> /home/dev-user/.bashrc
 
-RUN printf "\
-\nlet g:markdown_fenced_languages = ['fortran', 'python', 'cpp'] \
-\nset nowrapscan \
-\nnmap <C-Up> k?^\! ===<CR>kzt \
-\nnmap <C-Down> jj/^\! ===<CR>kzt \
-\nxmap <Space> :w !cat > /tmp/file.F90 && clear && echo Running existing analysis... && psyclone -s parallelise.py -o /dev/null /tmp/file.F90 && echo && echo Running new analysis... && export USE_SMT=yes && psyclone -s parallelise.py -o /dev/null /tmp/file.F90<CR>\n" >> /home/dev-user/.vimrc
-
 # Entrypoint set up
 WORKDIR workspace

@@ -8,13 +8,13 @@ import re
 from typing import Optional, Dict, Any, List, Union, Tuple, Set
 from psyclone.psyir.nodes import Node, Statement, UnknownDirective, Loop, \
     BinaryOperation, IntrinsicCall, Reference
-from psyclone.core import VariablesAccessMap
+from psyclone.core import VariablesAccessMap, AccessType
 from psyclone.psyir.symbols import SymbolTable
 from stomp.parser_lib import lift, char, many, token, \
     ParseError, sepby, choice, many1, optional, space, natural, chain
 from stomp.module_spec_directives import is_threadprivate
 from stomp.message import StompMessage, StompMessageCode, StompLogger
-from stomp.misc import parse_fortran_expr
+from stomp.misc import parse_fortran_expr, parse_fortran_stmt
 
 
 # Recognised OpenMP directives
@@ -122,9 +122,9 @@ recognised_directives_set = set([
 # directives.
 
 stomp_recognised_directives_list = [
+    ["abstract"],
     ["assume"],
     ["pure"],
-    ["safe"],
     ["unique"],
 ]
 
@@ -141,6 +141,10 @@ class OpenMPDirective(Statement):
     and "!$stomp" directives get parsed as OpenMPDirective but the two
     can be distinguished using the "is_stomp_directive" member variable.
     '''
+
+    # Caching can be enabled to improve efficiency of methods that are
+    # called multiple times
+    enable_caching: bool = False
 
     def __init__(self,
                  clauses: Dict[str, Any] = {},
@@ -245,15 +249,19 @@ class OpenMPDirective(Statement):
 
     def body_reference_accesses(self) -> VariablesAccessMap:
         '''Get all variable accesses in the directive body. These are cached
-        for performance.'''
+        (if caching is enabled) for performance.'''
         if self.accesses is None:
-            self.accesses = VariablesAccessMap()
+            accesses = VariablesAccessMap()
             stmts = self.get_body()
             if stmts is not None:
                 for stmt in stmts:
                     accs = stmt.reference_accesses()
-                    self.accesses.update(accs)
-        return self.accesses
+                    accesses.update(accs)
+            if OpenMPDirective.enable_caching:
+                self.accesses = accesses
+            return accesses
+        else:
+            return self.accesses
 
     def get_all_vars(self) -> Set[str]:
         '''Get all variables referenced in the directive body.'''
@@ -329,6 +337,31 @@ class OpenMPDirective(Statement):
 
         return (private, shared)
 
+    def reference_accesses(self):
+        accesses = VariablesAccessMap()
+        if self.is_stomp_directive and "abstract" in self.clauses:
+            # Handle reads
+            exprs = (self.clauses.get("read", []) +
+                     self.clauses.get("readwrite", []))
+            for expr in exprs:
+                accesses.update(expr.reference_accesses())
+            # Handle writes
+            exprs = (self.clauses.get("write", []) +
+                     self.clauses.get("readwrite", []))
+            for expr in exprs:
+                # Turn the last access into a write; the same way
+                # that PSyclone's Assignment.reference_accesses() works
+                accs = expr.reference_accesses()
+                if isinstance(expr, Reference):
+                    sig, _ = expr.get_signature_and_indices()
+                    accs[sig][-1].access_type = AccessType.WRITE
+                accesses.update(accs)
+            # Make this directive the parent of all accesses
+            for seq in accesses.values():
+                for info in seq:
+                    info.node._parent = self.original_directive
+        return accesses
+
 
 # Partial OpenMP parser
 # =====================
@@ -377,7 +410,7 @@ def raw_text():
 
 # Fortran expression parser
 def fortran_expr(symbol_table: Optional[SymbolTable] = None):
-    '''Parse Fortran expression up until next non-nested ")"'''
+    '''Parse Fortran expression up until next non-nested ")".'''
     def parse(txt, pos):
         result = raw_text()(txt, pos)
         if isinstance(result, ParseError):
@@ -386,6 +419,38 @@ def fortran_expr(symbol_table: Optional[SymbolTable] = None):
         if isinstance(node, str):
             return ParseError(txt, pos)
         return (node, result[1])
+    return parse
+
+
+# Fortran lvalue-list parser
+def fortran_lvalue_list(symbol_table: Optional[SymbolTable] = None):
+    '''Parse comma-separated Fortran expressions up until next
+    non-nested ")".'''
+    def split_exprs(text):
+        depth = 0
+        start = 0
+        elems = []
+        for (i, c) in enumerate(text):
+            if c == "(": depth += 1
+            elif c == ")": depth -= 1
+            elif c == "," and depth == 0:
+                elems.append(text[start:i])
+                start = i+1
+        elems.append(text[start:])
+        return elems
+
+    def parse(txt, pos):
+        result = raw_text()(txt, pos)
+        if isinstance(result, ParseError):
+            return result
+        fields = split_exprs(result[0])
+        nodes = []
+        for field in fields:
+            node = parse_fortran_stmt(field + " = " + field, symbol_table)
+            if isinstance(node, str):
+                return ParseError(txt, pos)
+            nodes.append(node.rhs.copy())
+        return (nodes, result[1])
     return parse
 
 
@@ -528,6 +593,16 @@ def stomp_clause(symbol_table: Optional[SymbolTable] = None):
         fortran_expr(symbol_table),
         token(")"))
 
+    # Parser for lvalue-list clauses
+    lvalue_list_clause = lift(
+        lambda keyword, _l, expr, _r: (keyword, expr),
+        choice(token("readwrite"),
+               token("read"),
+               token("write")),
+        token("("),
+        fortran_lvalue_list(symbol_table),
+        token(")"))
+
     # Parser identifier-list clauses
     id_list_clause = lift(
         lambda keyword, _l, ids, _r: (keyword, ids),
@@ -540,9 +615,10 @@ def stomp_clause(symbol_table: Optional[SymbolTable] = None):
     simple_clause = lift(
         lambda keyword: (keyword, None),
         choice(token("end"),
-               token("safe")))
+               token("abstract")))
 
     return choice(expr_clause,
+                  lvalue_list_clause,
                   id_list_clause,
                   simple_clause)
 
@@ -682,6 +758,27 @@ def insert_end_directives(psyir: Node):
                 d.ended_by = end
                 end.started_by = d
                 d.siblings.insert(d.position+2, end)
+
+
+# Handling of stomp 'abstract' directives
+# =======================================
+
+
+def apply_stomp_abstract_directives(psyir: Node):
+    '''Absorb the body of each of 'abstract' directive into a
+    member variable of the directive.'''
+    for d in psyir.walk(OpenMPDirective):
+        # Skip over uninteresting directives
+        if not d.is_stomp_directive: continue
+        if "end" in d.clauses: continue
+        if "abstract" not in d.clauses: continue
+
+        # Absorb the body of the directive
+        d.abstracted_stmts = []
+        body = d.get_body()
+        if body is None: continue
+        for stmt in body:
+            d.abstracted_stmts.append(stmt.detach())
 
 
 # Helper functions for OpenMP directives

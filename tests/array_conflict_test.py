@@ -512,7 +512,7 @@ subroutine sub(arr, offset, n)
     arr(offset+i) = 1
   end do
 end subroutine'''
-    stomp_test(code, [Msg.BadAssumeDirective])
+    stomp_test(code, [Msg.BadStompDirective])
 
 
 def test_stomp_unique_directive():
@@ -545,4 +545,4 @@ subroutine sub(arr, indirection)
     arr(j) = 1
   end do
 end subroutine'''
-    stomp_test(code, [Msg.BadUniqueDirective])
+    stomp_test(code, [Msg.MisplacedDirective])

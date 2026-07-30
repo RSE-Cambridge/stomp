@@ -256,3 +256,24 @@ subroutine reverse(arr)
 end subroutine
 '''
     stomp_test(code, [Msg.PSyIRLimitation])
+
+
+def test_stomp_abstract():
+    '''Simple test of a stomp 'abstract' directive.'''
+    code = '''
+subroutine reverse(arr)
+  integer, intent(inout) :: arr(:)
+  integer :: i, n, tmp
+  n = size(arr)
+  !$omp parallel do private(tmp)
+  do i = 1, n/2
+    tmp = arr(i)
+    arr(i) = arr(n+1-i)
+    arr(n+1-i) = tmp
+    !$stomp abstract read(n)
+    print *, "Hello", n
+    !$stomp end abstract
+  end do
+end subroutine
+'''
+    stomp_test(code, [])

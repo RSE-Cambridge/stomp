@@ -2,7 +2,8 @@ from typing import Optional, List
 from stomp.openmp_directives import \
     OpenMPDirective, \
     identify_openmp_directives, \
-    merge_multiline_directives
+    merge_multiline_directives, \
+    apply_stomp_abstract_directives
 from stomp.message import StompLogger, StompMessageCode
 import stomp.static_checks as checks
 import stomp.inference as inference
@@ -52,6 +53,12 @@ def main(psyir,
     if len(StompLogger.get_messages()) > num_msgs:
         result.failed_mandatory = True
         return result
+
+    # Apply stomp 'abstract' directives
+    apply_stomp_abstract_directives(psyir)
+
+    # Enable caching in the OpenMPDirective class, for performance
+    OpenMPDirective.enabling_caching = True
 
     # Check for poorly supported subroutine-local wildcard imports
     checks.check_wildcard_imports(psyir)

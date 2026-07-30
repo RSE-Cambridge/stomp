@@ -3,6 +3,7 @@ from typing import List
 from psyclone.errors import InternalError
 from psyclone.configuration import Config
 from psyclone.psyir.frontend.fortran import FortranReader
+from stomp.openmp_directives import OpenMPDirective
 from stomp.message import StompLogger, StompMessageCode
 from stomp.module_spec_directives import parse_module_spec_directives
 from stomp.main import main
@@ -21,6 +22,9 @@ def stomp_test(code: str,
 
     # Clear messages
     StompLogger.clear()
+
+    # Re-initialise "enable_caching" property
+    OpenMPDirective.enable_caching = False
 
     # Load Fortran code
     fortran_reader = FortranReader(

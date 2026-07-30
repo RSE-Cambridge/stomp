@@ -614,7 +614,8 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         # Handle OpenMP non-"end" directives
         if (self.in_region_of_interest and
                 isinstance(stmt, OpenMPDirective) and
-                "end" not in stmt.clauses):
+                "end" not in stmt.clauses and
+                "abstract" not in stmt.clauses):
             # Save some state that needs to be restored after analysing
             # the directive's body
             save_inside_parallel = self.inside_parallel

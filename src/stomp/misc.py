@@ -75,6 +75,24 @@ def parse_fortran_expr(code: str,
     return psyir
 
 
+def parse_fortran_stmt(code: str,
+                       symbol_table: Optional[SymbolTable] = None) \
+                           -> Union[str, Node]:
+    '''Parse a Fortran statement.'''
+    fortran_reader = FortranReader(
+        resolve_modules=False,
+        ignore_comments=True,
+        ignore_directives=True,
+        conditional_openmp_statements=False,
+        free_form=True
+    )
+    try:
+        psyir = fortran_reader.psyir_from_statement(code, symbol_table)
+    except (InternalError, ValueError, IOError) as err:
+        return str(err)
+    return psyir
+
+
 def statement_text(node: Node, max_len: int) -> str:
     '''Return Fortran text for the statement holding the given
     PSyIR node.'''

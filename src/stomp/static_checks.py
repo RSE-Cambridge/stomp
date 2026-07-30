@@ -664,6 +664,46 @@ def check_stomp_directive(d: OpenMPDirective):
     '''Check that the "expr" in a "!$stomp assume(expr)" directive or
     a "!$stomp unique(expr)" has a fully supported translation to Z3.'''
     if "end" in d.clauses: return
+    if not d.is_stomp_directive: return
+
+    # Check that we are inside an appropriate region
+    required_nesting = {
+      "unique": ["parallel", "teams", "simd"]
+    , "abstract": ["parallel", "teams", "simd"]
+    }
+    for (child, within) in required_nesting.items():
+        if child in d.clauses:
+            within = ["parallel", "teams", "simd"]
+            if not is_within_directive(d, within):
+                 StompLogger.add_message(
+                    StompMessageCode.MisplacedDirective,
+                    description = f"The stomp '{child}' directive must reside "
+                        f"within one of the following directives: {within}.",
+                   directive_node = d.original_directive)
+                 return
+
+    # Check abstract directives and associated clauses 
+    if "abstract" in d.clauses:
+        for c in d.clauses.keys():
+            if c not in ["read", "write", "readwrite", "abstract"]:
+                StompLogger.add_message(
+                    StompMessageCode.BadStompDirective,
+                    description = f"Unexpected clause in 'abstrct' "
+                        f"directive: '{c}'.",
+                    directive_node = d.original_directive)
+                return
+    else:
+        for c in ["read", "write", "readwrite"]:
+            if c in d.clauses.keys():
+                StompLogger.add_message(
+                    StompMessageCode.BadStompDirective,
+                    description = "Only the 'abstract' directive can "
+                        "contain read/write/readwrite clauses.",
+                    directive_node = d.original_directive)
+                return
+
+    # Check that the "expr" in a "!$stomp assume(expr)" directive or
+    # a "!$stomp unique(expr)" has a fully supported translation to Z3.
     if "assume" in d.clauses:
         trans = FortranToZ3(handle_array_intrins=True,
                             allow_unsupported=False)
@@ -672,22 +712,12 @@ def check_stomp_directive(d: OpenMPDirective):
         except TranslationNotSupported as err:
             text = node_text(err.expr, max_len=40)
             StompLogger.add_message(
-                StompMessageCode.BadAssumeDirective,
+                StompMessageCode.BadStompDirective,
                 description = f"The 'assume' clause contains a "
                     f"subexpression for which there is no supported "
                     f"translation to a Z3 boolean: {text}.",
                 directive_node = d.original_directive)
     if "unique" in d.clauses:
-        # First, check that we are inside an appropriate region
-        within = ["parallel", "teams", "simd"]
-        if not is_within_directive(d, within):
-             StompLogger.add_message(
-                StompMessageCode.BadUniqueDirective,
-                description = f"The 'unique' clause must reside "
-                    f"within one of the following directives: {within}.",
-                directive_node = d.original_directive)
-             return
-        # Second, check the translation
         trans = FortranToZ3(handle_array_intrins=True,
                             allow_unsupported=False)
         try:
@@ -695,7 +725,7 @@ def check_stomp_directive(d: OpenMPDirective):
         except TranslationNotSupported as err:
             text = node_text(err.expr, max_len=40)
             StompLogger.add_message(
-                StompMessageCode.BadUniqueDirective,
+                StompMessageCode.BadStompDirective,
                 description = f"The 'unique' clause contains a "
                     f"subexpression for which there is no supported "
                     f"translation to a Z3 integer: {text}.",
