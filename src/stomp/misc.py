@@ -5,12 +5,13 @@
 import re
 from typing import Union, Optional, List
 from psyclone.psyir.nodes import \
-    Reference, IfBlock, Schedule, Node, Loop, Statement
+    Reference, IfBlock, Schedule, Node, Loop, Statement, CodeBlock
 from psyclone.core import AccessInfo
 from psyclone.psyir.symbols import ArrayType, SymbolTable
 from psyclone.psyir.frontend.fortran import FortranReader
 from psyclone.errors import InternalError
 from psyclone.psyir.backend.fortran import FortranWriter
+from fparser.two import Fortran2003, Fortran2008
 
 
 def is_array_access(info: AccessInfo) -> bool:
@@ -120,3 +121,14 @@ def node_text(node: Node, max_len: int) -> str:
     except Exception:
         pass
     return text
+
+
+def is_stop(node: Node) -> bool:
+    '''Determines whether or not the given PSyIR node represents a
+    Fortran "stop" or "error stop" statement.'''
+    if isinstance(node, CodeBlock) and len(node.parse_tree_nodes) == 1:
+        stmt = node.parse_tree_nodes[0]
+        if (isinstance(stmt, Fortran2003.Stop_Stmt) or
+                isinstance(stmt, Fortran2008.Error_Stop_Stmt)):
+            return True
+    return False

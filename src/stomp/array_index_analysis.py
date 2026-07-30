@@ -44,12 +44,10 @@ import z3
 from typing import Optional
 from psyclone.psyir.nodes import Loop, DataNode, Literal, Assignment, \
     Reference, IntrinsicCall, \
-    Routine, Node, IfBlock, Schedule, Range, WhileLoop, \
-    CodeBlock
+    Routine, Node, IfBlock, Schedule, Range, WhileLoop
 from psyclone.core import Signature
 from psyclone.psyir.symbols import DataType, ScalarType, ArrayType
-from fparser.two import Fortran2003, Fortran2008
-from stomp.misc import if_else_chain
+from stomp.misc import if_else_chain, is_stop
 from stomp.openmp_directives import OpenMPDirective
 
 
@@ -570,7 +568,7 @@ class ArrayIndexAnalysis:
             return
 
         # Stop statement
-        if _is_stop(stmt):
+        if is_stop(stmt):
             # We can assume that the current condition doesn't hold anywhere
             # beyond this point
             self._add_constraint(z3.Not(cond))
@@ -645,14 +643,3 @@ def _free_vars(expr: z3.ExprRef) -> list[z3.ExprRef]:
             return {}
     else:
         return {fv for child in expr.children() for fv in _free_vars(child)}
-
-
-def _is_stop(node: Node) -> bool:
-    '''Determines whether or not the given PSyIR node represents a
-    Fortran "stop" or "error stop" statement.'''
-    if isinstance(node, CodeBlock) and len(node.parse_tree_nodes) == 1:
-        stmt = node.parse_tree_nodes[0]
-        if (isinstance(stmt, Fortran2003.Stop_Stmt) or
-                isinstance(stmt, Fortran2008.Error_Stop_Stmt)):
-            return True
-    return False
