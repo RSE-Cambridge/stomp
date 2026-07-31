@@ -46,11 +46,14 @@ def space():
     return parse
 
 
-def consume(s):
+def consume(s, next_sat=None):
     '''Consume given string'''
     def parse(txt, pos):
         end = pos + len(s)
-        if txt[pos:end] == s:
+        next_check = (next_sat is None or
+                      end >= len(txt) or
+                      next_sat(txt[end]))
+        if txt[pos:end] == s and next_check:
             return (s, end)
         return ParseError(txt, pos)
     return parse
@@ -134,6 +137,13 @@ def token(s):
     '''Consume given string and any trailing whitespace'''
     return lift(lambda x, _: x,
                 consume(s),
+                space())
+
+
+def keyword(s):
+    '''Consume given keyword and any trailing whitespace'''
+    return lift(lambda x, _: x,
+                consume(s, next_sat=lambda c: not (c.isalpha() or c == "_")),
                 space())
 
 

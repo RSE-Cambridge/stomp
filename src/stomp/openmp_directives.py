@@ -11,7 +11,8 @@ from psyclone.psyir.nodes import Node, Statement, UnknownDirective, Loop, \
 from psyclone.core import VariablesAccessMap, AccessType
 from psyclone.psyir.symbols import SymbolTable
 from stomp.parser_lib import lift, char, many, token, \
-    ParseError, sepby, choice, many1, optional, space, natural, chain
+    ParseError, sepby, choice, many1, optional, space, natural, \
+    chain, keyword
 from stomp.module_spec_directives import is_threadprivate
 from stomp.message import StompMessage, StompMessageCode, StompLogger
 from stomp.misc import parse_fortran_expr, parse_fortran_stmt
@@ -126,6 +127,7 @@ stomp_recognised_directives_list = [
     ["assume"],
     ["pure"],
     ["unique"],
+    ["unique_path"],
 ]
 
 # As a set for fast membership checking
@@ -378,7 +380,7 @@ def identifier():
 
 # OpenMP keyword parser
 # (For now, just any non-empty string of letters and underscores)
-def keyword():
+def generic_keyword():
     '''Parse an OpenMP keyword'''
     return lift(lambda chars, _: "".join(chars),
                 many1(char(lambda x: x.isalpha() or x == "_")),
@@ -470,10 +472,10 @@ def omp_clause(symbol_table: Optional[SymbolTable] = None):
     # Parser for data sharing clauses
     data_sharing_clause = lift(
         lambda keyword, _l, ids, _r: (keyword, ids),
-        choice(token("private"),
-               token("shared"),
-               token("firstprivate"),
-               token("lastprivate")),
+        choice(keyword("private"),
+               keyword("shared"),
+               keyword("firstprivate"),
+               keyword("lastprivate")),
         token("("),
         sepby(token(","), identifier()),
         token(")"))
@@ -482,7 +484,7 @@ def omp_clause(symbol_table: Optional[SymbolTable] = None):
     reduction_clause = lift(
         lambda keyword, _l, op, _c, ids, _r:
             (keyword, [(op, i) for i in ids]),
-        token("reduction"),
+        keyword("reduction"),
         token("("),
         omp_reduction_op(),
         token(":"),
@@ -492,7 +494,7 @@ def omp_clause(symbol_table: Optional[SymbolTable] = None):
     # Parser for collapse clauses
     collapse_clause = lift(
         lambda keyword, _l, n, _r: (keyword, n),
-        token("collapse"),
+        keyword("collapse"),
         token("("),
         natural(),
         token(")"))
@@ -500,7 +502,7 @@ def omp_clause(symbol_table: Optional[SymbolTable] = None):
     # Parser for num_threads clause
     num_threads_clause = lift(
         lambda keyword, _l, expr, _r: (keyword, expr),
-        token("num_threads"),
+        keyword("num_threads"),
         token("("),
         fortran_expr(symbol_table),
         token(")"))
@@ -508,7 +510,7 @@ def omp_clause(symbol_table: Optional[SymbolTable] = None):
     # Parser for thread_limit clause
     thread_limit_clause = lift(
         lambda keyword, _l, expr, _r: (keyword, expr),
-        token("thread_limit"),
+        keyword("thread_limit"),
         token("("),
         fortran_expr(symbol_table),
         token(")"))
@@ -517,16 +519,16 @@ def omp_clause(symbol_table: Optional[SymbolTable] = None):
     schedule_clause = lift(
         lambda keyword, _l, mods, kind, chunk_size, _r:
             (keyword, (mods, kind, chunk_size)),
-        token("schedule"),
+        keyword("schedule"),
         token("("),
-        sepby(token(","), choice(token("monotonic"),
-                                 token("non-monotonic"),
-                                 token("simd"))),
-        choice(token("auto"),
-               token("dynamic"),
-               token("guided"),
-               token("runtime"),
-               token("static")),
+        sepby(token(","), choice(keyword("monotonic"),
+                                 keyword("non-monotonic"),
+                                 keyword("simd"))),
+        choice(keyword("auto"),
+               keyword("dynamic"),
+               keyword("guided"),
+               keyword("runtime"),
+               keyword("static")),
         optional(lift(lambda _, chunk_size: chunk_size,
                       token(","),
                       raw_text())),
@@ -535,7 +537,7 @@ def omp_clause(symbol_table: Optional[SymbolTable] = None):
     # Parser for critical directive
     critical_clause = lift(
         lambda keyword, name: (keyword, name[1] if name else None),
-        token("critical"),
+        keyword("critical"),
         optional(chain(
             token("("),
             identifier(),
@@ -544,8 +546,8 @@ def omp_clause(symbol_table: Optional[SymbolTable] = None):
     # Generic clause parser for clauses that may be duplicated
     duplicatable_clause = lift(
         lambda keyword, contents: (keyword, [contents]),
-        choice(token("map"),
-               token("depend")),
+        choice(keyword("map"),
+               keyword("depend")),
         optional(lift(
             lambda _l, text, _r: text,
             token("("),
@@ -555,7 +557,7 @@ def omp_clause(symbol_table: Optional[SymbolTable] = None):
     # Generic clause parser
     other_clause = lift(
         lambda keyword, contents: (keyword, contents),
-        keyword(),
+        generic_keyword(),
         optional(lift(
             lambda _l, text, _r: text,
             token("("),
@@ -576,7 +578,7 @@ def omp_clause(symbol_table: Optional[SymbolTable] = None):
 # OpenMP directive parser
 def omp_directive(symbol_table: Optional[SymbolTable] = None):
     return lift(lambda d, cs: (d, cs),
-                token("omp"),
+                keyword("omp"),
                 many(omp_clause(symbol_table)))
 
 
@@ -587,8 +589,8 @@ def stomp_clause(symbol_table: Optional[SymbolTable] = None):
     # Parser for fortran-expression clauses
     expr_clause = lift(
         lambda keyword, _l, expr, _r: (keyword, expr),
-        choice(token("assume"),
-               token("unique")),
+        choice(keyword("assume"),
+               keyword("unique")),
         token("("),
         fortran_expr(symbol_table),
         token(")"))
@@ -596,9 +598,9 @@ def stomp_clause(symbol_table: Optional[SymbolTable] = None):
     # Parser for lvalue-list clauses
     lvalue_list_clause = lift(
         lambda keyword, _l, expr, _r: (keyword, expr),
-        choice(token("readwrite"),
-               token("read"),
-               token("write")),
+        choice(keyword("readwrite"),
+               keyword("read"),
+               keyword("write")),
         token("("),
         fortran_lvalue_list(symbol_table),
         token(")"))
@@ -606,7 +608,7 @@ def stomp_clause(symbol_table: Optional[SymbolTable] = None):
     # Parser identifier-list clauses
     id_list_clause = lift(
         lambda keyword, _l, ids, _r: (keyword, ids),
-        token("pure"),
+        keyword("pure"),
         token("("),
         sepby(token(","), identifier()),
         token(")"))
@@ -614,8 +616,9 @@ def stomp_clause(symbol_table: Optional[SymbolTable] = None):
     # Parser for simple clauses
     simple_clause = lift(
         lambda keyword: (keyword, None),
-        choice(token("end"),
-               token("abstract")))
+        choice(keyword("end"),
+               keyword("unique_path"),
+               keyword("abstract")))
 
     return choice(expr_clause,
                   lvalue_list_clause,
@@ -626,7 +629,7 @@ def stomp_clause(symbol_table: Optional[SymbolTable] = None):
 # Stomp directive parser
 def stomp_directive(symbol_table: Optional[SymbolTable] = None):
     return lift(lambda d, cs: (d, cs),
-                token("stomp"),
+                keyword("stomp"),
                 many(stomp_clause(symbol_table)))
 
 
