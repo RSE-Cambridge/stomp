@@ -50,7 +50,8 @@ from stomp.openmp_directives import \
     get_sections
 from stomp.array_index_analysis import \
     ArrayIndexAnalysisOptions, ArrayIndexAnalysis, ArrayAccess, \
-    _is_scalar_integer, _is_scalar_logical, Conflict
+    _is_scalar_integer, _is_scalar_logical, Conflict, \
+    prune_accesses
 from stomp.fortran_to_z3 import FortranToZ3
 from stomp.control_flow import \
     after_statement, next_statement, affects_control_flow
@@ -477,15 +478,14 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         '''Get the conflicts in the given conflict candidates.'''
         conflicts = []
         # Formulate constraints for solving, considering the two threads
-        for (i_accesses, j_accesses) in candidates:
-            # For each write access in the i iteration
-            for i_access in i_accesses:
-                if i_access.is_write:
-                    conflict = self._get_conflict(i_access, j_accesses)
-                    if conflict:
-                        conflicts.append(conflict)
-                        if not all_conflicts:
-                            return conflicts
+        for (i_accs, j_accs) in candidates:
+            check_list = prune_accesses(i_accs, j_accs)
+            for (i_access, j_accesses) in check_list:
+                conflict = self._get_conflict(i_access, j_accesses)
+                if conflict:
+                    conflicts.append(conflict)
+                    if not all_conflicts:
+                        return conflicts
         return conflicts
 
     def _get_conflict(self, write: ArrayAccess, accs: list[ArrayAccess]) -> \

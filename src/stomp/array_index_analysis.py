@@ -41,7 +41,7 @@ constraint. This allows the use of an SMT solver to answer questions about
 array accesses, such as whether or they can safely execute in parallel.'''
 
 import z3
-from typing import Optional
+from typing import Optional, List, Tuple
 from psyclone.psyir.nodes import Loop, DataNode, Literal, Assignment, \
     Reference, IntrinsicCall, \
     Routine, Node, IfBlock, Schedule, Range, WhileLoop
@@ -605,7 +605,6 @@ class ArrayIndexAnalysis:
         self._add_all_array_accesses(stmt, cond)
         self._kill_all_written_vars(stmt)
 
-
 # Conflict class
 # ==============
 
@@ -661,3 +660,24 @@ def _free_vars(expr: z3.ExprRef) -> list[z3.ExprRef]:
             return {}
     else:
         return {fv for child in expr.children() for fv in _free_vars(child)}
+
+
+def prune_accesses(accesses_i: List[ArrayAccess],
+                   accesses_j: List[ArrayAccess]) \
+       -> List[Tuple[ArrayAccess, List[ArrayAccess]]]:
+    '''Given two lists of accesses for the same variable,
+    determine the smallest set of accesses that need to be checked
+    for conflicts.'''
+    check_list = []
+    for (idx_i, acc_i) in enumerate(accesses_i):
+        # Skip reads in the first list
+        if not acc_i.is_write: continue
+        # Add all reads from the second list
+        # Add all non-symmetrical writes from the second list
+        accs_j = []
+        for (idx_j, acc_j) in enumerate(accesses_j):
+            if not acc_j.is_write or idx_j >= idx_i:
+                accs_j.append(acc_j)
+        if accs_j:
+            check_list.append((acc_i, accs_j))
+    return check_list
