@@ -125,9 +125,9 @@ recognised_directives_set = set([
 stomp_recognised_directives_list = [
     ["abstract"],
     ["assume"],
+    ["exclusive"],
     ["pure"],
     ["unique"],
-    ["unique_path"],
 ]
 
 # As a set for fast membership checking
@@ -617,7 +617,7 @@ def stomp_clause(symbol_table: Optional[SymbolTable] = None):
     simple_clause = lift(
         lambda keyword: (keyword, None),
         choice(keyword("end"),
-               keyword("unique_path"),
+               keyword("exclusive"),
                keyword("abstract")))
 
     return choice(expr_clause,

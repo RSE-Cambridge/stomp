@@ -739,6 +739,19 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
                     self.distribute_vars.append(
                         CollapsedLoopInfo(stmt, [LoopInfo(expr)], cond=cond))
                 return
+            # Handle stomp 'exclusive' directive
+            if "exclusive" in stmt.clauses:
+                # Create a fresh logical variable and add it to the condition
+                active = self._fresh_logical_var()
+                cond = z3.And(cond, active)
+                # Require each thread's variable to be different.
+                # For convenience, this is done via 'parallel_do_vars'
+                # and 'distribute_vars'.
+                var_info = CollapsedLoopInfo(stmt, [LoopInfo(active)])
+                if self.inside_parallel:
+                    self.parallel_do_vars.append(var_info)
+                else:
+                    self.distribute_vars.append(var_info)
 
             # Analyse region body
             if "sections" not in stmt.clauses:
