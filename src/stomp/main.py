@@ -41,6 +41,7 @@ def main(psyir,
     # Mandatory directive checks
     for d in psyir.walk(OpenMPDirective):
         checks.check_loose_end(d)
+        checks.check_missing_end(d)
         checks.check_loop_directive_is_followed_by_loop(d)
         checks.check_singleton_directive_num_stmts(d)
         checks.check_singleton_directive_not_empty(d)

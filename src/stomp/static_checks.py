@@ -42,6 +42,22 @@ def check_loose_end(d: OpenMPDirective):
             directive_node = d.original_directive)
 
 
+def check_missing_end(d: OpenMPDirective):
+    '''Check that an "end" directive is present where expected.'''
+    if "end" in d.clauses: return
+    region_dirs = {"teams", "parallel",
+                   "single", "master", "sections",
+                   "abstract", "exclusive"}
+    for r in region_dirs:
+        if r in d.clauses and d.ended_by is None:
+            StompLogger.add_message(
+                StompMessageCode.MissingEnd,
+                description = "Could not find associated 'end' "
+                    "directive for this opening directive.",
+                directive_node = d.original_directive)
+            return
+
+
 def check_loop_directive_is_followed_by_loop(d: OpenMPDirective):
     '''Check that a loop directive is followed by a loop.'''
     if "end" not in d.clauses:

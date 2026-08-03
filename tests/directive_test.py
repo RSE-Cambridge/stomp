@@ -44,6 +44,18 @@ end subroutine
     stomp_test(code, [Msg.UnmatchedEnd])
 
 
+def test_missing_end():
+    code = '''
+subroutine sub(arr)
+  integer, intent(inout) :: arr(:)
+  integer :: i
+  !$omp parallel
+  arr(omp_get_thread_num()) = 0
+end subroutine
+'''
+    stomp_test(code, [Msg.MissingEnd])
+
+
 def test_loop_directive_has_no_loop():
     code = '''
 subroutine sub(arr)
