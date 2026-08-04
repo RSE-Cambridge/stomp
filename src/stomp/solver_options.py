@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+
 class SMTSolverOptions:
     def __init__(self,
                  sweep_seed: int,

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Number of Makefile threads to use
 N_THREADS=$(( $(nproc) / 4 ))
 if [[ "$N_THREADS" == "0" ]]; then

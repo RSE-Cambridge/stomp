@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# SPDX-License-Identifier: BSD-3-Clause
+
 echo "Running stomp on DataRaceBench"
 echo "=============================="
 ./run-drb.sh

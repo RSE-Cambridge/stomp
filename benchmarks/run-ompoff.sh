@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# SPDX-License-Identifier: BSD-3-Clause
+
 if [ ! -d OMPOff ]; then
   COMMIT="4e8950e"
   git clone git@github.com:rse-cambridge/OMPOff 2> /dev/null

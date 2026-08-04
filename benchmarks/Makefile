@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+
 SHELL = /bin/bash
 
 # DRB (dataracebench) source files and include files

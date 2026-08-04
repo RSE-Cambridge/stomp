@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+
 from stomp.test_helpers import stomp_test, Msg
 
 

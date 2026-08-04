@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+
 import copy
 from typing import List, Dict, Set, Tuple
 from psyclone.parse import ModuleManager, FileInfo, ModuleInfo

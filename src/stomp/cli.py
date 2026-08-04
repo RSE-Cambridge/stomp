@@ -1,5 +1,7 @@
 #!/usr/bin/python3
 
+# SPDX-License-Identifier: BSD-3-Clause
+
 import sys
 import argparse
 from pathlib import Path

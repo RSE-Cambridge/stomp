@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+
 import sys
 from typing import List
 from psyclone.errors import InternalError

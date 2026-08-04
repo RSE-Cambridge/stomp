@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+
 from typing import Optional, List
 from stomp.openmp_directives import \
     OpenMPDirective, \

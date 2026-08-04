@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+
 '''This module provides a small set of parser combinators.'''
 
 # Class for parse errors
