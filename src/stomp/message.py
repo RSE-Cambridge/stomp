@@ -8,7 +8,7 @@ import re
 from enum import Enum, auto
 from typing import Optional
 from psyclone.psyir.nodes import Node
-from stomp.misc import statement_text
+from stomp.misc import statement_text, get_line_num
 from stomp.colours import Colour
 
 
@@ -75,7 +75,8 @@ class StompMessage:
 
     def render(self,
                filename: Optional[str] = None,
-               line_num: Optional[int] = None
+               line_num: Optional[int] = None,
+               enable_line_nums: bool = False,
                ):
         '''Render the message as a string.'''
 
@@ -112,6 +113,9 @@ class StompMessage:
                     pass
             if self.node:
                 text = statement_text(self.node, max_len=60)
+                if enable_line_nums:
+                    line = get_line_num(self.node)
+                    if line: text += f" (line {line})"
                 out += header("Statement") + text + "\n"
 
         # Description

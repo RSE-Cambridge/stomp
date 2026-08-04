@@ -123,6 +123,18 @@ def node_text(node: Node, max_len: int) -> str:
     return text
 
 
+def get_line_num(node: Node) -> Optional[int]:
+    '''Determine line number of given PSyIR node.'''
+    stmt = node.ancestor(Statement, include_self=True)
+    if (hasattr(stmt, "ast") and
+            stmt.ast and
+            hasattr(stmt.ast.item, "span") and
+            stmt.ast.item.span and
+            len(stmt.ast.item.span) >= 1):
+        return stmt.ast.item.span[0]
+    return None
+
+
 def is_stop(node: Node) -> bool:
     '''Determines whether or not the given PSyIR node represents a
     Fortran "stop" or "error stop" statement.'''

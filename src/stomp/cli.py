@@ -269,7 +269,7 @@ def entry():
     # Emit messages
     issue_count = 0
     for msg in msgs:
-        print(msg.render())
+        print(msg.render(enable_line_nums = not apply_preprocessor))
         issue_count += 1
 
     # Emit summary
