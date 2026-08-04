@@ -82,8 +82,9 @@ def entry():
         action="append",
         default=[])
     arg_parser.add_argument(
-        "--pure",
-        help="assume that the given function/subroutine is pure",
+        "--threadsafe",
+        help="assume that the given function/subroutine is safe to call "
+             "in parallel",
         metavar="NAME",
         action="append",
         default=[])
@@ -252,7 +253,7 @@ def entry():
     # Invoke the tool
     result = main(psyir,
                   infer=args.infer,
-                  assume_pure=args.pure,
+                  assume_pure=args.threadsafe,
                   solver_options=solver_opts)
 
     # Generate output
