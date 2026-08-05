@@ -1,5 +1,6 @@
-subroutine sub()
-  integer :: i, n
+subroutine sub(n)
+  integer, intent(in) :: n
+  integer :: i
   !$omp parallel do
   do i = 1, 10
     !$stomp abstract read(n)

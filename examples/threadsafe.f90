@@ -4,7 +4,7 @@ module example
   !$stomp threadsafe(sub)
 contains
   subroutine sub()
-    x = x + 1
+    x = 0
   end subroutine
 
   subroutine main()
