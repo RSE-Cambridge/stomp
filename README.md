@@ -8,6 +8,8 @@ Research).  It supports subsets of the OpenMP 4.5 and Fortran 2003 standards,
 and currently solves 136 out of 166 problems from the
 [DataRaceBench](https://github.com/llnl/dataracebench) benchmark suite.
 
+Contents:
+
 * [Installation](#installation)
 * [Example](#example)
 * [Usage](#usage)
@@ -26,7 +28,7 @@ pip install fortran-stomp
 Consider the file
 [examples/prefix_sum_chunks.f90](examples/prefix_sum_chunks.f90):
 
-```fortran
+```f90
 ! Compute the prefix sums of chunks of the given array
 ! (a first step to computing the full parallel prefix sum)
 subroutine prefix_sum_chunks(arr)
@@ -71,14 +73,14 @@ Description: Data race in parallel region. Thread 15 and thread
 ```
 
 The checker spots an off-by-one error in the calculation of `chunk_end`
-allowing parallel writes to the same index of the shared array `arr`, which is
-undefined behaviour in OpenMP.
+allowing parallel writes to the same element of the shared array `arr`, which
+is undefined behaviour in OpenMP.
 
-For more examples, see the [examples](examples/) directory of this repository.
+For more examples, see the [examples](examples/) directory.
 
 ## Usage
 
-Typical usage:
+Typical steps:
 
 1. **Run Stomp**. Apply Stomp to a single source file of interest. Strictly
 speaking, the user should first ensure that the source file compiles without
@@ -101,17 +103,17 @@ Directives](#stomp-directives)). These directives allow the programmer to
 specify (and document) their assumptions, and to use the checker
 to ensure that the code is indeed safe under these assumptions.
 
-When Stomp is satisified that the code is safe under the provided assumptions,
-it will report `All checks passed!`.  Stomp will also suggest loops for
-parallelisation, which are not already annotated with OpenMP directives, if the `--infer` flag is specified.
+When satisified, Stomp will report `All checks passed!`.  Stomp can also
+suggest loops for parallelisation, which are not already annotated with OpenMP
+directives, when the `--infer` flag is provided.
 
 For more detailed usage information, run `stomp --help`.
 
 ## Stomp Directives
 
-A range of custom `!$stomp` directives, listed below, are provided to help the
-user discharge false positives by allowing various assumptions and abstractions
-to be specified.
+A range of custom `!$stomp` directives are provided to help discharge
+false positives by allowing various assumptions and abstractions to be
+specified.
 
 ### Logical Assumptions
 
@@ -121,7 +123,7 @@ parallel loop contains a data race only if `offset` is less than or equal to
 `n`. This possibility is ruled out by the addition of the directive `!$stomp
 assume (offset > n)` and, as a result, Stomp reports no data races.
 
-```fortran
+```f90
 subroutine sub(arr, offset, n)
   integer, intent(inout) :: arr(:)
   integer, intent(in) :: n, offset
@@ -137,14 +139,14 @@ end subroutine
 
 Note that `!$stomp assume (offset > n)` could be replaced with
 
-```fortran
+```f90
 if (.not. offset > n) stop "Assumption broken"
 ```
 
 This will also satisfy Stomp, which understands that any code following this
 statement is only reachable if the assumption holds. In many cases, this is
-actually preferable to an `assume` directive because it will raise a helpful
-runtime error.
+preferable to an `assume` directive because it will raise a helpful runtime
+error.
 
 ### Thread-Unique Values
 
@@ -156,7 +158,7 @@ using these indices are non-conflicting. However, the `unique` directive tells
 Stomp that values returned by the lookup table can be assumed to be different
 between threads.
 
-```fortran
+```f90
 subroutine sub(arr, lookup_table)
   integer, intent(inout) :: arr(:)
   integer, intent(in) :: lookup_table(:)
@@ -179,7 +181,7 @@ to OpenMP's `threadprivate` directive, this directive must appear in the
 specification part of the Fortran module (i.e. before the `contains` keyword)
 in which that subroutine/function is defined. Here is a simple example:
 
-```fortran
+```f90
 module example
   integer :: x
   !$omp threadprivate(x)
@@ -198,15 +200,14 @@ end module
 ```
 
 Currently, Stomp does not check that a routine marked as `threadsafe` is indeed
-thread safe, which is a goal for future versions.
-
-Note that there is also a command-line flag `--threadsafe <name>` to signify
-that calls to the given subroutine/function can be assumed to be thread safe.
+thread safe, which is a goal for future work. There is also a command-line
+flag `--threadsafe <name>` to signify that calls to the given
+subroutine/function can be assumed to be thread safe.
 
 ### Abstracting Over Code Blocks
 
 The `!$stomp abstract` directive instructs Stomp not to analyse a region of
-code and provides `read`, `write`, and `readwrite` clauses to specify which
+code and supports `read`, `write`, and `readwrite` clauses to specify which
 memory locations are accessed by the region.  
 
 PSyclone does not currently have a complete understanding of the Fortran
@@ -214,7 +215,7 @@ language -- see [Known Limitations](#known-limitations). For example, `print`
 statements are not fully understood. However, we can tell Stomp how to handle
 it using an `abstract` region:
 
-```fortran
+```f90
 subroutine sub(n)
   integer, intent(in) :: n
   integer :: i
@@ -235,9 +236,9 @@ encounters them. However, it's useful to be aware of the following.
 * General nested parallelism is not supported, e.g. `parallel` directives
   which themselves contain `parallel` directives.  However,
   `parallel` directives nested within `teams` directives are a form of
-  nested parallelism that _is_ supported.
+  nested parallelism that _is_ very much supported.
 
-* Stomp's undestanding of OpenMP directives is incomplete -- see
+* Stomp's understanding of OpenMP directives is incomplete -- see
   [Supported Constructs](#supported-constructs). Notable
   omissions include `task`, `workshare`, `target data`, and `target update`
   directives. These directives, some of which would require inter-procedural
