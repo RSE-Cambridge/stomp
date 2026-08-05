@@ -1,0 +1,8 @@
+Modules loaded: histo_kernels
+Modules not loaded: iso_fortran_env, omp_lib
+
+Summary
+Directives found: 23
+Issues found: 0
+SMT queries/timeouts: 6/0
+All checks passed!

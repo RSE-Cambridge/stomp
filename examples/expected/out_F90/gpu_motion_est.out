@@ -1,0 +1,8 @@
+Modules loaded: motion_est_kernels
+Modules not loaded: omp_lib
+
+Summary
+Directives found: 14
+Issues found: 0
+SMT queries/timeouts: 5/0
+All checks passed!

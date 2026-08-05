@@ -1,0 +1,11 @@
+Issue: ArrayDataRace
+Routine: prefix_sum_chunks
+Directive: '!$omp parallel'
+Statement: 'arr(i) = acc' (line 20)
+Description: Data race in parallel region. Thread 15 and thread 0 have conflicting accesses to 'arr(3)'.
+
+Summary
+Directives found: 6
+Issues found: 1
+SMT queries/timeouts: 2/0
+All checks completed: yes

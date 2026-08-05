@@ -1,0 +1,8 @@
+Modules loaded: transpose_kernels
+Modules not loaded: omp_lib
+
+Summary
+Directives found: 12
+Issues found: 0
+SMT queries/timeouts: 3/0
+All checks passed!

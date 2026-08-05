@@ -25,15 +25,13 @@ DRB_FLAGS += --no-colour
 
 .phony: top
 top:
-	@echo "Type './run-all.sh' to run all tests."
+	@echo "Type './run-drb.sh' to run DataRaceBench benchmarks."
 	@echo "Type 'make clean' to tidy up."
 
 .phony: clean
 clean:
 	@rm -rf drb-out
 	@rm -rf drb-results.txt
-	@rm -rf OMPOff
-	@rm -rf ompoff-results.txt
 
 # Download DRB if not there
 dataracebench/README.md:

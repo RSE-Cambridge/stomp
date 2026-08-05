@@ -269,8 +269,10 @@ def check_collapse_clause(d: OpenMPDirective):
                  directive_node = d.original_directive)
         # Check for data dependencies between the variable of an outer loop
         # and the ranges of its inner loops
-        found = False
+        if expected < 2: return
+        loops = loops[:expected]
         loop = loops.pop(0)
+        found = False
         while loops:
             loop_exprs = []
             loop_exprs.extend([loop.start_expr for loop in loops])

@@ -2,6 +2,9 @@
 
 # SPDX-License-Identifier: BSD-3-Clause
 
+echo "Running stomp on DataRaceBench"
+echo "=============================="
+
 # Number of Makefile threads to use
 N_THREADS=$(( $(nproc) / 4 ))
 if [[ "$N_THREADS" == "0" ]]; then
