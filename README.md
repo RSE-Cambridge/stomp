@@ -1,11 +1,4 @@
-```
- ___ _____ ___  __  __ ___ 
-/ __|_   _/ _ \|  \/  | _ \
-\__ \ | || (_) | |\/| |  _/
-|___/ |_| \___/|_|  |_|_|
-
-Static Checking for Fortran OpenMP
-```
+# Stomp
 
 Stomp is a static checker for Fortran OpenMP directives based on
 [PSyclone](https://github.com/stfc/PSyclone) (a Python library for processing
@@ -15,6 +8,13 @@ Research).  It supports subsets of the OpenMP 4.5 and Fortran 2003 standards,
 and currently solves 136 out of 166 problems from the
 [DataRaceBench](https://github.com/llnl/dataracebench) benchmark suite.
 
+* [Installation](#installation)
+* [Example](#example)
+* [Usage](#usage)
+* [Stomp Directives](#stomp-directives)
+* [Known Limitations](#known-limitations)
+* [Supported Constructs](#supported-constructs)
+
 ## Installation
 
 ```
@@ -23,7 +23,8 @@ pip install fortran-stomp
 
 ## Example
 
-Consider the file `prefix_sum_chunks.f90`:
+Consider the file
+[examples/prefix_sum_chunks.f90](examples/prefix_sum_chunks.f90):
 
 ```fortran
 ! Compute the prefix sums of chunks of the given array
@@ -55,7 +56,7 @@ end subroutine
 Running this file through Stomp
 
 ```
-▶ stomp prefix_sum_chunks.f90
+▶ stomp examples/prefix_sum_chunks.f90
 ```
 
 produces:
@@ -77,7 +78,7 @@ For more examples, see the [examples](examples/) directory of this repository.
 
 ## Usage
 
-Typical usage proceeds as follows:
+Typical usage:
 
 1. **Run Stomp**. Apply Stomp to a single source file of interest. Strictly
 speaking, the user should first ensure that the source file compiles without
@@ -101,12 +102,16 @@ specify (and document) their assumptions, and to use the checker
 to ensure that the code is indeed safe under these assumptions.
 
 When Stomp is satisified that the code is safe under the provided assumptions,
-it will report `All checks passed!`.
+it will report `All checks passed!`.  Stomp will also suggest loops for
+parallelisation, which are not already annotated with OpenMP directives, if the `--infer` flag is specified.
 
-Stomp is also able to suggest loops for parallelisation, which are not already
-annotated with OpenMP directives -- just add the `--infer` flag.
+For more detailed usage information, run `stomp --help`.
 
 ## Stomp Directives
+
+A range of custom `!$stomp` directives, listed below, are provided to help the
+user discharge false positives by allowing various assumptions and abstractions
+to be specified.
 
 ### Logical Assumptions
 
@@ -227,48 +232,47 @@ end subroutine
 In general, Stomp aims to inform the user of its own limitations as it
 encounters them. However, it's useful to be aware of the following.
 
-1. General nested parallelism is not supported, e.g. `parallel` directives
-   which themselves contain `parallel` directives.  However,
-   `parallel` directives nested within `teams` directives are a form of
-   nested parallelism that _is_ supported.
+* General nested parallelism is not supported, e.g. `parallel` directives
+  which themselves contain `parallel` directives.  However,
+  `parallel` directives nested within `teams` directives are a form of
+  nested parallelism that _is_ supported.
 
-2. Stomp's undestanding of OpenMP directives is incomplete -- see
-   [Supported Constructs](#supported-constructs) for more details. Notable
-   omissions include `task`, `workshare`, `target data`, and `target update`
-   directives. These directives, some of which would require inter-procedural
-   analysis, are being considered for future versions.
+* Stomp's undestanding of OpenMP directives is incomplete -- see
+  [Supported Constructs](#supported-constructs). Notable
+  omissions include `task`, `workshare`, `target data`, and `target update`
+  directives. These directives, some of which would require inter-procedural
+  analysis, are being considered for future versions.
 
-3. Stomp only translates scalar `logical` and scalar `integer` Fortran
-   variables to Z3 variables. This means it is limited in its ability to
-   reason about `real` variables, e.g. `if r < 1.1 then ...`, and
-   `character` variables, and values inside an array, e.g.
-   `if arr(i) < x then ...`. Furthermore, `character` strings are treated
-   as scalars rather than arrays so will be checked for data races at
-   a coarse ganularity, not at the level of individual elements.
+* Stomp only translates scalar `logical` and scalar `integer` Fortran
+  variables to Z3 variables. This means it is limited in its ability to
+  reason about `real` variables, e.g. `if r < 1.1 then ...`, and
+  `character` variables, and values inside an array, e.g.
+  `if arr(i) < x then ...`. Furthermore, `character` strings are treated
+  as scalars rather than arrays so will be checked for data races at
+  a coarse ganularity, not at the level of individual elements.
 
-4. The PSyclone intermediate representation is incomplete: some
-   Fortran constructs, such as `print` statements and `block` statements,
-   get represented as so-called `CodeBlock`s. When analysing a `CodeBlock`,
-   PSyclone assumes the worst, e.g. all variables referenced inside the block
-   are considered to be read and written. This can lead to unnecessary
-   false positives. The `!$stomp abstract` directive can be used to abstract
-   over blocks of code that PSyclone does not understand -- see
-   [Stomp Directives](#stomp-directives).
+* The PSyclone intermediate representation is incomplete: some
+  Fortran constructs, such as `print` statements and `block` statements,
+  get represented as so-called `CodeBlock`s. When analysing a `CodeBlock`,
+  PSyclone assumes the worst, e.g. all variables referenced inside the block
+  are considered to be read and written. This can lead to unnecessary
+  false positives. The `!$stomp abstract` directive can be used to abstract
+  over blocks of code that PSyclone does not understand -- see
+  [Stomp Directives](#stomp-directives).
 
-5. PSyclone and Stomp do not yet have good support for Fortran pointers.
-   Stomp will, for example, treat a pointer to array in much
-   the same way it would treat an array -- completely ignoring
-   the possibility of aliasing. It may also struggle to resolve calls
-   to subroutines/functions with pointer arguments.
+* PSyclone and Stomp do not yet have good support for Fortran pointers.
+  Stomp will, for example, treat a pointer to array in much
+  the same way it would treat an array -- completely ignoring
+  the possibility of aliasing. It may also struggle to resolve calls
+  to subroutines/functions with pointer arguments.
 
 ## Supported Constructs
 
 Stomp has a partial or complete understanding of the following OpenMP
 constructs.
 
-  +-----------------+-----------------+-------------------------+
   | Directives      | Clauses         | Functions               |
-  +-----------------+-----------------+-------------------------+
+  | --------------- | --------------- | ----------------------- |
   | `target`        | `shared`        | `omp_get_thread_num()`  |
   | `teams`         | `private`       | `omp_get_team_num()`    |
   | `distribute`    | `firstprivate`  | `omp_get_num_threads()` |
@@ -282,4 +286,3 @@ constructs.
   | `threadprivate` | `num_teams`     |                         |
   | `sections`      | `thread_limit`  |                         |
   | `section`       |                 |                         |
-  +-----------------+-----------------+-------------------------+
