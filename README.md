@@ -172,6 +172,29 @@ subroutine sub(arr, lookup_table)
 end subroutine
 ```
 
+### Exclusive Regions
+
+The directive `!$stomp exclusive` instructs Stomp that a region of code can be
+assumed to be reachable by at most one thread. To illustrate, a minor variant
+of the previous example:
+
+```f90
+subroutine sub(arr, indirection)
+  integer, intent(inout) :: arr(:)
+  integer, intent(in) :: indirection(:)
+  integer :: i, j
+  !$omp parallel do private(j)
+  do i = 1, size(arr)
+    j = indirection(i)
+    if (j == 1) then
+      !$stomp exclusive
+      arr(j) = 1
+      !$stomp end exclusive
+    end if
+  end do
+end subroutine
+```
+
 ### Thread-Safe Functions/Subroutines
 
 By default, Stomp will only allow calls to `pure` subroutines/functions in a
