@@ -219,7 +219,8 @@ class OpenMPDirective(Statement):
                 if kw in ["assume", "pure", "unique"]:
                     return True
             else:
-                if kw in ["barrier", "update", "flush", "section"]:
+                if kw in ["barrier", "update", "flush", "section",
+                          "threadprivate"]:
                     return True
         return False
 
