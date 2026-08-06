@@ -18,6 +18,7 @@ DRB_FLAGS += -e ImpureParallelCall
 DRB_FLAGS += -e WildcardImportInSubroutine
 DRB_FLAGS += -e UnsupportedTaskDirective
 DRB_FLAGS += -e PSyIRLimitation
+DRB_FLAGS += --strip-codeblocks
 
 # Disable progress/colour output from stomp
 DRB_FLAGS += --no-progress

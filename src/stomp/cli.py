@@ -9,9 +9,11 @@ from psyclone.configuration import Config
 from psyclone.parse import ModuleManager
 from psyclone.errors import InternalError
 from psyclone.psyir.frontend.fortran import FortranReader
+from psyclone.psyir.frontend.fparser2 import SUPPORTED_ROUTINE_PREFIXES
 from stomp.preprocessor import enable_preprocessor, preprocess
 from stomp.message import StompLogger, StompMessageCode
 from stomp.main import main
+from stomp.misc import strip_codeblock_stmts
 from stomp.module_spec_directives import parse_module_spec_directives
 from stomp.solver_options import SMTSolverOptions
 from stomp.module_loader import load_modules
@@ -125,6 +127,10 @@ def entry():
         metavar="WIDTH",
         action="store",
         default=32)
+    arg_parser.add_argument(
+        "--strip-codeblocks",
+        help="ignore PSyIR CodeBlock statements",
+        action="store_true")
 
     args = arg_parser.parse_args()
 
@@ -172,6 +178,9 @@ def entry():
 
     # Disabling unnecessary check in module manager
     mod_manager._doesnt_need_preprocessing = lambda self: True
+
+    # Allow recursive subroutines
+    SUPPORTED_ROUTINE_PREFIXES.append("RECURSIVE")
 
     # Check file extension
     free_form_exts = (".f90", ".f95", ".f03", ".f08",
@@ -251,6 +260,10 @@ def entry():
                                    args.smt_timeout,
                                    args.smt_use_bit_vec,
                                    args.smt_bit_vec_width)
+
+    # Strip CodeBlock statements?
+    if args.strip_codeblocks:
+        strip_codeblock_stmts(psyir)
 
     # Invoke the tool
     result = main(psyir,

@@ -156,3 +156,10 @@ def is_exit(node: Node) -> bool:
         if isinstance(stmt, Fortran2003.Exit_Stmt):
             return True
     return False
+
+
+def strip_codeblock_stmts(psyir: Node):
+    '''Strip out all CodeBlock statements.'''
+    for stmt in psyir.walk(Statement):
+        if isinstance(stmt, CodeBlock):
+            stmt.detach()
