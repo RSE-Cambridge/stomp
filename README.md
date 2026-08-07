@@ -32,8 +32,8 @@ Contents:
 The package has not yet been uploaded to PyPI. Until then:
 
 ```
-▶ git clone --recursive https://github.com/rse-cambridge/stomp
-▶ pip3 install -e ./stomp
+git clone --recursive https://github.com/rse-cambridge/stomp
+pip3 install -e ./stomp
 ```
 
 ## Example
@@ -71,7 +71,7 @@ end subroutine
 Running this file through Stomp
 
 ```
-▶ stomp examples/prefix_sum_chunks.f90
+stomp examples/prefix_sum_chunks.f90
 ```
 
 produces:
@@ -94,7 +94,7 @@ For more examples, see the [examples](examples/) directory.
 ## Supported Constructs
 
 Stomp has a partial or complete understanding of each of the following OpenMP
-constructs.
+constructs. Other directives and clauses are generally ignored.
 
   | Directives      | Clauses         | Functions               |
   | --------------- | --------------- | ----------------------- |
@@ -213,13 +213,13 @@ assumed to be reachable by at most one thread. To illustrate, a minor variant
 of the previous example:
 
 ```f90
-subroutine sub(arr, indirection)
+subroutine sub(arr, lookup_table)
   integer, intent(inout) :: arr(:)
-  integer, intent(in) :: indirection(:)
+  integer, intent(in) :: lookup_table(:)
   integer :: i, j
   !$omp parallel do private(j)
   do i = 1, size(arr)
-    j = indirection(i)
+    j = lookup_table(i)
     if (j == 1) then
       !$stomp exclusive
       arr(j) = 1
