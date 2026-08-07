@@ -12,10 +12,10 @@ Contents:
 
 * [Installation](#installation)
 * [Example](#example)
+* [Supported Constructs](#supported-constructs)
 * [Usage](#usage)
 * [Stomp Directives](#stomp-directives)
 * [Known Limitations](#known-limitations)
-* [Supported Constructs](#supported-constructs)
 
 ## Installation
 
@@ -77,6 +77,27 @@ allowing parallel writes to the same element of the shared array `arr`, which
 is undefined behaviour in OpenMP.
 
 For more examples, see the [examples](examples/) directory.
+
+## Supported Constructs
+
+Stomp has a partial or complete understanding of the following OpenMP
+constructs.
+
+  | Directives      | Clauses         | Functions               |
+  | --------------- | --------------- | ----------------------- |
+  | `target`        | `shared`        | `omp_get_thread_num()`  |
+  | `teams`         | `private`       | `omp_get_team_num()`    |
+  | `distribute`    | `firstprivate`  | `omp_get_num_threads()` |
+  | `parallel`      | `lastprivate`   | `omp_get_num_teams()`   |
+  | `do`            | `reduction`     |                         |
+  | `barrier`       | `default`       |                         |
+  | `atomic`        | `schedule`      |                         |
+  | `critical`      | `collapse`      |                         |
+  | `single`        | `nowait`        |                         |
+  | `master`        | `num_threads`   |                         |
+  | `threadprivate` | `num_teams`     |                         |
+  | `sections`      | `thread_limit`  |                         |
+  | `section`       |                 |                         |
 
 ## Usage
 
@@ -290,23 +311,8 @@ encounters them. However, it's useful to be aware of the following.
   the possibility of aliasing. It may also struggle to resolve calls
   to subroutines/functions with pointer arguments.
 
-## Supported Constructs
+## Acknowledgements
 
-Stomp has a partial or complete understanding of the following OpenMP
-constructs.
-
-  | Directives      | Clauses         | Functions               |
-  | --------------- | --------------- | ----------------------- |
-  | `target`        | `shared`        | `omp_get_thread_num()`  |
-  | `teams`         | `private`       | `omp_get_team_num()`    |
-  | `distribute`    | `firstprivate`  | `omp_get_num_threads()` |
-  | `parallel`      | `lastprivate`   | `omp_get_num_teams()`   |
-  | `do`            | `reduction`     |                         |
-  | `barrier`       | `default`       |                         |
-  | `atomic`        | `schedule`      |                         |
-  | `critical`      | `collapse`      |                         |
-  | `single`        | `nowait`        |                         |
-  | `master`        | `num_threads`   |                         |
-  | `threadprivate` | `num_teams`     |                         |
-  | `sections`      | `thread_limit`  |                         |
-  | `section`       |                 |                         |
+Thanks to Luke Abraham, Aidan Chalk, Chris Edsall, Joerg Henrichs, Andy Porter,
+Sergi Sisso, Joe Wallwork, and Rob Waters. We also acknowledge the Met Office
+funded NG-ARCH and NG-R2C projects where this tool originated.

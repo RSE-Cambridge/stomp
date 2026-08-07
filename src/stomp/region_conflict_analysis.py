@@ -474,7 +474,15 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
                 for (i_idxs, j_idxs) in zip(write.indices, acc.indices):
                     for (i_idx, j_idx) in zip(i_idxs, j_idxs):
                         indices_equal.append(i_idx == j_idx)
-                sum_of_prods.append(indices_equal + [write.cond, acc.cond])
+                # Add access conditions
+                indices_equal.extend([write.cond, acc.cond])
+                # Accesses that are not inside the same parallel region
+                # must come from different teams
+                if not inside_same_parallel_region(write.psyir_node,
+                                                   acc.psyir_node):
+                    indices_equal.append(self.smt_team_var_i !=
+                                         self.smt_team_var_j)
+                sum_of_prods.append(indices_equal)
 
         # Invoke solver
         ProgressReporter.begin("Running SMT query...")
@@ -760,8 +768,8 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         # If we are in a teams region but accessing a non-team-private
         # array then return True because "crtical" and "barrier" only
         # prevent conflicts within a team not between teams
-        if (not (access_from.is_team_private and
-                 access_to.is_team_private)):
+        if (not access_from.is_team_private or
+               not access_to.is_team_private):
             return True
 
         # Return false if both nodes are enlosed by a "critical" directive
@@ -772,15 +780,11 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
                        for d in enclosing_to if "critical" in d.clauses]
         if set(from_critical) & set(to_critical): return False
 
-        # If both nodes are inside a "parallel" region then we only
+        # If both nodes are inside the same "parallel" region then we only
         # need to check for a conflict if there is a path from the
         # first to the second that does not pass through an
         # explicit or implicit OpenMP barrier.
-        def is_parallel(d: OpenMPDirective) -> bool:
-            return "parallel" in d.clauses
-        from_par = any([is_parallel(d) for d in enclosing_from])
-        to_par = any([is_parallel(d) for d in enclosing_to])
-        if from_par and to_par:
+        if inside_same_parallel_region(node_from, node_to):
             stmt_from = node_from.ancestor(Statement, include_self=True)
             stmt_to = node_to.ancestor(Statement, include_self=True)
             if stmt_from and stmt_to:
@@ -882,3 +886,13 @@ def barrier_free_path(stmt_from: Statement, stmt_to: Statement) -> bool:
             if id(succ) not in visited:
                 stack.append(succ)
     return False
+
+
+def inside_same_parallel_region(node_from: Node, node_to: Node):
+    '''Determine whether both nodes reside inside the same "parallel"
+    region.'''
+    enclosing_from = get_enclosing_directives(node_from)
+    enclosing_to = get_enclosing_directives(node_to)
+    from_par = [d for d in enclosing_from if "parallel" in d.clauses]
+    to_par = [d for d in enclosing_to if "parallel" in d.clauses]
+    return from_par and to_par and from_par[0] is to_par[0]
