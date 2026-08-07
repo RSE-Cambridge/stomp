@@ -1,6 +1,16 @@
-# Stomp
+```text
+         !$
+         !$
+!$!$!$  !$!$!$  !$!$!$  !$!$!$!$!$  !$!$!$
+!$       !$     !$  !$  !$  !$  !$  !$  !$
+!$!$!$!  !$     !$  !$  !$  !$  !$  !$  !$
+     !$  !$     !$  !$  !$  !$  !$  !$  !$
+!$!$!$!  !$!$!  !$!$!$  !$  !$  !$  !$!$!$
+                                    !$
+Static Checking for Fortran OpenMP  !$
+```
 
-Stomp is a static checker for Fortran OpenMP directives based on
+**Stomp** is a static checker for Fortran OpenMP directives based on
 [PSyclone](https://github.com/stfc/PSyclone) (a Python library for processing
 Fortran code developed by Met Office partners) and
 [Z3](https://github.com/z3prover/z3) (a theorem prover from Microsoft
@@ -19,8 +29,11 @@ Contents:
 
 ## Installation
 
+The package has not yet been uploaded to PyPI. Until then:
+
 ```
-pip install fortran-stomp
+▶ git clone --recursive https://github.com/rse-cambridge/stomp
+▶ pip3 install -e ./stomp
 ```
 
 ## Example
@@ -80,7 +93,7 @@ For more examples, see the [examples](examples/) directory.
 
 ## Supported Constructs
 
-Stomp has a partial or complete understanding of the following OpenMP
+Stomp has a partial or complete understanding of each of the following OpenMP
 constructs.
 
   | Directives      | Clauses         | Functions               |
@@ -106,7 +119,7 @@ Typical steps:
 1. **Run Stomp**. Apply Stomp to a single source file of interest. Strictly
 speaking, the user should first ensure that the source file compiles without
 error using a regular Fortran compiler -- Stomp catches syntax errors by itself
-but assumes that source code is well typed.
+but assumes that source code is well formed/typed.
 
 2. **Add Dependencies**. Stomp may report unresolved symbols and ask for
 additional source files in order to resolve them. This can be done using the
@@ -124,7 +137,7 @@ Directives](#stomp-directives)). These directives allow the programmer to
 specify (and document) their assumptions, and to use the checker
 to ensure that the code is indeed safe under these assumptions.
 
-When satisified, Stomp will report `All checks passed!`.  Stomp can also
+When satisified, Stomp will report `All checks passed!`.  It can also
 suggest loops for parallelisation, which are not already annotated with OpenMP
 directives, when the `--infer` flag is provided.
 
