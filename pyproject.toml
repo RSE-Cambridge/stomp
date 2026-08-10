@@ -14,7 +14,7 @@ dependencies = [
     "fparser==0.2.4",
     "sympy",
     "graphviz",
-    "z3-solver >= 4.15.0.0, <= 4.15.4.0",
+    "z3-solver==4.15.4.0",
 ]
 
 [tool.pytest.ini_options]
