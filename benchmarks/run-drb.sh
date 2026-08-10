@@ -61,7 +61,9 @@ echo -e "\e[33mWrong\e[0m:" $(($N_FP + $N_FN))
 if cmp -s drb-results.txt expected/drb-results.txt; then
   echo -e "\e[32mPass\e[0m: 'drb-results.txt'" \
           "matches 'expected/drb-results.txt'"
+  exit 0
 else
   echo -e "\e[31mFail\e[0m: 'drb-results.txt'" \
           "doesn't match 'expected/drb-results.txt'"
+  exit -1
 fi
