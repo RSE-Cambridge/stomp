@@ -41,7 +41,7 @@ class StompMessageCode(Enum):
     StrayOrderedDirective         = auto()
     UnmatchedEnd                  = auto()
     UnrecognisedDirective         = auto()
-    UnresolvedCall                = auto()
+    UnresolvedFuncOrArray         = auto()
     UnsupportedArrayReduction     = auto()
     UnsupportedTaskDirective      = auto()
     UnsupportedWorkshareDirective = auto()

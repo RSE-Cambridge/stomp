@@ -85,7 +85,7 @@ def main(psyir,
         checks.check_codeblocks(d)
 
     # Exit early for issues that may lead to excessive false positives
-    if StompLogger.has_message(StompMessageCode.UnresolvedCall):
+    if StompLogger.has_message(StompMessageCode.UnresolvedFuncOrArray):
         return result
     if StompLogger.has_message(StompMessageCode.ImpureParallelCall):
         return result
