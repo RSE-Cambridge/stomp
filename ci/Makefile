@@ -17,5 +17,5 @@ test:
 
 .PHONY: clean
 clean:
-	@make -C ../benchmarks clean
-	@make -C ../examples clean
+	@make -s -C ../benchmarks clean
+	@make -s -C ../examples clean
