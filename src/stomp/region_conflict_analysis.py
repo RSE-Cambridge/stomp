@@ -193,7 +193,6 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         '''Override parent class method: get the list of private variables'''
         private = list(self.explicit_private_vars)
         if self.inside_parallel:
-            
             return private + self.thread_private_vars
         return private + self.team_private_vars
 
@@ -709,7 +708,7 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
                 if self.inside_parallel:
                     self.parallel_do_vars.append(
                         CollapsedLoopInfo(stmt, [LoopInfo(expr)], cond=cond))
-                else:
+                if not self.inside_parallel or self.is_teams_region:
                     self.distribute_vars.append(
                         CollapsedLoopInfo(stmt, [LoopInfo(expr)], cond=cond))
                 return
@@ -724,7 +723,7 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
                 var_info = CollapsedLoopInfo(stmt, [LoopInfo(active)])
                 if self.inside_parallel:
                     self.parallel_do_vars.append(var_info)
-                else:
+                if not self.inside_parallel or self.is_teams_region:
                     self.distribute_vars.append(var_info)
 
             # Analyse region body
