@@ -588,9 +588,10 @@ def check_calls(d: OpenMPDirective, assume_pure: set[str] = set()):
                             description = f"Call to impure "
                                 f"function/subroutine '{name}' in parallel "
                                 f"region. Use the command-line option "
-                                f"'--pure {name}' to assume that this call is "
-                                f"pure or '-e ImpureParallelCall' to assume "
-                                f"that all calls are pure.",
+                                f"'--threadsafe {name}' to assume that this "
+                                f"call is thread safe or "
+                                f"'-e ImpureParallelCall' to assume that all "
+                                f"calls are pure.",
                             directive_node = d.original_directive,
                             node = call)
 
