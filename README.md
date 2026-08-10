@@ -1,42 +1,37 @@
-```text
-         !$
-         !$
-!$!$!$  !$!$!$  !$!$!$  !$!$!$!$!$  !$!$!$
-!$       !$     !$  !$  !$  !$  !$  !$  !$
-!$!$!$!  !$     !$  !$  !$  !$  !$  !$  !$
-     !$  !$     !$  !$  !$  !$  !$  !$  !$
-!$!$!$!  !$!$!  !$!$!$  !$  !$  !$  !$!$!$
-                                    !$
-Static Checking for Fortran OpenMP  !$
-```
+# Stomp
 
-**Stomp** is a static checker for Fortran OpenMP directives based on
+Stomp is a static checker for Fortran OpenMP directives based on
 [PSyclone](https://github.com/stfc/PSyclone) (a Python library for processing
 Fortran code developed by Met Office partners) and
 [Z3](https://github.com/z3prover/z3) (a theorem prover from Microsoft
-Research).  It supports subsets of the OpenMP 4.5 and Fortran 2003 standards,
-and currently solves 136 out of 166 problems from the
+Research). It supports a subset of Fortran 2003 and OpenMP 4.5, and currently
+solves 136 out of 166 problems from the
 [DataRaceBench](https://github.com/llnl/dataracebench) benchmark suite.
 
-Contents:
+## Contents
 
 * [Installation](#installation)
-* [Example](#example)
+* [Examples](#examples)
 * [Supported Constructs](#supported-constructs)
 * [Usage](#usage)
 * [Stomp Directives](#stomp-directives)
-* [Known Limitations](#known-limitations)
+* [Limitations](#limitations)
 
 ## Installation
 
-The package has not yet been uploaded to PyPI. Until then:
+The package has not yet been uploaded to PyPI. For now, download using `git`
 
 ```
-git clone --recursive https://github.com/rse-cambridge/stomp
-pip3 install -e ./stomp
+▶ git clone --recursive https://github.com/rse-cambridge/stomp
 ```
 
-## Example
+and install locally with `pip3`
+
+```
+▶ pip3 install ./stomp
+```
+
+## Examples
 
 Consider the file
 [examples/prefix_sum_chunks.f90](examples/prefix_sum_chunks.f90):
@@ -71,7 +66,7 @@ end subroutine
 Running this file through Stomp
 
 ```
-stomp examples/prefix_sum_chunks.f90
+▶ stomp examples/prefix_sum_chunks.f90
 ```
 
 produces:
@@ -85,7 +80,7 @@ Description: Data race in parallel region. Thread 15 and thread
 0 have conflicting accesses to 'arr(3)'.
 ```
 
-The checker spots an off-by-one error in the calculation of `chunk_end`
+The checker finds an off-by-one error in the calculation of `chunk_end`
 allowing parallel writes to the same element of the shared array `arr`, which
 is undefined behaviour in OpenMP.
 
@@ -93,8 +88,8 @@ For more examples, see the [examples](examples/) directory.
 
 ## Supported Constructs
 
-Stomp has a partial or complete understanding of each of the following OpenMP
-constructs. Other directives and clauses are generally ignored.
+Stomp has an understanding of the following OpenMP constructs.  Other
+constructs are currently ignored.
 
   | Directives      | Clauses         | Functions               |
   | --------------- | --------------- | ----------------------- |
@@ -116,25 +111,22 @@ constructs. Other directives and clauses are generally ignored.
 
 Typical steps:
 
-1. **Run Stomp**. Apply Stomp to a single source file of interest. Strictly
-speaking, the user should first ensure that the source file compiles without
-error using a regular Fortran compiler -- Stomp catches syntax errors by itself
-but assumes that source code is well formed/typed.
+1. **Check**. Apply the checker to a single source file of interest.
+Strictly speaking, the user should first ensure that the source file
+compiles without error using a regular Fortran compiler; Stomp catches syntax
+errors by itself but assumes that source code is well formed/typed.
 
 2. **Add Dependencies**. Stomp may report unresolved symbols and ask for
 additional source files in order to resolve them. This can be done using the
 command-line flag `-l <FILENAME>` (to load a specified source file) or the flag
-`-L <PATH>` (to load all source files in a specified directory). The user can
-also use their knowledge of the code base to load additional files that they
-think will be needed to correctly analyse the directives.
+`-L <PATH>` (to load all source files in a specified directory). 
 
-3. **Resolve Issues**. Stomp may report genuine bugs, which the user will of
-course want to fix.  However, it may also report false positives, i.e.
-issues that the user knows are impossible in an actual run of the program. A
-key feature of Stomp is that it allows the user to resolve these false
-positives too, by adding `!$stomp` directives to the code (see [Stomp
-Directives](#stomp-directives)). These directives allow the programmer to
-specify (and document) their assumptions, and to use the checker
+3. **Resolve Issues**. Stomp often reports genuine bugs. However, it sometimes 
+report false positives, i.e. issues that the user knows are impossible in
+an actual run of the program. A key feature of Stomp is that it allows the user
+to resolve these false positives by adding `!$stomp` directives to the
+code (see [Stomp Directives](#stomp-directives)). These directives allow the
+programmer to specify (and document) their assumptions, and to use the checker
 to ensure that the code is indeed safe under these assumptions.
 
 When satisified, Stomp will report `All checks passed!`.  It can also
@@ -145,9 +137,8 @@ For more detailed usage information, run `stomp --help`.
 
 ## Stomp Directives
 
-A range of custom `!$stomp` directives are provided to help discharge
-false positives by allowing various assumptions and abstractions to be
-specified.
+Custom `!$stomp` directives are provided to help discharge false positives by
+allowing various assumptions and abstractions to be specified.
 
 ### Logical Assumptions
 
@@ -187,10 +178,8 @@ error.
 The directive `!$stomp unique(<expr>)` tells Stomp that the Fortran expression
 `<expr>` never evaluates to the same integer value in different threads.  In
 the following example, array indices are obtained via a lookup table stored in
-memory. Ordinarily, Stomp would not be able to determine that parallel accesses
-using these indices are non-conflicting. However, the `unique` directive tells
-Stomp that values returned by the lookup table can be assumed to be different
-between threads.
+memory. Without the directive, Stomp would not be able to determine that
+parallel accesses using these indices are non-conflicting.
 
 ```f90
 subroutine sub(arr, lookup_table)
@@ -257,7 +246,7 @@ end module
 ```
 
 Currently, Stomp does not check that a routine marked as `threadsafe` is indeed
-thread safe, which is a goal for future work. There is also a command-line
+thread safe, which is a goal for future versions. There is also a command-line
 flag `--threadsafe <name>` to signify that calls to the given
 subroutine/function can be assumed to be thread safe.
 
@@ -267,10 +256,10 @@ The `!$stomp abstract` directive instructs Stomp not to analyse a region of
 code and supports `read`, `write`, and `readwrite` clauses to specify which
 memory locations are accessed by the region.  
 
-PSyclone does not currently have a complete understanding of the Fortran
-language -- see [Known Limitations](#known-limitations). For example, `print`
-statements are not fully understood. However, we can tell Stomp how to handle
-it using an `abstract` region:
+PSyclone does not currently have complete coverage of the Fortran language in
+its intermediate representation -- see [Limitations](#limitations). For
+example, `print` statements are not accurately represented. However, we can
+tell Stomp how to handle it using an `abstract` region:
 
 ```f90
 subroutine sub(n)
@@ -285,7 +274,7 @@ subroutine sub(n)
 end subroutine
 ```
 
-## Known Limitations
+## Limitations
 
 In general, Stomp aims to inform the user of its own limitations as it
 encounters them. However, it's useful to be aware of the following.
@@ -300,14 +289,6 @@ encounters them. However, it's useful to be aware of the following.
   omissions include `task`, `workshare`, `target data`, and `target update`
   directives. These directives, some of which would require inter-procedural
   analysis, are being considered for future versions.
-
-* Stomp only translates scalar `logical` and scalar `integer` Fortran
-  variables to Z3 variables. This means it is limited in its ability to
-  reason about `real` variables, e.g. `if r < 1.1 then ...`, and
-  `character` variables, and values inside an array, e.g.
-  `if arr(i) < x then ...`. Furthermore, `character` strings are treated
-  as scalars rather than arrays so will be checked for data races at
-  a coarse ganularity, not at the level of individual elements.
 
 * The PSyclone intermediate representation is incomplete: some
   Fortran constructs, such as `print` statements and `block` statements,
