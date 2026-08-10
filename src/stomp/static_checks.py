@@ -621,7 +621,7 @@ def check_wildcard_imports(psyir: Node):
                     f"by the tool. You can swap it for a module-level "
                     f"import, or for a named import of the form "
                     f"'use {module.name}, only: ...', or you can ignore "
-                    f"this warning with '-e WildcardImportInSubroutine'."
+                    f"this warning with '-e WildcardImportInSubroutine'.",
                 routine_name = routine.name)
 
 
