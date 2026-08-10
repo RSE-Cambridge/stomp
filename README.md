@@ -25,7 +25,7 @@ The package has not yet been uploaded to PyPI. For now, download using `git`
 ▶ git clone --recursive https://github.com/rse-cambridge/stomp
 ```
 
-and install locally with `pip3`
+and install locally with `pip3`:
 
 ```
 ▶ pip3 install ./stomp
@@ -111,15 +111,17 @@ constructs are currently ignored.
 
 Typical steps:
 
-1. **Check**. Apply the checker to a single source file of interest.
-Strictly speaking, the user should first ensure that the source file
-compiles without error using a regular Fortran compiler; Stomp catches syntax
-errors by itself but assumes that source code is well formed/typed.
+1. **Check**. Apply the checker to a single source file of interest.  Strictly
+speaking, the user should first ensure that the source file compiles without
+error using a regular Fortran compiler; Stomp catches syntax errors by itself
+but assumes that source code is well formed/typed. If the code requires
+preprocessing, include paths can be specified with `-I` and macros
+can be defined with `-D`.
 
 2. **Add Dependencies**. Stomp may report unresolved symbols and ask for
-additional source files in order to resolve them. This can be done using the
-command-line flag `-l <FILENAME>` (to load a specified source file) or the flag
-`-L <PATH>` (to load all source files in a specified directory). 
+additional source files in order to resolve them. This can be done using
+`-l <FILENAME>` (to load a specified source file) or `-L <PATH>` (to load
+all source files in a specified directory). 
 
 3. **Resolve Issues**. Stomp often reports genuine bugs. However, it sometimes 
 report false positives, i.e. issues that the user knows are impossible in
