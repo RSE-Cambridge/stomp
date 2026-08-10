@@ -307,6 +307,10 @@ encounters them. However, it's useful to be aware of the following.
   the possibility of aliasing. It may also struggle to resolve calls
   to subroutines/functions with pointer arguments.
 
+PSyclone is an active project and improvements to PSyclone are likely to be
+improvements to Stomp too, so it's very worthwhile to keep the PSyclone
+submodule up to date.
+
 ## Acknowledgements
 
 Thanks to Luke Abraham, Aidan Chalk, Chris Edsall, Joerg Henrichs, Andy Porter,
