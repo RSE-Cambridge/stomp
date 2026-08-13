@@ -4,7 +4,7 @@ Stomp is a static checker for Fortran OpenMP directives based on
 [PSyclone](https://github.com/stfc/PSyclone) (a Python library for processing
 Fortran code developed by Met Office partners) and
 [Z3](https://github.com/z3prover/z3) (a theorem prover from Microsoft
-Research). It supports a subset of Fortran 2003 and OpenMP 4.5, and currently
+Research). It supports a subset of OpenMP 4.5 and Fortran 2003, and
 solves 136 out of 166 problems from the
 [DataRaceBench](https://github.com/llnl/dataracebench) benchmark suite.
 
@@ -124,7 +124,7 @@ additional source files in order to resolve them. This can be done using
 all source files in a specified directory). 
 
 3. **Resolve Issues**. Stomp often reports genuine bugs. However, it sometimes 
-report false positives, i.e. issues that the user knows are impossible in
+reports false positives, i.e. issues that the user knows are impossible in
 an actual run of the program. A key feature of Stomp is that it allows the user
 to resolve these false positives by adding `!$stomp` directives to the
 code (see [Stomp Directives](#stomp-directives)). These directives allow the
@@ -306,10 +306,6 @@ encounters them. However, it's useful to be aware of the following.
   the same way it would treat an array -- completely ignoring
   the possibility of aliasing. It may also struggle to resolve calls
   to subroutines/functions with pointer arguments.
-
-PSyclone is an active project and improvements to PSyclone are likely to be
-improvements to Stomp too, so it's very worthwhile to keep the PSyclone
-submodule up to date.
 
 ## Acknowledgements
 

@@ -9,7 +9,6 @@ from psyclone.configuration import Config
 from psyclone.parse import ModuleManager
 from psyclone.errors import InternalError
 from psyclone.psyir.frontend.fortran import FortranReader
-from psyclone.psyir.frontend.fparser2 import SUPPORTED_ROUTINE_PREFIXES
 from stomp.preprocessor import enable_preprocessor, preprocess
 from stomp.message import StompLogger, StompMessageCode
 from stomp.main import main
@@ -178,9 +177,6 @@ def entry():
 
     # Disabling unnecessary check in module manager
     mod_manager._doesnt_need_preprocessing = lambda self: True
-
-    # Allow recursive subroutines
-    SUPPORTED_ROUTINE_PREFIXES.append("RECURSIVE")
 
     # Check file extension
     free_form_exts = (".f90", ".f95", ".f03", ".f08",
