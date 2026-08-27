@@ -14,7 +14,7 @@ test:
 	@echo
 	@(cd ../examples && ./run-all.sh)
 	@echo
-	@(cd ../apps/cgyro && ./run-all.sh)
+	@(cd ../apps/cgyro && ./run.sh)
 	@echo
 
 .PHONY: clean
