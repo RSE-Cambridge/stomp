@@ -380,7 +380,9 @@ def check_reduction_clauses(d: OpenMPDirective):
                           StompMessageCode.UnsupportedArrayReduction,
                           description =
                               f"Variable '{x}' is an array. Array reductions "
-                              f"are not yet supported by the checker.",
+                              f"are not yet supported by the checker. "
+                              f"Specify '-e UnsupportedArrayReduction' to "
+                              f"skip this check.",
                           directive_node = d.original_directive)
                       continue
 
@@ -570,7 +572,7 @@ def check_calls(d: OpenMPDirective, assume_pure: set[str] = set()):
                                 f"region. The reason for the resolution "
                                 f"failure is: '{reason}'. "
                                 f"Additional source files can be loaded "
-                                f"using the '-f' and '-F' flags.",
+                                f"using the '-l' and '-L' flags.",
                             directive_node = d.original_directive,
                             node = call)
                         break
