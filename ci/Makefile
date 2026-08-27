@@ -14,8 +14,11 @@ test:
 	@echo
 	@(cd ../examples && ./run-all.sh)
 	@echo
+	@(cd ../apps/cgyro && ./run-all.sh)
+	@echo
 
 .PHONY: clean
 clean:
 	@make -s -C ../benchmarks clean
 	@make -s -C ../examples clean
+	@make -s -C ../apps/cgyro clean

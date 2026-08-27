@@ -1,0 +1,8 @@
+Modules loaded: cgyro_field_mod, cgyro_globals
+Modules not loaded: cgyro_io, iso_c_binding, iso_fortran_env, mpi, omp_lib, parallel_lib, timer_lib
+
+Summary
+Directives found: 34
+Issues found: 0
+SMT queries/timeouts: 18/0
+All checks passed!
