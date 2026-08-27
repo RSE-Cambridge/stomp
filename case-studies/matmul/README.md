@@ -63,3 +63,6 @@ team-local memory. The barrier separates the writes from the subsequent reads.
 However, there is also a path from the reads back round to the writes, which is
 not separated by a barrier. Adding an extra barrier after the read loop solves
 the problem.
+
+For several other, similar, GPU benchmarks check out [examples](/examples/)
+directory.
