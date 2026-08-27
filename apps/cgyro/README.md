@@ -132,4 +132,4 @@ The only file we've been unable to check is `cgyro_nl_fftw.F90`, which contains
 a Fortran `include` statement, not yet supported by Stomp.
 
 Some of the larger files are included in our integration tests (see
-[run.sh](run.sh)).
+[run.sh](run.sh) and the associated [Makefile](Makefile)).
