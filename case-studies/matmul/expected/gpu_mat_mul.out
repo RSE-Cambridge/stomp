@@ -1,0 +1,20 @@
+Modules loaded: mat_mul_kernels
+Modules not loaded: omp_lib
+
+Issue: ScalarDataRace
+Routine: mat_mul_simple
+Directive: '!$omp target teams distribute parallel do collapse(2) !nowai'
+Statement: 'acc = 0'
+Description: Data race in parallel region. Thread (team=0,thread=0) and thread (team=0,thread=1) have conflicting accesses to 'acc'.
+
+Issue: ArrayDataRace
+Routine: mat_mul_cl
+Directive: '!$omp target teams distribute collapse(2) thread_limit(16*16'
+Statement: 'block_a(x,y) = a(k_base + x,row_a_base + y)'
+Description: Data race in parallel region. Thread (team=0,thread=0) and thread (team=0,thread=1) have conflicting accesses to 'block_a(0,0)'.
+
+Summary
+Directives found: 12
+Issues found: 2
+SMT queries/timeouts: 2/0
+All checks completed: yes

@@ -16,6 +16,7 @@ solves 136 out of 166 problems from the
 * [Usage](#usage)
 * [Stomp Directives](#stomp-directives)
 * [Limitations](#limitations)
+* [Case Studies](#case-studies)
 
 ## Installation
 
@@ -306,6 +307,14 @@ encounters them. However, it's useful to be aware of the following.
   the same way it would treat an array -- completely ignoring
   the possibility of aliasing. It may also struggle to resolve calls
   to subroutines/functions with pointer arguments.
+
+## Case Studies
+
+We have a small (hopefully growing) number of case studies, which may be
+useful:
+
+  * [MatMul](case-studies/matmul)
+  * [CGYRO](case-studies/cgyro)
 
 ## Acknowledgements
 

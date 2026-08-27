@@ -2,22 +2,14 @@
 
 # SPDX-License-Identifier: BSD-3-Clause
 
-echo "CGYRO case study"
-echo "================"
-
-# Number of Makefile threads to use
-N_THREADS=$(( $(nproc) / 6 ))
-if [[ "$N_THREADS" == "0" ]]; then
-  N_THREADS="1"
-fi
-
-echo "Making stomp outputs with '-j $N_THREADS'..."
+echo "MatMul case study"
+echo "================="
 
 # Generate stomp outputs
-make -s -j $N_THREADS
+make -s
 
 # Check all outputs
-OUT_FILES=$(ls src/*.out)
+OUT_FILES=$(ls *.out)
 for FILE in $OUT_FILES; do
   EXP_FILE=expected/$(basename $FILE)
   if ! cmp -s $FILE $EXP_FILE; then

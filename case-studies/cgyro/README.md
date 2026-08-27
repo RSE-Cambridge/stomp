@@ -1,4 +1,4 @@
-# CGYRO Case Study
+# CGYRO case study
 
 This is a small case study that applies Stomp to
 [CGYRO](https://github.com/gafusion/gacode), a medium-sized Fortran codebase
