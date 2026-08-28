@@ -85,7 +85,8 @@ The checker finds an off-by-one error in the calculation of `chunk_end`
 allowing parallel writes to the same element of the shared array `arr`, which
 is undefined behaviour in OpenMP.
 
-For more examples, see the [examples](examples/) directory.
+For more examples, see the [examples](examples/) directory and our [case
+studies](#case-studies).
 
 ## Supported Constructs
 
@@ -313,7 +314,7 @@ encounters them. However, it's useful to be aware of the following.
 We have a small (hopefully growing) number of case studies, which may be
 useful:
 
-  * [MatMul](case-studies/matmul)
+  * [GPU benchmarks](case-studies/gpu-benchmarks)
   * [CGYRO](case-studies/cgyro)
 
 ## Acknowledgements

@@ -16,7 +16,7 @@ test:
 	@echo
 	@(cd ../case-studies/cgyro && ./run.sh)
 	@echo
-	@(cd ../case-studies/matmul && ./run.sh)
+	@(cd ../case-studies/gpu-benchmarks && ./run-all.sh)
 	@echo
 
 .PHONY: clean
@@ -24,4 +24,4 @@ clean:
 	@make -s -C ../benchmarks clean
 	@make -s -C ../examples clean
 	@make -s -C ../case-studies/cgyro clean
-	@make -s -C ../case-studies/matmul clean
+	@make -s -C ../case-studies/gpu-benchmarks clean

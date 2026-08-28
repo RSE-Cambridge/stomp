@@ -1,0 +1,8 @@
+Modules loaded: mat_mul_kernels
+Modules not loaded: omp_lib
+
+Summary
+Directives found: 13
+Issues found: 0
+SMT queries/timeouts: 4/0
+All checks passed!

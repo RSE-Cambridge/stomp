@@ -2,8 +2,8 @@
 
 # SPDX-License-Identifier: BSD-3-Clause
 
-echo "Running stomp on all examples"
-echo "============================="
+echo "GPU benchmarks case study"
+echo "========================="
 
 # Number of Makefile threads to use
 N_THREADS=$(( $(nproc) / 4 ))
@@ -17,7 +17,7 @@ echo "Making stomp outputs with '-j $N_THREADS'..."
 make -s -j $N_THREADS gen
 
 # Check all outputs
-OUT_DIRS="out_f90 out_F90"
+OUT_DIRS="out_F90"
 for OUT_DIR in $OUT_DIRS; do
   OUT_FILES=$(ls $OUT_DIR/*.out)
   for FILE in $OUT_FILES; do

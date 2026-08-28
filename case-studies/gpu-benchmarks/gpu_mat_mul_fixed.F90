@@ -13,7 +13,7 @@ contains
     integer, intent(out) :: c(:,:)
     integer :: row_a, col_b, acc, k
     !$omp target teams &
-    !$omp&       distribute parallel do collapse(2) &
+    !$omp&       distribute parallel do collapse(2) private(acc) &
     !$omp&       !nowait depend(in: a, b) depend(out: c)
     do row_a = 1, size(a, 2)
       do col_b = 1, size(b, 1)

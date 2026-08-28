@@ -1,9 +1,8 @@
 # CGYRO case study
 
-This is a small case study that applies Stomp to
-[CGYRO](https://github.com/gafusion/gacode), a medium-sized Fortran codebase
-(around 20K LoC) developed by atomic energy researchers which heavily uses
-OpenMP for GPU offload.
+This case study applies Stomp to [CGYRO](https://github.com/gafusion/gacode), a
+medium-sized Fortran codebase (around 20K LoC) developed by fusion researchers
+which heavily utilises OpenMP for GPU offload.
 
 First, we clone the repo
 
@@ -17,8 +16,7 @@ and move to the directory containing the CGYRO code:
 ▶ cd gacode/cgyro/src
 ```
 
-Starting small
---------------
+## Starting small
 
 A good place to start is `cgryo_source.f90`, which is a small 68-line file
 containing OpenMP directives.
@@ -46,8 +44,7 @@ or OpenACC directives.  To check the OpenMP/GPU directives, we define CGYRO's
 
 which returns the same output as before.
 
-Resolving imported symbols
---------------------------
+## Resolving imported symbols
 
 Moving on to the slightly larger 107-line `cgyro_shear_hammett.F90`
 
@@ -67,7 +64,7 @@ Description: Unresolved function (or array) symbol 'ic_c' in parallel region. Th
 It has found an array symbol in a parallel region that has not been resolved.
 (Note that PSyclone mistakenly refers to this as a function symbol; this is
 because function invocation and array indexing have identical syntax in
-Fortran.) As the messages indicates, the symbol likely comes from the
+Fortran.) As the message indicates, the symbol likely comes from the
 `cgyro_globals` module. The issue can be fixed by adding the file containing
 this module via Stomp's `-l` flag:
 
@@ -85,12 +82,10 @@ All checks passed!
 
 Multiple `-l` options can be provided to load multiple files, if required.
 
-Adding Stomp directives
------------------------
+## Adding Stomp directives
 
-We can continue in the above fashion and sucessfully check the vast majority of
-CGYRO source files. However, Stomp reports data races in
-`cgyro_nl_comm.F90` including, for example:
+We can sucessfully check the vast majority of CGYRO source files. However,
+Stomp reports data races in `cgyro_nl_comm.F90` including, for example:
 
 ```
 Issue: ArrayDataRace
@@ -103,11 +98,10 @@ Description: Data race in parallel region. Thread (team=0,thread=0) and thread (
 A closer look at the source code reveals some implicit assumptions in the code.
 Making these assumptions explicit via Stomp directives, as shown in this
 [diff](https://github.com/mn416/gacode/commit/5150a6174472672de458a2a1ed8de677f7b1f818),
-resolves the issues. These assumptions are likely valid, but that would be
+resolves the issues. These assumptions are likely valid but that would be
 best confirmed by the CGYRO developers.
 
-Summary
--------
+## Summary
 
 Overall, at the time of writing, we have checked the following CGYRO files.
 

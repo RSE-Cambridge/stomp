@@ -48,7 +48,7 @@ contains
         !$omp barrier
 
         if (x > 0 .and. x < TILE_SIZE-1) then
-          do y = 1, TILE_SIZE-2
+          do y = 1, TILE_SIZE-1
             total =        blk(x, y-1) +              &
               blk(x-1,y) + blk(x, y  ) + blk(x+1, y)  &
                          + blk(x, y+1)
