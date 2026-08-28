@@ -100,9 +100,7 @@ def sym_has_field(sym: Symbol, field_name: str) -> bool:
     field name present.'''
     seen = set()
     while True:
-        if hasattr(sym, "is_threadprivate"):
-            return True
-        if hasattr(sym, "is_threadsafe"):
+        if hasattr(sym, field_name):
             return True
         elif isinstance(sym.interface, ImportInterface):
             con_sym = sym.interface.container_symbol
