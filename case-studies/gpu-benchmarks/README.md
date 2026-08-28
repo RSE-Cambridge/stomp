@@ -112,18 +112,15 @@ is due to an off-by-one error. Both issues are fixed with the following patch.
 
 ## Summary
 
-Overall, we have applied Stomp to the following files.
+Overall, we have applied Stomp to the following files:
 
- | File                                           | Directives | SMT queries |
- | ---------------------------------------------- | ---------- | ----------- |
- | [gpu_histogram.F90](gpu_histogram.F90)         | 23         | 6           |
- | [gpu_mat_mul.F90](gpu_mat_mul.F90)             | 12         | 2           |
- | [gpu_mat_mul_fixed.F90](gpu_mat_mul_fixed.F90) | 13         | 4           |
- | [gpu_motion_est.F90](gpu_motion_est.F90)       | 14         | 5           |
- | [gpu_stencil.F90](gpu_stencil.F90)             | 12         | 3           |
- | [gpu_stencil_fixed.F90](gpu_stencil_fixed.F90) | 12         | 3           |
- | [gpu_transpose.F90](gpu_transpose.F90)         | 12         | 3           |
- | Total                                          | 98         | 26          |
+* [gpu_histogram.F90](gpu_histogram.F90)
+* [gpu_mat_mul.F90](gpu_mat_mul.F90)
+* [gpu_mat_mul_fixed.F90](gpu_mat_mul_fixed.F90)
+* [gpu_motion_est.F90](gpu_motion_est.F90)
+* [gpu_stencil.F90](gpu_stencil.F90)
+* [gpu_stencil_fixed.F90](gpu_stencil_fixed.F90)
+* [gpu_transpose.F90](gpu_transpose.F90)
 
 These files are all included in our integration tests (see [run.sh](run.sh)
 and the associated [Makefile](Makefile)).

@@ -103,27 +103,21 @@ best confirmed by the CGYRO developers.
 
 ## Summary
 
-Overall, at the time of writing, we have checked the following CGYRO files.
+Overall, we have succesfully applied Stomp to the following CGYRO files:
 
-  | File                               | Directives | SMT queries |
-  | ---------------------------------- | ---------- | ----------- |
-  | `cgyro_source.F90`                 | 2          | 3           |
-  | `cgyro_shear_hammett.F90`          | 2          | 4           |
-  | `cgyro_globalshear.F90`            | 2          | 1           |
-  | `cgyro_init_h.F90`                 | 5          | 5           |
-  | `cgyro_init_collision_landau.F90`  | 12         | 11          |
-  | `cgyro_math.F90`                   | 36         | 21          |
-  | `cgyro_parallel_lib.F90`           | 50         | 3           |
-  | `cgyro_step_collision.F90`         | 22         | 10          |
-  | `cgyro_rhs.F90`                    | 8          | 6           |
-  | `cgyro_nl_comm.F90`                | 34         | 18          |
-  | `cgyro_error_estimate.F90`         | 4          | 1           |
-  | `cgyro_init_arrays.F90`            | 16         | 12          |
-  | `cgyro_zftest_em.f90`              | 10         | 3           |
-  | Total                              | 203        | 98          |
+  * `cgyro_source.F90`
+  * `cgyro_shear_hammett.F90`
+  * `cgyro_globalshear.F90`
+  * `cgyro_init_h.F90`
+  * `cgyro_init_collision_landau.F90`
+  * `cgyro_math.F90`
+  * `cgyro_parallel_lib.F90`
+  * `cgyro_step_collision.F90`
+  * `cgyro_rhs.F90`
+  * `cgyro_nl_comm.F90`
+  * `cgyro_error_estimate.F90`
+  * `cgyro_init_arrays.F90`
+  * `cgyro_zftest_em.f90`
 
-The only file we've been unable to check is `cgyro_nl_fftw.F90`, which contains
-a Fortran `include` statement, not yet supported by Stomp.
-
-Some of the larger files are included in our integration tests (see
-[run.sh](run.sh) and the associated [Makefile](Makefile)).
+Some of these are included in our integration tests (see [run.sh](run.sh) and
+the associated [Makefile](Makefile)).
