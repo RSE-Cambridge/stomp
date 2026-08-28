@@ -103,7 +103,7 @@ best confirmed by the CGYRO developers.
 
 ## Summary
 
-Overall, we have succesfully applied Stomp to the following CGYRO files:
+We have succesfully applied Stomp to the following CGYRO files:
 
   * `cgyro_source.F90`
   * `cgyro_shear_hammett.F90`

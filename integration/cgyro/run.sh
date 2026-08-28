@@ -2,8 +2,8 @@
 
 # SPDX-License-Identifier: BSD-3-Clause
 
-echo "CGYRO case study"
-echo "================"
+echo "Running integration tests (CGYRO)"
+echo "================================="
 
 # Number of Makefile threads to use
 N_THREADS=$(( $(nproc) / 6 ))

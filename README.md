@@ -16,7 +16,6 @@ solves 136 out of 166 problems from the
 * [Usage](#usage)
 * [Stomp Directives](#stomp-directives)
 * [Limitations](#limitations)
-* [Case Studies](#case-studies)
 
 ## Installation
 
@@ -85,8 +84,7 @@ The checker finds an off-by-one error in the calculation of `chunk_end`
 allowing parallel writes to the same element of the shared array `arr`, which
 is undefined behaviour in OpenMP.
 
-For more examples, see the [examples](examples/) directory and our [case
-studies](#case-studies).
+For more examples, see the [examples](examples/) directory.
 
 ## Supported Constructs
 
@@ -308,14 +306,6 @@ encounters them. However, it's useful to be aware of the following.
   the same way it would treat an array -- completely ignoring
   the possibility of aliasing. It may also struggle to resolve calls
   to subroutines/functions with pointer arguments.
-
-## Case Studies
-
-We have a small (hopefully growing) number of case studies, which may be
-useful:
-
-  * [GPU benchmarks](case-studies/gpu-benchmarks)
-  * [CGYRO](case-studies/cgyro)
 
 ## Acknowledgements
 
