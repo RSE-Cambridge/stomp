@@ -63,7 +63,7 @@ Description: Unresolved function (or array) symbol 'ic_c' in parallel region. Th
 
 It has found an array symbol in a parallel region that has not been resolved.
 (Note that PSyclone mistakenly refers to this as a function symbol; this is
-because function invocation and array indexing have identical syntax in
+because function application and array indexing have identical syntax in
 Fortran.) As the message indicates, the symbol likely comes from the
 `cgyro_globals` module. The issue can be fixed by adding the file containing
 this module via Stomp's `-l` flag:
