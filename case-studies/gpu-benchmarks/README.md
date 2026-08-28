@@ -100,6 +100,7 @@ issue message shows that the team ids are different, not the thread ids). This
 is due to an off-by-one error. Both issues are fixed with the following patch.
 
 ```diff
+15c15
 <     !$omp&       distribute parallel do collapse(2) &
 ---
 >     !$omp&       distribute parallel do collapse(2) private(total) &
