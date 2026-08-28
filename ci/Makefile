@@ -14,11 +14,11 @@ test:
 	@echo
 	@(cd ../examples && ./run-all.sh)
 	@echo
-	@(cd ../integration/cgyro && ./run.sh)
+	@(cd ../integration-tests/cgyro && ./run.sh)
 	@echo
 
 .PHONY: clean
 clean:
 	@make -s -C ../benchmarks clean
 	@make -s -C ../examples clean
-	@make -s -C ../integration/cgyro clean
+	@make -s -C ../integration-tests/cgyro clean
