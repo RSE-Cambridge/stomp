@@ -137,7 +137,10 @@ def entry():
     # ========
 
     # Avoid loading the PSyclone config file
-    Config.get(do_not_load_file=True)
+    config = Config.get(do_not_load_file=True)
+
+    # Specify Fortran 2008
+    config._fortran_standard = "f2008"
 
     # Create module manager
     mod_manager = ModuleManager.get()

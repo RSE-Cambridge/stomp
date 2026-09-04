@@ -173,16 +173,12 @@ class FortranToZ3:
                                       m-right_smt, m))
 
                     if self.use_bv:
-                        # TODO: when fparser supports shift operations (#428),
-                        # we can uncomment test and remove the "no cover"
-                        # block
-                        if True:  # pragma: no cover
-                            if e.intrinsic == IntrinsicCall.Intrinsic.SHIFTL:
-                                return left_smt << right_smt
-                            if e.intrinsic == IntrinsicCall.Intrinsic.SHIFTR:
-                                return z3.LShR(left_smt, right_smt)
-                            if e.intrinsic == IntrinsicCall.Intrinsic.SHIFTA:
-                                return left_smt >> right_smt
+                        if e.intrinsic == IntrinsicCall.Intrinsic.SHIFTL:
+                            return left_smt << right_smt
+                        if e.intrinsic == IntrinsicCall.Intrinsic.SHIFTR:
+                            return z3.LShR(left_smt, right_smt)
+                        if e.intrinsic == IntrinsicCall.Intrinsic.SHIFTA:
+                            return left_smt >> right_smt
                         if e.intrinsic == IntrinsicCall.Intrinsic.IAND:
                             return left_smt & right_smt
                         if e.intrinsic == IntrinsicCall.Intrinsic.IOR:
@@ -190,25 +186,21 @@ class FortranToZ3:
                         if e.intrinsic == IntrinsicCall.Intrinsic.IEOR:
                             return left_smt ^ right_smt
                     else:
-                        # TODO: when fparser supports shift operations (#428),
-                        # we can uncomment tests and remove the "no cover"
-                        # block
-                        if True:  # pragma: no cover
-                            if e.intrinsic == IntrinsicCall.Intrinsic.SHIFTL:
-                                return z3.BV2Int(
-                                         z3.Int2BV(left_smt, self.int_width) <<
-                                         z3.Int2BV(right_smt, self.int_width),
-                                         is_signed=True)
-                            if e.intrinsic == IntrinsicCall.Intrinsic.SHIFTR:
-                                return z3.BV2Int(z3.LShR(
-                                         z3.Int2BV(left_smt, self.int_width),
-                                         z3.Int2BV(right_smt, self.int_width)),
-                                         is_signed=True)
-                            if e.intrinsic == IntrinsicCall.Intrinsic.SHIFTA:
-                                return z3.BV2Int(
-                                         z3.Int2BV(left_smt, self.int_width) >>
-                                         z3.Int2BV(right_smt, self.int_width),
-                                         is_signed=True)
+                        if e.intrinsic == IntrinsicCall.Intrinsic.SHIFTL:
+                            return z3.BV2Int(
+                                     z3.Int2BV(left_smt, self.int_width) <<
+                                     z3.Int2BV(right_smt, self.int_width),
+                                     is_signed=True)
+                        if e.intrinsic == IntrinsicCall.Intrinsic.SHIFTR:
+                            return z3.BV2Int(z3.LShR(
+                                     z3.Int2BV(left_smt, self.int_width),
+                                     z3.Int2BV(right_smt, self.int_width)),
+                                     is_signed=True)
+                        if e.intrinsic == IntrinsicCall.Intrinsic.SHIFTA:
+                            return z3.BV2Int(
+                                     z3.Int2BV(left_smt, self.int_width) >>
+                                     z3.Int2BV(right_smt, self.int_width),
+                                     is_signed=True)
                         if e.intrinsic == IntrinsicCall.Intrinsic.IAND:
                             return z3.BV2Int(
                                 z3.Int2BV(left_smt, self.int_width) &
