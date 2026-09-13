@@ -300,24 +300,24 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         self.smt_num_threads_var = smt_num_threads_var
 
         # Bounds on variables
-        self._add_constraint(smt_team_var_i >= 0)
-        self._add_constraint(smt_team_var_j >= 0)
-        self._add_constraint(smt_thread_var_i >= 0)
-        self._add_constraint(smt_thread_var_j >= 0)
         self._add_constraint(smt_num_teams_var > 0)
+        self._add_constraint(smt_team_var_i >= 0)
+        self._add_constraint(smt_team_var_i < smt_num_teams_var)
+        self._add_constraint(smt_team_var_j >= 0)
+        self._add_constraint(smt_team_var_j < smt_num_teams_var)
         self._add_constraint(smt_num_threads_var > 0)
+        self._add_constraint(smt_thread_var_i >= 0)
+        self._add_constraint(smt_thread_var_i < smt_num_threads_var)
+        self._add_constraint(smt_thread_var_j >= 0)
+        self._add_constraint(smt_thread_var_j < smt_num_threads_var)
         if "num_teams" in region.clauses:
             n = self._translate_integer_expr_with_subst(
                     region.clauses["num_teams"])
             self._add_constraint(smt_num_teams_var == n)
-            self._add_constraint(smt_team_var_i < n)
-            self._add_constraint(smt_team_var_j < n)
         if "thread_limit" in region.clauses:
             n = self._translate_integer_expr_with_subst(
                     region.clauses["thread_limit"])
             self._add_constraint(smt_num_threads_var <= n)
-            self._add_constraint(smt_thread_var_i < n)
-            self._add_constraint(smt_thread_var_j < n)
 
         # Constrain team to 0 if no teams directive present
         if "teams" not in region.clauses:
