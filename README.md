@@ -46,7 +46,7 @@ subroutine prefix_sum_chunks(arr)
   !$omp parallel
     ! The number of chunks is equal to the number of threads
     !$omp single
-      chunk_size = omp_get_num_threads() / size(arr)
+      chunk_size = size(arr) / omp_get_num_threads()
     !$omp end single
 
     ! Compute the prefix sum of each chunk
