@@ -17,7 +17,8 @@ Msg = StompMessageCode
 
 def stomp_test(code: str,
                expected_msgs: List[StompMessageCode],
-               infer: bool = False):
+               infer: bool = False,
+               check_bounds: bool = False):
     '''Function to check that the given code yeilds the given messages.'''
     # Avoid loading the PSyclone config file
     Config.get(do_not_load_file=True)
@@ -45,7 +46,7 @@ def stomp_test(code: str,
     parse_module_spec_directives(code, psyir)
 
     # Invoke the tool
-    main(psyir, infer=infer)
+    main(psyir, infer=infer, check_bounds=check_bounds)
 
     # Check messages
     msgs = [msg.code for msg in StompLogger.get_messages()]

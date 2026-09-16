@@ -30,6 +30,10 @@ def entry():
         help="infer parallel loops",
         action="store_true")
     arg_parser.add_argument(
+        "--check-bounds",
+        help="check for out-of-bounds accesses",
+        action="store_true")
+    arg_parser.add_argument(
         "-l",
         help="load given Fortran file for import resolution",
         metavar="FILE",
@@ -268,7 +272,8 @@ def entry():
     result = main(psyir,
                   infer=args.infer,
                   assume_pure=args.threadsafe,
-                  solver_options=solver_opts)
+                  solver_options=solver_opts,
+                  check_bounds=args.check_bounds)
 
     # Generate output
     note = ""

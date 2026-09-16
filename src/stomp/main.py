@@ -27,7 +27,8 @@ class MainResult:
 def main(psyir,
          infer: bool = False,
          assume_pure: List[str] = [],
-         solver_options: Optional[SMTSolverOptions] = None) -> MainResult:
+         solver_options: Optional[SMTSolverOptions] = None,
+         check_bounds: bool = False) -> MainResult:
     # Create initial return value
     result = MainResult()
 
@@ -97,7 +98,7 @@ def main(psyir,
         checks.check_uninitialised_read(d)
 
     # Data race checks
-    checks.check_data_races(psyir, solver_options)
+    checks.check_data_races(psyir, solver_options, check_bounds)
 
     # Lone SIMD loop data race checks
     checks.check_simd_loops(psyir, solver_options)
