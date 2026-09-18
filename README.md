@@ -5,7 +5,7 @@ Stomp is a static checker for Fortran OpenMP directives based on
 Fortran code developed by Met Office partners) and
 [Z3](https://github.com/z3prover/z3) (a theorem prover from Microsoft
 Research). It supports a subset of OpenMP 4.5 and Fortran 2003, and
-solves 136 out of 166 problems from the
+solves 137 out of 166 problems from the
 [DataRaceBench](https://github.com/llnl/dataracebench) benchmark suite.
 
 ## Contents
@@ -131,9 +131,15 @@ code (see [Stomp Directives](#stomp-directives)). These directives allow the
 programmer to specify (and document) their assumptions, and to use the checker
 to ensure that the code is indeed safe under these assumptions.
 
-When satisified, Stomp will report `All checks passed!`.  It can also
-suggest loops for parallelisation, which are not already annotated with OpenMP
-directives, when the `--infer` flag is provided.
+When satisified, Stomp will report `All checks passed!`.
+
+Additional features can be enabled with command-line flags:
+
+* `--check-bounds` will check for out-of-bounds array accesses in parallel
+  regions.
+
+* `--infer` will report loops that can be safely parallelised, which are not
+  aready marked as parallel.
 
 For more detailed usage information, run `stomp --help`.
 
@@ -293,13 +299,13 @@ encounters them. However, it's useful to be aware of the following.
   analysis, are being considered for future versions.
 
 * The PSyclone intermediate representation is incomplete: some
-  Fortran constructs, such as `print` statements and `block` statements,
-  get represented as so-called `CodeBlock`s. When analysing a `CodeBlock`,
-  PSyclone assumes the worst, e.g. all variables referenced inside the block
-  are considered to be read and written. This can lead to unnecessary
-  false positives. The `!$stomp abstract` directive can be used to abstract
-  over blocks of code that PSyclone does not understand -- see
-  [Stomp Directives](#stomp-directives).
+  Fortran constructs (such as `print` statements, `block` statements, and
+  `associate` statements) get represented as so-called `CodeBlock`s. When
+  analysing a `CodeBlock`, PSyclone assumes the worst, e.g. all variables
+  referenced inside the block are considered to be read and written. This
+  can lead to unnecessary false positives. The `!$stomp abstract` directive
+  can be used to abstract over blocks of code that PSyclone does not
+  understand -- see [Stomp Directives](#stomp-directives).
 
 * PSyclone and Stomp do not yet have good support for Fortran pointers.
   Stomp will, for example, treat a pointer to array in much

@@ -18,6 +18,7 @@ from stomp.openmp_directives import \
 from stomp.message import StompMessageCode, StompLogger
 from stomp.fortran_to_z3 import \
     FortranToZ3, TranslationNotSupported
+from stomp.array_index_analysis import Conflict, BoundsError
 from stomp.loop_conflict_analysis import \
     LoopConflictAnalysis, LoopConflictAnalysisOptions
 from stomp.region_conflict_analysis import \
@@ -410,8 +411,9 @@ def check_reduction_clauses(d: OpenMPDirective):
 # ================
 
 
-def check_data_races(psyir: Node, 
-                     solver_options: Optional[SMTSolverOptions] = None):
+def check_data_races(psyir: Node,
+                     solver_options: Optional[SMTSolverOptions] = None,
+                     check_bounds: bool = False):
     '''Check all OpenMP teams/parallel regions for data races,
     where at least two accesses (one of which is a write)
     access the same indices of the same array in different threads,
@@ -440,21 +442,32 @@ def check_data_races(psyir: Node,
                 opts.int_width = solver_options.bit_vec_width
                 opts.prohibit_overflow = opts.use_bv
             analysis = RegionConflictAnalysis(opts)
-            conflicts = analysis.get_region_conflicts(d)
+            conflicts = analysis.get_region_conflicts(
+                            d, check_bounds=check_bounds)
             for c in conflicts:
-                if c.msg is None:
-                    continue
-                if c.is_scalar:
-                    code = StompMessageCode.ScalarDataRace
-                else:
-                    code = StompMessageCode.ArrayDataRace
-                StompLogger.add_message(
-                    code,
-                    description = "Data race in "
-                        "parallel region. " + c.msg + ".",
-                    directive_node = d.original_directive,
-                    node = c.node,
-                    routine_name = routine.name)
+                if isinstance(c, Conflict):
+                    if c.msg is None:
+                        continue
+                    if c.is_scalar:
+                        code = StompMessageCode.ScalarDataRace
+                    else:
+                        code = StompMessageCode.ArrayDataRace
+                    StompLogger.add_message(
+                        code,
+                        description = "Data race in "
+                            "parallel region. " + c.msg + ".",
+                        directive_node = d.original_directive,
+                        node = c.node,
+                        routine_name = routine.name)
+                elif isinstance(c, BoundsError):
+                    if c.msg is None:
+                        continue
+                    StompLogger.add_message(
+                        StompMessageCode.OutOfBounds,
+                        description = c.msg + ".",
+                        directive_node = d.original_directive,
+                        node = c.node,
+                        routine_name = routine.name)
 
 
 # SIMD loop checks

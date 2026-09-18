@@ -6,7 +6,7 @@ supports translation of scalar integer and scalar logical expressions.'''
 import z3
 import random
 import threading
-from typing import Optional
+from typing import Optional, Tuple, List
 from psyclone.psyir.nodes import \
     Literal, Reference, UnaryOperation, BinaryOperation, \
     IntrinsicCall, Node, ArrayReference, Call
@@ -231,13 +231,12 @@ class FortranToZ3:
 
                 # Array intrinsics
                 if self.handle_array_intrins:
-                    array_intrins_pair = self.translate_array_intrinsic_call(e)
-                    if array_intrins_pair:
+                    var_name = self.translate_array_intrinsic_call(e)
+                    if var_name:
                         if self.use_bv:
-                            return z3.BitVec(
-                                array_intrins_pair[1], self.int_width)
+                            return z3.BitVec(var_name, self.int_width)
                         else:
-                            return z3.Int(array_intrins_pair[1])
+                            return z3.Int(var_name)
 
             # Call
             if isinstance(e, Call):
@@ -347,44 +346,79 @@ class FortranToZ3:
         expr_root_smt = trans(expr_root)
         return (expr_root_smt, constraints)
 
-    def translate_array_intrinsic_call(self, call: IntrinsicCall) \
-            -> (str, str):
-        '''Translate array intrinsic call to an array name and a scalar
-           integer variable name. Only a small number of important array
-           intrinsics are recognised, such as 'size', 'lbound', and 'ubound'.
+    def lbound_name(self, array_name: str, array_dim: str) -> str:
+        '''Return name for integer variable representing the lower bound
+           in the given dimension of the array with the given name.'''
+        return f"#lbound_{array_name}_{array_dim}"
 
-           :param call: the intrinsic call being transatled to SMT.
-           :return: a pair containing the name of the array on which
-              the intrinsic is being applied, and a scalar integer
-              variable name representing the result of the intrinsic.
-              If the intrinisic call is not recognised then None is returned.
-        '''
-        if call.intrinsic == IntrinsicCall.Intrinsic.SIZE:
-            var = "#size"
-        elif call.intrinsic == IntrinsicCall.Intrinsic.LBOUND:
-            var = "#lbound"
-        elif call.intrinsic == IntrinsicCall.Intrinsic.UBOUND:
-            var = "#ubound"
+    def ubound_name(self, array_name: str, array_dim: str) -> str:
+        '''Return name for integer variable representing the upper bound
+           in the given dimension of the array with the given name.'''
+        return f"#ubound_{array_name}_{array_dim}"
+
+    def size_name(self,
+                  array_name: str,
+                  array_dim: Optional[str] = None) -> str:
+        '''Return name for integer variable representing the size
+           of the given dimension of the array with the given name.'''
+        if array_dim is None:
+            return f"#size_{array_name}"
         else:
+            return f"#size_{array_name}_{array_dim}"
+
+    def get_bounds_names(
+            self,
+            array_name: str,
+            array_rank) -> Tuple[List[Tuple[str, str, str]], str]:
+        '''Return names for integer variables representing the lower bound,
+           upper bound, and size, in each dimension for an array with the
+           given name and rank. Also return a name for the integer
+           variable representing the full size over all dimensions.
+        '''
+        dims = [
+           (self.lbound_name(array_name, i),
+            self.ubound_name(array_name, i),
+            self.size_name(array_name, i))
+           for i in range(1, array_rank+1)]
+        return (dims, self.size_name(array_name))
+
+    def translate_array_intrinsic_call(self, call: IntrinsicCall) \
+            -> Optional[str]:
+        '''Translate array intrinsic call (one of 'size', 'lbound', 
+           and 'ubound') to an integer SMT variable.
+        '''
+        if call.intrinsic not in [IntrinsicCall.Intrinsic.LBOUND,
+                                  IntrinsicCall.Intrinsic.UBOUND,
+                                  IntrinsicCall.Intrinsic.SIZE]:
             return None
-
-        if (len(call.children) != 2 and len(call.children) != 3):
+        # We require 2 or more children
+        if len(call.children) < 2:
             return None  # pragma: no cover
-
+        # We require the first argument to be a Reference
         array = call.children[1]
-        if isinstance(array, Reference):
-            (sig, indices) = array.get_signature_and_indices()
-            indices_flat = [i for inds in indices for i in inds]
-            if indices_flat == [] and len(sig) == 1:
-                var = var + "_" + sig.var_name
-                if len(call.children) == 3:
-                    rank = call.children[2]
-                    if isinstance(rank, Literal):
-                        var = var + "_" + rank.value
-                    else:
-                        return None
-                return (sig.var_name, var)
-
+        if not isinstance(array, Reference):
+            return None
+        # We don't handle structure accessors at the moment
+        (sig, indices) = array.get_signature_and_indices()
+        if len(sig) > 1: return None
+        name = str(sig)
+        # Translate full-size call
+        if len(call.children) == 2:
+            if call.intrinsic == IntrinsicCall.Intrinsic.SIZE:
+                return self.size_name(name)
+            else:
+                return None
+        # Translate other calls
+        if len(call.children) != 3:
+            return None
+        rank = call.children[2]
+        if isinstance(rank, Literal):
+            if call.intrinsic == IntrinsicCall.Intrinsic.LBOUND:
+                return self.lbound_name(name, rank.value)
+            elif call.intrinsic == IntrinsicCall.Intrinsic.UBOUND:
+                return self.ubound_name(name, rank.value)
+            elif call.intrinsic == IntrinsicCall.Intrinsic.SIZE:
+                return self.size_name(name, rank.value)
         return None
 
     def solve(self,

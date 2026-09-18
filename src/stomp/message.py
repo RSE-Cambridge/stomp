@@ -31,6 +31,7 @@ class StompMessageCode(Enum):
     ModuleLoadFailure             = auto()
     NonRectangularLoop            = auto()
     OpenMPParseError              = auto()
+    OutOfBounds                   = auto()
     PSyIRLimitation               = auto()
     ReadUninitialisedPrivate      = auto()
     ScalarDataRace                = auto()

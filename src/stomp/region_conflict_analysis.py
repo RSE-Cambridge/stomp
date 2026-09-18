@@ -6,7 +6,7 @@ problem as a set of SMT constraints over array indices which are then are
 passed to the Z3 solver.'''
 
 import z3
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Union
 from psyclone.psyir.nodes import \
     Loop, IntrinsicCall, Routine, Node, Schedule, Statement
 from psyclone.core import Signature, AccessInfo
@@ -16,7 +16,7 @@ from stomp.openmp_directives import \
     get_sections
 from stomp.array_index_analysis import \
     ArrayIndexAnalysisOptions, ArrayIndexAnalysis, ArrayAccess, \
-    _is_scalar_integer, _is_scalar_logical, Conflict, \
+    _is_scalar_integer, _is_scalar_logical, Conflict, BoundsError, \
     prune_accesses
 from stomp.fortran_to_z3 import FortranToZ3
 from stomp.control_flow import \
@@ -209,14 +209,16 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
 
     def get_region_conflicts(self,
                              region: OpenMPDirective,
-                             all_conflicts: bool = False) -> \
-            list[Tuple[Signature, Optional[str]]]:
+                             all_conflicts: bool = False,
+                             check_bounds: bool = False) -> \
+            list[Union[Conflict, BoundsError]]:
         '''Determine whether or not distinct threads of the given region
            can generate conflicting array accesses.
 
            :param region: region to be analysed.
            :param all_conflicts: if True, enumerate all conflicts, otherwise
               stop after the first conflict. Defaults to False.
+           :param check_bounds: if True, return out-of-bounds errors too.
            :return: a list pairs array-name/message pairs. If the list
               is empty, the loop is conflict free. If the solver times out,
               the message is None.
@@ -268,12 +270,13 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
                          prohibit_overflow=self.opts.prohibit_overflow,
                          handle_array_intrins=self.opts.handle_array_intrins)
 
-        # Initialise array intrinsic variables
-        self._init_array_intrins_vars(routine)
+        # Initialise array bounds/sizes
+        self._init_array_bounds(routine)
 
         # Find region of interest
         for stmt in routine.children:
             self._step(stmt, z3.BoolVal(True))
+            if self.finished: break
         if not self.in_region_of_interest:
             raise RuntimeError("RegionConflictAnalysis: could not find "
                 "region of interest in routine.")
@@ -361,7 +364,9 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
             self.parallel_do_vars = []
             self.distribute_vars = []
             # Analyse region
+            self._save_subst()
             self._step(region, self.region_cond)
+            self._restore_subst()
             # Save results of analysis
             parallel_do_vars_per_thread.append(self.parallel_do_vars)
             distribute_vars_per_thread.append(self.distribute_vars)
@@ -418,6 +423,14 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         if not conflicts or all_conflicts:
             conflicts.extend(self._get_conflicts(
                 array_candidates, all_conflicts))
+
+        # Add any out-of-bounds errors found
+        if check_bounds and not conflicts or all_conflicts:
+            bounds_errors = self._get_bounds_errors(
+                                self.saved_access_dicts[0].values(),
+                                all_conflicts)
+            conflicts.extend(bounds_errors)
+
         return conflicts
 
 
@@ -535,6 +548,78 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         else:
             return None
 
+    def _get_bounds_errors(self,
+                           accs_list: list[list[ArrayAccess]],
+                           all_errors: bool) -> List[BoundsError]:
+        '''Get all bounds errors in the given access list.'''
+        bounds_errors = []
+        for accs in accs_list:
+            for acc in accs:
+                error = self._get_bounds_error(acc)
+                if error:
+                    bounds_errors.append(error)
+                    if not all_errors:
+                        return bounds_errors
+        return bounds_errors
+
+    def _get_bounds_error(self, acc: ArrayAccess) -> \
+            Optional[Conflict]:
+        '''Get the bounds error of the given access, if there is one.
+
+           :param acc: array access to check.
+           :return: a description of the bounds error if a one exists
+              or 'None' otherwise. If the solver times out then the
+              bounds error message is 'None'.
+        '''
+        if acc.is_scalar: return None
+        if not acc.bounds: return None
+        bounds_checks = []
+        indices_flat = [i for inds in acc.indices for i in inds]
+        for (idx, bound) in zip(indices_flat, acc.bounds):
+            bounds_checks.append(
+                [acc.cond, z3.Or(idx < bound[0], idx > bound[1])])
+        if not bounds_checks: return None
+
+        # Invoke solver
+        ProgressReporter.begin("Running SMT query...")
+        (result, result_values) = self.trans.solve(
+            self.constraints,
+            bounds_checks,
+            [ind for inds in acc.indices for ind in inds],
+            smt_timeout_ms = self.opts.smt_timeout_ms,
+            num_sweep_threads = self.opts.num_sweep_threads,
+            sweep_seed = self.opts.sweep_seed
+            )
+        ProgressReporter.end()
+        StompLogger.log_smt_query()
+
+        # Determine return value
+        (sig, sig_inds) = (acc.name, acc.indices)
+        if result == z3.sat:
+            # Produce message
+            components = []
+            sig_fields = [sig[i] for i in range(len(sig))]
+            for (field, inds) in zip(sig_fields, sig_inds):
+                vals = []
+                for ind in inds:
+                    if result_values:
+                        vals.append(str(result_values.pop(0)))
+                if vals:
+                    components.append(field + '(' + ','.join(vals) + ')')
+                else:
+                    components.append(field)
+            access_str = '%'.join(components)
+            msg = f"Out-of-bounds access to '{access_str}'"
+            return BoundsError(sig, msg, acc.psyir_node)
+        elif result == z3.unknown:  # pragma: no cover
+            StompLogger.log_smt_timeout()
+            if self.opts.succeed_on_timeout:
+                return None
+            else:
+                return BoundsError(sig, None, acc.psyir_node)
+        else:
+            return None
+
     def _step(self, stmt: Node, cond: z3.BoolRef):
         '''Analyse the given statement in recursive-descent fashion.'''
 
@@ -555,6 +640,7 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         if isinstance(stmt, Schedule):
             for child in drop_omp_dir_bodies(stmt.children):
                 self._step(child, cond)
+                if self.finished: return
             return
 
         # Loop
@@ -583,6 +669,7 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
             self.constraint_stack.append(z3.BoolVal(True))
             # Analyse loop body
             self._step(stmt.loop_body, cond)
+            if self.finished: return
             # Forget info that is now out of scope
             self.constraint_stack.pop()
             self._restore_subst()

@@ -9,10 +9,10 @@ array accesses, such as whether or they can safely execute in parallel.'''
 import z3
 from typing import Optional, List, Tuple
 from psyclone.psyir.nodes import Loop, DataNode, Literal, Assignment, \
-    Reference, IntrinsicCall, \
-    Routine, Node, IfBlock, Schedule, Range, WhileLoop
+    Reference, Node, IfBlock, Schedule, Range, WhileLoop, ArrayReference, \
+    IntrinsicCall
 from psyclone.core import Signature
-from psyclone.psyir.symbols import DataType, ScalarType, ArrayType
+from psyclone.psyir.symbols import DataType, ScalarType, ArrayType, DataSymbol
 from stomp.misc import if_else_chain, is_stop, is_exit
 from stomp.openmp_directives import OpenMPDirective
 
@@ -76,11 +76,13 @@ class ArrayAccess:
        condition at the point the array access is made.
     :param is_write: whether the access is a read or a write.
     :param indices: SMT integer expressions representing the
-      indices of the array access.
+       indices of the array access.
     :param psyir_node: PSyIR node for the access (useful for reporting
        conflict messages / errors).
     :param is_team_private: is it an access to a team-private array?
     :param is_scalar: is it an access to a scalar rather than an array?
+    :param bounds: SMT integer expressiosn representing the bounds of
+       the array access.
     '''
     def __init__(self,
                  name:             Signature,
@@ -90,7 +92,8 @@ class ArrayAccess:
                  psyir_node:       Node,
                  is_team_private:  bool = False,
                  is_scalar:        bool = False,
-                 no_self_conflict: bool = False):
+                 no_self_conflict: bool = False,
+                 bounds:           list[list[z3.ExprRef]] = []):
         self.name = name
         self.cond = cond
         self.is_write = is_write
@@ -99,6 +102,7 @@ class ArrayAccess:
         self.is_team_private = is_team_private
         self.is_scalar = is_scalar
         self.no_self_conflict = no_self_conflict
+        self.bounds = bounds
 
 
 # Analysis
@@ -215,26 +219,6 @@ class ArrayIndexAnalysis:
         # Are we inside the parallel region to analyse for conflicts?
         self.in_region_of_interest = False
 
-    def _init_array_intrins_vars(self, routine: Routine):
-        '''Initialise the 'array_intrins_vars' dict so that, for each
-        array accessed, it holds a set of integer variables
-        representing the results of intrinsics (such as size,
-        lbound, ubound) applied to that array.
-
-        :param routine: the Routine holding the code that we are
-           analysing.
-        '''
-        if self.opts.handle_array_intrins:
-            for stmt in routine.children:
-                for call in stmt.walk(IntrinsicCall):
-                    intrins_pair = \
-                        self.trans.translate_array_intrinsic_call(call)
-                    if intrins_pair:
-                        (arr_name, var_name) = intrins_pair
-                        if arr_name not in self.array_intrins_vars:
-                            self.array_intrins_vars[arr_name] = set()
-                        self.array_intrins_vars[arr_name].add(var_name)
-
     def _save_subst(self):
         '''Push copy of current substitution to the stack.'''
         self.subst_stack.append(self.subst.copy())
@@ -297,14 +281,14 @@ class ArrayIndexAnalysis:
                         self._kill_logical_var(sig.var_name)
                         break
                     elif isinstance(access_info.node.datatype, ArrayType):
-                        # If an array variable is modified we kill intrinsic
-                        # vars associated with it. This is overly safe:
-                        # we probably only need to kill these vars if the
-                        # array is passed to a mutating routine/intrinsic.
-                        if sig.var_name in self.array_intrins_vars:
-                            for v in self.array_intrins_vars[sig.var_name]:
-                                self._kill_integer_var(v)
-                        break
+                        node = access_info.node
+                        dt = node.datatype
+                        (sig, inds) = node.get_signature_and_indices()
+                        if (len(sig) == 1 and
+                                len(inds[0]) == 0 and
+                                dt.is_allocatable):
+                            self._kill_array_bounds(sig[0], len(dt.shape))
+                            break
 
     def _add_constraint(self, smt_expr: z3.BoolRef):
         '''Add the SMT constraint to the constraint set.'''
@@ -424,6 +408,7 @@ class ArrayIndexAnalysis:
                     is_array_access = (indices_flat != [] or
                        isinstance(access_info.node.datatype, ArrayType))
                     if is_array_access or self.opts.check_scalars:
+                        bounds = self._get_array_bounds(access_info.node)
                         smt_indices = []
                         for inds in indices:
                             smt_inds = []
@@ -443,7 +428,8 @@ class ArrayIndexAnalysis:
                             ArrayAccess(
                               s, access_cond, access_info.is_any_write(),
                               smt_indices, access_info.node,
-                              is_scalar = not is_array_access))
+                              is_scalar = not is_array_access,
+                              bounds = bounds))
 
     def _step(self, stmt: Node, cond: z3.BoolRef):
         '''Analyse the given statement in recursive-descent fashion.'''
@@ -481,6 +467,7 @@ class ArrayIndexAnalysis:
         if isinstance(stmt, Schedule):
             for child in stmt.children:
                 self._step(child, cond)
+                if self.finished: return
             return
 
         # IfBlock
@@ -496,6 +483,7 @@ class ArrayIndexAnalysis:
                 # Recursively step into body
                 self._save_subst()
                 self._step(if_body, z3.And(cond, smt_cond))
+                if self.finished: return
                 self._restore_subst()
                 # Accumulate the condition for the next branch
                 cond = z3.And(cond, z3.Not(smt_cond))
@@ -510,6 +498,10 @@ class ArrayIndexAnalysis:
             self._kill_all_written_vars(stmt.loop_body)
             # Kill loop variable
             self._kill_integer_var(stmt.variable.name)
+            # Add array accesses in loop range
+            self._add_all_array_accesses(stmt.start_expr, cond)
+            self._add_all_array_accesses(stmt.stop_expr, cond)
+            self._add_all_array_accesses(stmt.step_expr, cond)
             # Introduce constraints on loop variable
             var = self._fresh_integer_var()
             self._save_subst()
@@ -521,6 +513,7 @@ class ArrayIndexAnalysis:
             self.constraint_stack.append(z3.BoolVal(True))
             # Analyse loop body
             self._step(stmt.loop_body, cond)
+            if self.finished: return
             # Forget info that is now out of scope
             self.constraint_stack.pop()
             self._restore_subst()
@@ -539,6 +532,7 @@ class ArrayIndexAnalysis:
             self._save_subst()
             self.constraint_stack.append(z3.BoolVal(True))
             self._step(stmt.loop_body, z3.And(cond, smt_condition))
+            if self.finished: return
             self.constraint_stack.pop()
             self._restore_subst()
             return
@@ -558,6 +552,35 @@ class ArrayIndexAnalysis:
                 self.constraint_stack[-1] &= z3.Not(cond)
             return
 
+        # Allocate statement
+        if (isinstance(stmt, IntrinsicCall) and
+                stmt.intrinsic == IntrinsicCall.Intrinsic.ALLOCATE):
+            # Skip unsupported 'allocate' statements (those with
+            # named arguments or without directly specified bounds)
+            skip = any([x is not None for x in stmt.argument_names])
+            skip = skip or any([not isinstance(x, ArrayReference)
+                                   for x in stmt.arguments])
+            if not skip:
+                for arg in stmt.arguments:
+                    self._set_array_bounds(arg)
+                return
+
+        # Dellocate statement
+        if (isinstance(stmt, IntrinsicCall) and
+                stmt.intrinsic == IntrinsicCall.Intrinsic.DEALLOCATE):
+            # Skip unsupported 'deallocate' statements (those with
+            # named arguments)
+            skip = any([x is not None for x in stmt.argument_names])
+            if not skip:
+                for arg in stmt.arguments:
+                    if isinstance(arg, Reference):
+                        (sig, inds) = arg.get_signature_and_indices()
+                        if len(sig) == 1 and len (inds[0]) == 0:
+                            if isinstance(arg.datatype, ArrayType):
+                                rank = len(arg.datatype.shape)
+                                self._kill_array_bounds(sig[0], rank)
+                return
+
         # Stomp directive
         if isinstance(stmt, OpenMPDirective) and stmt.is_stomp_directive:
             # Add assumption
@@ -570,6 +593,117 @@ class ArrayIndexAnalysis:
         # Fall through
         self._add_all_array_accesses(stmt, cond)
         self._kill_all_written_vars(stmt)
+
+    def _init_array_bounds(self, node: Node):
+        '''Add constraints representing initial array bounds/sizes for
+           all variables referenced in given node.'''
+        # Determine all arrays accessed
+        seen = set()
+        for ref in node.walk(Reference):
+            # Skip array's we've already seen
+            if ref.name in seen: continue
+            # Check that we have a DataSymbol
+            if not isinstance(ref.symbol, DataSymbol): continue
+            # Check that we have an array
+            dt = ref.symbol.datatype
+            if not isinstance(dt, ArrayType): continue
+            # Add constraints
+            full_size = self._integer_val(1)
+            for (i, dim) in enumerate(dt.shape):
+                d = str(i+1)
+                lb = self._integer_var(self.trans.lbound_name(ref.name, d))
+                ub = self._integer_var(self.trans.ubound_name(ref.name, d))
+                sz = self._integer_var(self.trans.size_name(ref.name, d))
+                if dim is ArrayType.Extent.ATTRIBUTE:
+                    # Lower bound is 1
+                    self._add_constraint(lb == 1)
+                elif dim is ArrayType.Extent.DEFERRED:
+                    # Lower and upper bounds are unconstrained
+                    pass
+                elif isinstance(dim, ArrayType.ArrayBounds):
+                    # Constrain lower bound
+                    lb_val = self._translate_integer_expr_with_subst(dim.lower)
+                    self._add_constraint(lb == lb_val)
+                    # Constrain upper bound
+                    if isinstance(dim.upper, DataNode):
+                        ub_val = self._translate_integer_expr_with_subst(
+                                     dim.upper)
+                        self._add_constraint(ub == ub_val)
+                # Constrain size (per dimension)
+                self._add_constraint(sz == ub - lb + 1)
+                full_size = full_size * sz
+            # Constrain full size (over all dimensions)
+            full_sz = self._integer_var(self.trans.size_name(ref.name))
+            self._add_constraint(full_sz == full_size)
+            seen.add(ref.name)
+
+    def _get_array_bounds(self, ref: Reference) -> \
+            List[Tuple[z3.ExprRef, z3.ExprRef, z3.ExprRef]]:
+        '''Return SMT variables representing the lower bound, upper bound,
+           and size, in each dimension, for the given array access.'''
+        (sig, indices) = ref.get_signature_and_indices()
+        # We don't handle structure accessors at the moment
+        if len(sig) > 1: return []
+        # There must be indices present
+        if indices[0]:
+            array_rank = len(indices[0])
+            array_name = sig[0]
+        else:
+           return []
+        # Now return the bounds for this array access
+        (dims, _) = self.trans.get_bounds_names(array_name, array_rank)
+        smt_dims = []
+        for dim in dims:
+            smt_dim = []
+            for b in dim:
+                b_var = self._integer_var(b)
+                smt_dim.append(self.subst.get(b_var, b_var))
+            smt_dims.append(tuple(smt_dim))
+        return smt_dims
+
+    def _kill_array_bounds(self,
+                           array_name: str,
+                           array_rank: int):
+        '''Kill all bounds variables associated for array with given
+           name and rank'''
+        (dims, size) = self.trans.get_bounds_names(array_name, array_rank)
+        names = [size] + [d for dim in dims for d in dim]
+        for n in names: self._kill_integer_var(n)
+
+    def _set_array_bounds(self, ref: ArrayReference):
+        '''Set array bounds using the name/shape from the
+           given array reference.'''
+        # We don't handle structure accessors yet
+        (sig, indices) = ref.get_signature_and_indices()
+        if len(sig) > 1: return
+        # Bounds must be provided
+        if not indices[0]: return
+        # Kill existing bounds
+        self._kill_array_bounds(sig[0], len(indices[0]))
+        # Introduce new bounds
+        full_size = self._integer_val(1)
+        for (i, b) in enumerate(indices[0]):
+            d = str(i+1)
+            lb = self._apply_subst(self._integer_var(
+                     self.trans.lbound_name(sig[0], d)))
+            ub = self._apply_subst(self._integer_var(
+                     self.trans.ubound_name(sig[0], d)))
+            sz = self._apply_subst(self._integer_var(
+                     self.trans.size_name(sig[0], d)))
+            # Constrain lower bound
+            lb_val = self._translate_integer_expr_with_subst(b.start)
+            self._add_constraint(lb == lb_val)
+            # Constrain upper bound
+            ub_val = self._translate_integer_expr_with_subst(b.stop)
+            self._add_constraint(ub == ub_val)
+            # Constrain size
+            self._add_constraint(sz == ub - lb + 1)
+            full_size = full_size * sz
+        # Constrain full size
+        full_sz = self._apply_subst(self._integer_var(
+                      self.trans.size_name(sig[0])))
+        self._add_constraint(full_sz == full_size)
+
 
 # Conflict class
 # ==============
@@ -597,6 +731,30 @@ class Conflict:
         self.msg = msg
         self.node = node
         self.is_scalar = is_scalar
+
+
+# BoundsError class
+# =================
+
+
+class BoundsError:
+    '''A class that captures an out-of-bounds access found by the
+    analysis/solver.
+
+    :param sig: the signature of the array being accessed.
+
+    :param msg: a description of the bounds breach. A 'None' message indicates
+       a timeout.
+
+    :param node: the PSyIR node containing the access.
+    '''
+    def __init__(self,
+                 sig: Signature,
+                 msg: Optional[str],
+                 node: Optional[Node]):
+        self.sig = sig
+        self.msg = msg
+        self.node = node
 
 
 # Helper functions

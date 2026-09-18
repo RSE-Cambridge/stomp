@@ -9,7 +9,6 @@ are passed to the Z3 solver.'''
 import z3
 from typing import Optional, Tuple, Set
 from psyclone.psyir.nodes import Loop, IntrinsicCall, Routine, Node
-from psyclone.core import Signature
 from stomp.array_index_analysis import \
     ArrayIndexAnalysisOptions, ArrayIndexAnalysis, ArrayAccess, \
     Conflict, prune_accesses
@@ -229,8 +228,8 @@ class LoopConflictAnalysis(ArrayIndexAnalysis):
                          prohibit_overflow=self.opts.prohibit_overflow,
                          handle_array_intrins=self.opts.handle_array_intrins)
 
-        # Initialise array intrinsic variables
-        self._init_array_intrins_vars(routine)
+        # Initialise array bounds/sizes
+        self._init_array_bounds(routine)
 
         # Step through body of the enclosing routine, statement by statement
         for stmt in routine.children:
@@ -349,8 +348,7 @@ class LoopConflictAnalysis(ArrayIndexAnalysis):
     def _get_conflicts(self,
                        candidates: list[Tuple[list[ArrayAccess],
                                               list[ArrayAccess]]],
-                       all_conflicts: bool) -> \
-            Optional[Tuple[Signature, Optional[str]]]:
+                       all_conflicts: bool) -> list[Conflict]:
         '''Get the conflicts in the given conflict candidates.'''
         conflicts = []
         # Formulate constraints for solving, considering the two threads

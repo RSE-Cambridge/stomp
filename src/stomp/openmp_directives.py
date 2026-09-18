@@ -214,13 +214,16 @@ class OpenMPDirective(Statement):
         '''Is it a standalone directive enclosing no statements?'''
         if "end" in self.clauses.keys():
             return False
-        for kw in self.clauses.keys():
-            if self.is_stomp_directive:
+        if self.is_stomp_directive:
+            for kw in self.clauses.keys():
                 if kw in ["assume", "pure", "unique"]:
                     return True
-            else:
-                if kw in ["barrier", "update", "flush", "section",
-                          "threadprivate"]:
+        else:
+            if "section" in self.clauses:
+                return True
+            keys = list(self.clauses.keys())
+            if keys and keys[0] in ["barrier", "flush",
+                                    "threadprivate", "update"]:
                     return True
         return False
 
