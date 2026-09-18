@@ -299,13 +299,13 @@ encounters them. However, it's useful to be aware of the following.
   analysis, are being considered for future versions.
 
 * The PSyclone intermediate representation is incomplete: some
-  Fortran constructs (such as `print` statements, `block` statements, and
-  `associate` statements) get represented as so-called `CodeBlock`s. When
-  analysing a `CodeBlock`, PSyclone assumes the worst, e.g. all variables
-  referenced inside the block are considered to be read and written. This
-  can lead to unnecessary false positives. The `!$stomp abstract` directive
-  can be used to abstract over blocks of code that PSyclone does not
-  understand -- see [Stomp Directives](#stomp-directives).
+  Fortran constructs (e.g. `print`, `block`, `associate` statements)
+  get represented as so-called `CodeBlock`s. When analysing a `CodeBlock`,
+  PSyclone assumes the worst, e.g. all variables referenced inside the block
+  are considered to be read and written. This can lead to unnecessary false
+  positives. The `!$stomp abstract` directive can be used to abstract over
+  blocks of code that PSyclone does not understand -- see
+  [Stomp Directives](#stomp-directives).
 
 * PSyclone and Stomp do not yet have good support for Fortran pointers.
   Stomp will, for example, treat a pointer to array in much

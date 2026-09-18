@@ -649,6 +649,10 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
             self._kill_all_written_vars(stmt.loop_body)
             # Kill loop variable
             self._kill_integer_var(stmt.variable.name)
+            # Add array accesses in loop range
+            self._add_all_array_accesses(stmt.start_expr, cond)
+            self._add_all_array_accesses(stmt.stop_expr, cond)
+            self._add_all_array_accesses(stmt.step_expr, cond)
             # Introduce constraints on loop variable
             var = self._fresh_integer_var()
             self._save_subst()
@@ -722,9 +726,9 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
                 if "reduction" in stmt.clauses:
                     new_private_vars.extend(
                         [red[1] for red in stmt.clauses["reduction"]])
-                if "do" in stmt.clauses:
-                    self.thread_private_vars.extend(new_private_vars)
-                elif "sections" in stmt.clauses:
+                if ("do" in stmt.clauses or
+                        "sections" in stmt.clauses or
+                        "simd" in stmt.clauses):
                     self.thread_private_vars.extend(new_private_vars)
                 elif "distribute" in stmt.clauses:
                     self.team_private_vars.extend(new_private_vars)

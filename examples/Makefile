@@ -9,6 +9,7 @@ OUT_F90 := $(patsubst %.F90, out_F90/%.out, $(wildcard *.F90))
 # Disable progress/colour output from stomp
 FLAGS += --no-progress
 FLAGS += --no-colour
+FLAGS += --smt-timeout 10000
 
 .phony: top
 top:
@@ -27,9 +28,9 @@ out_F90/:
 
 # Generate outputs
 out_f90/%.out: %.f90
-	@stomp $(FLAGS) $(INC) $< 2>/dev/null > $@
+	@stomp $(FLAGS) $(INC) $< 2>/dev/null | grep -v Description > $@
 out_F90/%.out: %.F90
-	@stomp $(FLAGS) $(INC) $< 2>/dev/null > $@
+	@stomp $(FLAGS) $(INC) $< 2>/dev/null | grep -v Description > $@
 
 # Make sure output directories are ready before building
 $(OUT_f90): out_f90/
