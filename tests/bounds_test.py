@@ -158,3 +158,36 @@ subroutine inc(arr, n)
 end subroutine
 '''
     stomp_test(code, [Msg.OutOfBounds], check_bounds=True)
+
+
+def test_bounds_12_bad():
+    code = '''
+subroutine inc(arr)
+  integer, allocatable, intent(inout) :: arr(:)
+  integer :: i, n
+  allocate(arr(10))
+  n = size(arr)
+  allocate(arr(5))
+  !$omp parallel do
+  do i = 1, n
+    arr(i) = arr(i) + 1
+  end do
+end subroutine
+'''
+    stomp_test(code, [Msg.OutOfBounds], check_bounds=True)
+
+
+def test_bounds_13_bad():
+    code = '''
+subroutine inc(arr)
+  integer, allocatable, intent(inout) :: arr(:)
+  integer :: i
+  allocate(arr(10))
+  deallocate(arr)
+  !$omp parallel do
+  do i = 1, 10
+    arr(i) = arr(i) + 1
+  end do
+end subroutine
+'''
+    stomp_test(code, [Msg.OutOfBounds], check_bounds=True)

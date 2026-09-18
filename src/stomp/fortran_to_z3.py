@@ -398,11 +398,9 @@ class FortranToZ3:
         array = call.children[1]
         if not isinstance(array, Reference):
             return None
-        # We require no indices in the Reference
+        # We don't handle structure accessors at the moment
         (sig, indices) = array.get_signature_and_indices()
-        indices_flat = [i for inds in indices for i in inds]
-        if indices_flat != []:
-            return None
+        if len(sig) > 1: return None
         name = str(sig)
         # Translate full-size call
         if len(call.children) == 2:

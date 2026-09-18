@@ -10,6 +10,8 @@ class ProgressReporter:
     def begin(cls, text: str):
         '''Start a progress region.'''
         if cls.enabled:
+            if len(text) > 70:
+                text = text[:35] + " ... " + text[-35:]
             print(text + "\r", end="")
                 
     @classmethod

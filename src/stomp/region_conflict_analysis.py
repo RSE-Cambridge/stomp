@@ -276,6 +276,7 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         # Find region of interest
         for stmt in routine.children:
             self._step(stmt, z3.BoolVal(True))
+            if self.finished: break
         if not self.in_region_of_interest:
             raise RuntimeError("RegionConflictAnalysis: could not find "
                 "region of interest in routine.")
@@ -363,7 +364,9 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
             self.parallel_do_vars = []
             self.distribute_vars = []
             # Analyse region
+            self._save_subst()
             self._step(region, self.region_cond)
+            self._restore_subst()
             # Save results of analysis
             parallel_do_vars_per_thread.append(self.parallel_do_vars)
             distribute_vars_per_thread.append(self.distribute_vars)
@@ -637,6 +640,7 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         if isinstance(stmt, Schedule):
             for child in drop_omp_dir_bodies(stmt.children):
                 self._step(child, cond)
+                if self.finished: return
             return
 
         # Loop
@@ -665,6 +669,7 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
             self.constraint_stack.append(z3.BoolVal(True))
             # Analyse loop body
             self._step(stmt.loop_body, cond)
+            if self.finished: return
             # Forget info that is now out of scope
             self.constraint_stack.pop()
             self._restore_subst()
