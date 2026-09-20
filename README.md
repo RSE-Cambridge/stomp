@@ -4,8 +4,8 @@ Stomp is a static checker for Fortran OpenMP directives based on
 [PSyclone](https://github.com/stfc/PSyclone) (a Python library for processing
 Fortran code developed by Met Office partners) and
 [Z3](https://github.com/z3prover/z3) (a theorem prover from Microsoft
-Research). It supports a subset of OpenMP 4.5 and Fortran 2003, and
-solves 137 out of 166 problems from the
+Research). It supports subsets of OpenMP 4.5 and Fortran 2003, and
+solves 140 out of 166 problems from the
 [DataRaceBench](https://github.com/llnl/dataracebench) benchmark suite.
 
 ## Contents
@@ -97,8 +97,8 @@ constructs are currently ignored.
   | `teams`         | `private`       | `omp_get_team_num()`    |
   | `distribute`    | `firstprivate`  | `omp_get_num_threads()` |
   | `parallel`      | `lastprivate`   | `omp_get_num_teams()`   |
-  | `do`            | `reduction`     |                         |
-  | `barrier`       | `default`       |                         |
+  | `do`            | `reduction`     | `omp_set_lock()`        |
+  | `barrier`       | `default`       | `omp_unset_lock()`      |
   | `atomic`        | `schedule`      |                         |
   | `critical`      | `collapse`      |                         |
   | `single`        | `nowait`        |                         |
@@ -136,7 +136,7 @@ When satisified, Stomp will report `All checks passed!`.
 Additional features can be enabled with command-line flags:
 
 * `--check-bounds` will check for out-of-bounds array accesses in parallel
-  regions.
+  regions;
 
 * `--infer` will report loops that can be safely parallelised, which are not
   aready marked as parallel.
@@ -287,18 +287,16 @@ end subroutine
 In general, Stomp aims to inform the user of its own limitations as it
 encounters them. However, it's useful to be aware of the following.
 
-* General nested parallelism is not supported, e.g. `parallel` directives
-  which themselves contain `parallel` directives.  However,
-  `parallel` directives nested within `teams` directives are a form of
-  nested parallelism that _is_ very much supported.
+* Nested parallelism: `parallel` directives nested within `parallel`
+  directives are not supported but `parallel` directives nested within
+  `teams` directives _are_.
 
-* Stomp's understanding of OpenMP directives is incomplete -- see
+* Support for OpenMP directives is currently incomplete -- see
   [Supported Constructs](#supported-constructs). Notable
   omissions include `task`, `workshare`, `target data`, and `target update`
-  directives. These directives, some of which would require inter-procedural
-  analysis, are being considered for future versions.
+  directives.
 
-* The PSyclone intermediate representation is incomplete: some
+* PSyclone's intermediate representation is incomplete. Some
   Fortran constructs (e.g. `print`, `block`, `associate` statements)
   get represented as so-called `CodeBlock`s. When analysing a `CodeBlock`,
   PSyclone assumes the worst, e.g. all variables referenced inside the block
@@ -308,10 +306,9 @@ encounters them. However, it's useful to be aware of the following.
   [Stomp Directives](#stomp-directives).
 
 * PSyclone and Stomp do not yet have good support for Fortran pointers.
-  Stomp will, for example, treat a pointer to array in much
-  the same way it would treat an array -- completely ignoring
-  the possibility of aliasing. It may also struggle to resolve calls
-  to subroutines/functions with pointer arguments.
+  Stomp treats a pointer to array in much the same way that it treats an
+  array, completely ignoring the possibility of aliasing. It may also
+  struggle to resolve calls to subroutines/functions with pointer arguments.
 
 ## Acknowledgements
 

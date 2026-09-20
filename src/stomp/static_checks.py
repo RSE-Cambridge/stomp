@@ -543,6 +543,8 @@ def check_calls(d: OpenMPDirective, assume_pure: set[str] = set()):
         "omp_get_thread_num",
         "omp_get_num_teams",
         "omp_get_num_threads",
+        "omp_set_lock",
+        "omp_unset_lock",
         "sleep",
     }
 

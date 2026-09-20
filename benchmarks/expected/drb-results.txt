@@ -60,7 +60,7 @@ DRB065-pireduction-orig-no: [32mTN[0m
 DRB066-pointernoaliasing-orig-no: [32mTN[0m
 DRB067-restrictpointer1-orig-no: [32mTN[0m
 DRB068-restrictpointer2-orig-no: [32mTN[0m
-DRB069-sectionslock1-orig-no: [33mFP[0m
+DRB069-sectionslock1-orig-no: [32mTN[0m
 DRB070-simd1-orig-no: [32mTN[0m
 DRB071-targetparallelfor-orig-no: [32mTN[0m
 DRB072-taskdep1-orig-no: [32mTN[0m
@@ -143,9 +143,9 @@ DRB148-critical1-orig-gpu-yes: [32mTP[0m
 DRB149-missingdata1-orig-gpu-no: [32mTN[0m
 DRB150-missinglock1-orig-gpu-yes: [32mTP[0m
 DRB151-missinglock3-orig-gpu-yes: [32mTP[0m
-DRB152-missinglock2-orig-gpu-no: [33mFP[0m
+DRB152-missinglock2-orig-gpu-no: [32mTN[0m
 DRB153-missinglock2-orig-gpu-yes: [32mTP[0m
-DRB154-missinglock3-orig-gpu-no: [33mFP[0m
+DRB154-missinglock3-orig-gpu-no: [32mTN[0m
 DRB155-missingordered-orig-gpu-no: [32mTN[0m
 DRB156-missingordered-orig-gpu-yes: [32mTP[0m
 DRB157-missingorderedsimd-orig-gpu-yes: [32mTP[0m

@@ -7,7 +7,7 @@ from __future__ import annotations
 import re
 from typing import Optional, Dict, Any, List, Union, Tuple, Set
 from psyclone.psyir.nodes import Node, Statement, UnknownDirective, Loop, \
-    BinaryOperation, IntrinsicCall, Reference
+    BinaryOperation, IntrinsicCall, Reference, Call
 from psyclone.core import VariablesAccessMap, AccessType
 from psyclone.psyir.symbols import SymbolTable
 from stomp.parser_lib import lift, char, many, token, \
@@ -511,6 +511,14 @@ def omp_clause(symbol_table: Optional[SymbolTable] = None):
         fortran_expr(symbol_table),
         token(")"))
 
+    # Parser for num_threads clause
+    num_teams_clause = lift(
+        lambda keyword, _l, expr, _r: (keyword, expr),
+        keyword("num_teams"),
+        token("("),
+        fortran_expr(symbol_table),
+        token(")"))
+
     # Parser for thread_limit clause
     thread_limit_clause = lift(
         lambda keyword, _l, expr, _r: (keyword, expr),
@@ -572,6 +580,7 @@ def omp_clause(symbol_table: Optional[SymbolTable] = None):
                   reduction_clause,
                   collapse_clause,
                   num_threads_clause,
+                  num_teams_clause,
                   thread_limit_clause,
                   schedule_clause,
                   critical_clause,
@@ -889,6 +898,46 @@ def get_sections(d: OpenMPDirective) -> List[List[Statement]]:
         if section: sections.append(section)
         return sections
     return []
+
+
+def get_enclosing_locks(origin: Node) -> bool:
+    '''Determine enclosing omp_set_lock() calls.'''
+    # The result of this function is cached, so first check the cache
+    if hasattr(origin, "cached_enclosing_locks"):
+        return origin.cached_enclosing_locks
+
+    # Find the enclosing directives
+    unlocks_seen = set()
+    locks_seen = set()
+    cursor = origin
+    while cursor:
+        if isinstance(cursor, Statement):
+            start_pos = cursor.position
+            pos = start_pos
+            while pos >= 0:
+                node = cursor.siblings[pos]
+                if (isinstance(node, OpenMPDirective) and
+                        "parallel" in node.clauses):
+                    origin.cached_enclosing_locks = locks_seen
+                    return locks_seen
+                if (isinstance(node, Call) and
+                        len(node.arguments) == 1 and
+                        isinstance(node.arguments[0], Reference)):
+                    ref = node.arguments[0]
+                    (sig, indices) = ref.get_signature_and_indices()
+                    indices_flat = [i for inds in indices for i in inds]
+                    if indices_flat == []:
+                        lock_name = str(sig)
+                        if node.routine.name == "omp_set_lock":
+                            if lock_name not in unlocks_seen:
+                                locks_seen.add(lock_name)
+                        elif node.routine.name == "omp_unset_lock":
+                            unlocks_seen.add(lock_name)
+                pos -= 1
+        cursor = cursor.parent
+
+    origin.cached_enclosing_locks = locks_seen
+    return locks_seen
 
 
 # OpenMP reduction operators

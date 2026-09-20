@@ -8,12 +8,12 @@ passed to the Z3 solver.'''
 import z3
 from typing import Optional, Tuple, List, Union
 from psyclone.psyir.nodes import \
-    Loop, IntrinsicCall, Routine, Node, Schedule, Statement
+    Loop, IntrinsicCall, Routine, Node, Schedule, Statement, Call
 from psyclone.core import Signature, AccessInfo
 from psyclone.psyir.symbols import TypedSymbol
 from stomp.openmp_directives import \
     OpenMPDirective, drop_omp_dir_bodies, get_enclosing_directives, \
-    get_sections
+    get_sections, get_enclosing_locks
 from stomp.array_index_analysis import \
     ArrayIndexAnalysisOptions, ArrayIndexAnalysis, ArrayAccess, \
     _is_scalar_integer, _is_scalar_logical, Conflict, BoundsError, \
@@ -481,13 +481,16 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         for acc in accs:
             if write.psyir_node is acc.psyir_node and write.no_self_conflict:
                 continue
-            if self._needs_conflict_check(write, acc):
+            needs_check = self._needs_conflict_check(write, acc)
+            if needs_check is True or isinstance(needs_check, z3.BoolRef):
                 indices_equal = []
                 for (i_idxs, j_idxs) in zip(write.indices, acc.indices):
                     for (i_idx, j_idx) in zip(i_idxs, j_idxs):
                         indices_equal.append(i_idx == j_idx)
                 # Add access conditions
                 indices_equal.extend([write.cond, acc.cond])
+                if isinstance(needs_check, z3.BoolRef):
+                    indices_equal.append(needs_check)
                 # Accesses that are not inside the same parallel region
                 # must come from different teams
                 if not inside_same_parallel_region(write.psyir_node,
@@ -831,11 +834,17 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
             self._restore_subst()
             return
 
+        # Handle OpenMP locking functions
+        if (isinstance(stmt, Call) and
+                stmt.routine.name in ["omp_set_lock", "omp_unset_lock"]):
+            return
+
         super()._step(stmt, cond)
 
-    @staticmethod
-    def _needs_conflict_check(access_from: AccessInfo,
-                              access_to: AccessInfo) -> bool:
+    def _needs_conflict_check(self,
+                              access_from: AccessInfo,
+                              access_to: AccessInfo) -> \
+            Union[bool, z3.BoolRef]:
         '''Determine wheter or not we need to check for a conflict
         between the two given accesses'''
         node_from = access_from.psyir_node
@@ -854,6 +863,13 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
         to_ord = any(["ordered" in d.clauses and "do" not in d.clauses
                       for d in enclosing_to])
         if from_ord and to_ord: return False
+
+        # Return constraint that team ids must be different if both nodes
+        # are enclosed by lock calls
+        if (get_enclosing_locks(node_from) &
+                get_enclosing_locks(node_to)):
+            return ((self.smt_team_var_i !=
+                     self.smt_team_var_j))
 
         # If we are in a teams region but accessing a non-team-private
         # array then return True because "crtical" and "barrier" only
@@ -878,8 +894,8 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
             stmt_from = node_from.ancestor(Statement, include_self=True)
             stmt_to = node_to.ancestor(Statement, include_self=True)
             if stmt_from and stmt_to:
-                return barrier_free_path(stmt_from, stmt_to) or \
-                       barrier_free_path(stmt_to, stmt_from)
+                return (barrier_free_path(stmt_from, stmt_to) or \
+                        barrier_free_path(stmt_to, stmt_from))
 
         return True
 
