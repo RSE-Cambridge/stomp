@@ -16,18 +16,6 @@ class FortranToZ3:
     '''The class provides methods to translate Fortran expressions to Z3
        expressions, as well as some useful wrappers around the Z3 solver.
 
-       :param use_bv: whether to treat Fortran integers as bit vectors or
-          arbitrary-precision integers. The default is arbitrary-precision
-          integers.
-
-       :param int_width: the bit width of Fortran integers when interpreted
-          as bit vectors. This is 32 by default.
-
-       :param prohibit_overflow: if True, the translation functions will
-          ignore the possibility of integer overflow by generating constraints
-          to prohibit it. Integer overflow is undefined behaviour in Fortran
-          so this is safe.
-
        :param handle_array_intrins: if True, array intrinsic calls
           'size(<arr>,<dim>)', 'lbound(<arr>,<dim>)', and
           'ubound(<arr>,<dim>)' will be translated to Z3 integer variables
@@ -40,14 +28,8 @@ class FortranToZ3:
           fresh variables for unsupported expressions.
     '''
     def __init__(self,
-                 use_bv: bool = False,
-                 int_width: int = 32,
-                 prohibit_overflow: bool = False,
                  handle_array_intrins: bool = False,
                  allow_unsupported: bool = True):
-        self.use_bv = use_bv
-        self.int_width = int_width
-        self.prohibit_overflow = prohibit_overflow
         self.handle_array_intrins = handle_array_intrins
         self.allow_unsupported = allow_unsupported
         self.custom_call_mapping = {}
@@ -57,33 +39,18 @@ class FortranToZ3:
            name to the given Z3 expression.'''
         self.custom_call_mapping[fun_name] = expr
 
-    def translate_integer_expr(self, expr_root: Node) \
-            -> (z3.ExprRef, list[z3.BoolRef]):
+    def translate_integer_expr(self, expr_root: Node) -> z3.ExprRef:
         '''Translate a Fortran scalar integer expression to SMT.
 
            :param expr_root: the expression to translate. This is assumed
              to have scalar integer type.
-           :return: a pair containing the translated expression and a
-             list of Z3 constraints introduced by the translation.
-             One use of the constraint list is to prohibit bit-vector
-             overflow.
+           :return: the translated expression.
         '''
-        constraints = []
-
         def trans(e: Node) -> z3.ExprRef:
-            '''Internal recursive function that has implicit access to a
-               a mutable list of 'constraints' being gathered.
-
-               :param e: the expression to translate.
-               :return: the translated expression.
-            '''
             # Literal
             if isinstance(e, Literal):
                 try:
-                    if self.use_bv:
-                        return z3.BitVecVal(int(e.value), self.int_width)
-                    else:
-                        return z3.IntVal(int(e.value))
+                    return z3.IntVal(int(e.value))
                 except ValueError:
                     pass
 
@@ -93,17 +60,12 @@ class FortranToZ3:
                 (sig, indices) = e.get_signature_and_indices()
                 indices_flat = [i for inds in indices for i in inds]
                 if indices_flat == []:
-                    if self.use_bv:
-                        return z3.BitVec(str(sig), self.int_width)
-                    else:
-                        return z3.Int(str(sig))
+                    return z3.Int(str(sig))
 
             # UnaryOperation
             if isinstance(e, UnaryOperation):
                 arg_smt = trans(e.operand)
                 if e.operator == UnaryOperation.Operator.MINUS:
-                    if self.use_bv and self.prohibit_overflow:
-                        constraints.append(z3.BVSNegNoOverflow(arg_smt))
                     return -arg_smt
                 if e.operator == UnaryOperation.Operator.PLUS:
                     return arg_smt
@@ -115,30 +77,12 @@ class FortranToZ3:
                 right_smt = trans(right)
 
                 if e.operator == BinaryOperation.Operator.ADD:
-                    if self.use_bv and self.prohibit_overflow:
-                        constraints.append(z3.BVAddNoOverflow(
-                          left_smt, right_smt, True))
-                        constraints.append(z3.BVAddNoUnderflow(
-                          left_smt, right_smt))
                     return left_smt + right_smt
                 if e.operator == BinaryOperation.Operator.SUB:
-                    if self.use_bv and self.prohibit_overflow:
-                        constraints.append(z3.BVSubNoOverflow(
-                          left_smt, right_smt))
-                        constraints.append(z3.BVSubNoUnderflow(
-                          left_smt, right_smt, True))
                     return left_smt - right_smt
                 if e.operator == BinaryOperation.Operator.MUL:
-                    if self.use_bv and self.prohibit_overflow:
-                        constraints.append(z3.BVMulNoOverflow(
-                          left_smt, right_smt, True))
-                        constraints.append(z3.BVMulNoUnderflow(
-                          left_smt, right_smt))
                     return left_smt * right_smt
                 if e.operator == BinaryOperation.Operator.DIV:
-                    if self.use_bv and self.prohibit_overflow:
-                        constraints.append(z3.BVSDivNoOverflow(
-                          left_smt, right_smt))
                     return left_smt / right_smt
 
             # IntrinsicCall
@@ -146,18 +90,10 @@ class FortranToZ3:
                 # Unary operators
                 if e.intrinsic == IntrinsicCall.Intrinsic.ABS:
                     smt_arg = trans(e.children[1])
-                    if self.use_bv and self.prohibit_overflow:
-                        constraints.append(z3.BVSNegNoOverflow(smt_arg))
                     return z3.Abs(smt_arg)
 
                 # Binary operators
-                if e.intrinsic in [IntrinsicCall.Intrinsic.SHIFTL,
-                                   IntrinsicCall.Intrinsic.SHIFTR,
-                                   IntrinsicCall.Intrinsic.SHIFTA,
-                                   IntrinsicCall.Intrinsic.IAND,
-                                   IntrinsicCall.Intrinsic.IOR,
-                                   IntrinsicCall.Intrinsic.IEOR,
-                                   IntrinsicCall.Intrinsic.MODULO,
+                if e.intrinsic in [IntrinsicCall.Intrinsic.MODULO,
                                    IntrinsicCall.Intrinsic.MOD]:
                     left_smt = trans(e.children[1])
                     right_smt = trans(e.children[2])
@@ -171,51 +107,6 @@ class FortranToZ3:
                                           m != 0,
                                           (left_smt < 0) != (right_smt < 0)),
                                       m-right_smt, m))
-
-                    if self.use_bv:
-                        if e.intrinsic == IntrinsicCall.Intrinsic.SHIFTL:
-                            return left_smt << right_smt
-                        if e.intrinsic == IntrinsicCall.Intrinsic.SHIFTR:
-                            return z3.LShR(left_smt, right_smt)
-                        if e.intrinsic == IntrinsicCall.Intrinsic.SHIFTA:
-                            return left_smt >> right_smt
-                        if e.intrinsic == IntrinsicCall.Intrinsic.IAND:
-                            return left_smt & right_smt
-                        if e.intrinsic == IntrinsicCall.Intrinsic.IOR:
-                            return left_smt | right_smt
-                        if e.intrinsic == IntrinsicCall.Intrinsic.IEOR:
-                            return left_smt ^ right_smt
-                    else:
-                        if e.intrinsic == IntrinsicCall.Intrinsic.SHIFTL:
-                            return z3.BV2Int(
-                                     z3.Int2BV(left_smt, self.int_width) <<
-                                     z3.Int2BV(right_smt, self.int_width),
-                                     is_signed=True)
-                        if e.intrinsic == IntrinsicCall.Intrinsic.SHIFTR:
-                            return z3.BV2Int(z3.LShR(
-                                     z3.Int2BV(left_smt, self.int_width),
-                                     z3.Int2BV(right_smt, self.int_width)),
-                                     is_signed=True)
-                        if e.intrinsic == IntrinsicCall.Intrinsic.SHIFTA:
-                            return z3.BV2Int(
-                                     z3.Int2BV(left_smt, self.int_width) >>
-                                     z3.Int2BV(right_smt, self.int_width),
-                                     is_signed=True)
-                        if e.intrinsic == IntrinsicCall.Intrinsic.IAND:
-                            return z3.BV2Int(
-                                z3.Int2BV(left_smt, self.int_width) &
-                                z3.Int2BV(right_smt, self.int_width),
-                                is_signed=True)
-                        if e.intrinsic == IntrinsicCall.Intrinsic.IOR:
-                            return z3.BV2Int(
-                                z3.Int2BV(left_smt, self.int_width) |
-                                z3.Int2BV(right_smt, self.int_width),
-                                is_signed=True)
-                        if e.intrinsic == IntrinsicCall.Intrinsic.IEOR:
-                            return z3.BV2Int(
-                                z3.Int2BV(left_smt, self.int_width) ^
-                                z3.Int2BV(right_smt, self.int_width),
-                                is_signed=True)
 
                 # N-ary operators
                 if e.intrinsic in [IntrinsicCall.Intrinsic.MIN,
@@ -233,10 +124,7 @@ class FortranToZ3:
                 if self.handle_array_intrins:
                     var_name = self.translate_array_intrinsic_call(e)
                     if var_name:
-                        if self.use_bv:
-                            return z3.BitVec(var_name, self.int_width)
-                        else:
-                            return z3.Int(var_name)
+                        return z3.Int(var_name)
 
             # Call
             if isinstance(e, Call):
@@ -245,30 +133,19 @@ class FortranToZ3:
 
             # Fall through: return a fresh, unconstrained symbol
             if self.allow_unsupported:
-                if self.use_bv:
-                    return z3.FreshConst(z3.BitVecSort(self.int_width))
-                else:
-                    return z3.FreshInt()
+                return z3.FreshInt()
             else:
                 raise TranslationNotSupported(e)
 
-        # Invoke the recursive function
-        expr_root_smt = trans(expr_root)
-        return (expr_root_smt, constraints)
+        return trans(expr_root)
 
-    def translate_logical_expr(self, expr_root: Node) \
-            -> (z3.BoolRef, list[z3.BoolRef]):
+    def translate_logical_expr(self, expr_root: Node) -> z3.BoolRef:
         '''Translate a scalar logical Fortran expression to SMT.
 
            :param expr_root: the expression to translate. This is assumed
              to have scalar logical type.
-           :return: a pair containing the translated expression and a
-             list of Z3 constraints introduced by the translation.
-             One use of the constraint list is to prohibit bit-vector
-             overflow.
+           :return: the translated expression.
         '''
-        constraints = []
-
         def trans(expr: Node):
             # Literal
             if isinstance(expr, Literal):
@@ -319,10 +196,8 @@ class FortranToZ3:
                                      BinaryOperation.Operator.GE,
                                      BinaryOperation.Operator.LE]:
                     (left, right) = expr.operands
-                    (left_smt, cs) = self.translate_integer_expr(left)
-                    constraints.extend(cs)
-                    (right_smt, cs) = self.translate_integer_expr(right)
-                    constraints.extend(cs)
+                    left_smt = self.translate_integer_expr(left)
+                    right_smt = self.translate_integer_expr(right)
 
                     if expr.operator == BinaryOperation.Operator.EQ:
                         return left_smt == right_smt
@@ -343,8 +218,7 @@ class FortranToZ3:
             else:
                 raise TranslationNotSupported(expr)
 
-        expr_root_smt = trans(expr_root)
-        return (expr_root_smt, constraints)
+        return trans(expr_root)
 
     def lbound_name(self, array_name: str, array_dim: str) -> str:
         '''Return name for integer variable representing the lower bound

@@ -26,21 +26,6 @@ class ArrayIndexAnalysisOptions:
     '''The analysis supports a range of different options, which are all
     captured together in this class.
 
-    :param use_bv: whether to treat Fortran integers as bit vectors or
-       arbitrary-precision integers. If None is specified then the
-       analysis will use a simple heuristic to decide.
-
-    :param int_width: the bit width of Fortran integers. This is 32 by
-       default but it can be useful to reduce it to (say) 8 in particular
-       cases to improve the ability of solver to find a timely solution,
-       provided the user considers it safe to do so. (Note that the analysis
-       currently only gathers information about Fortran integer values of
-       unspecified width.)
-
-    :param prohibit_overflow: if True, the analysis will tell the solver
-       to ignore the possibility of integer overflow. Integer overflow is
-       undefined behaviour in Fortran so this is safe.
-
     :param handle_array_intrins: handle array intrinsics 'size()',
        'lbound()', and 'ubound()' specially. For example, multiple
        occurrences of 'size(arr)' will be assumed to return the same value,
@@ -52,14 +37,8 @@ class ArrayIndexAnalysisOptions:
 
     '''
     def __init__(self,
-                 int_width: int = 32,
-                 use_bv: bool = None,
-                 prohibit_overflow: bool = False,
                  handle_array_intrins: bool = True,
                  check_scalars: bool = False):
-        self.int_width = int_width
-        self.use_bv = use_bv
-        self.prohibit_overflow = prohibit_overflow
         self.handle_array_intrins = handle_array_intrins
         self.check_scalars = check_scalars
 
@@ -233,27 +212,18 @@ class ArrayIndexAnalysis:
 
     def _fresh_integer_var(self) -> z3.ExprRef:
         '''Create an fresh SMT integer variable.'''
-        if self.opts.use_bv:
-            return z3.FreshConst(z3.BitVecSort(self.opts.int_width))
-        else:
-            return z3.FreshInt()
+        return z3.FreshInt()
 
     def _fresh_logical_var(self) -> z3.BoolRef:
         return z3.FreshBool()
 
     def _integer_var(self, var: str) -> z3.ExprRef:
         '''Create an integer SMT variable with the given name.'''
-        if self.opts.use_bv:
-            return z3.BitVec(var, self.opts.int_width)
-        else:
-            return z3.Int(var)
+        return z3.Int(var)
 
     def _integer_val(self, val: int) -> z3.ExprRef:
         '''Create an SMT integer value.'''
-        if self.opts.use_bv:
-            return z3.BitVecVal(val, self.opts.int_width)
-        else:
-            return z3.IntVal(val)
+        return z3.IntVal(val)
 
     def _kill_integer_var(self, var: str):
         '''Clear knowledge of integer 'var' by mapping it to a fresh,
@@ -347,26 +317,13 @@ class ArrayIndexAnalysis:
     def _translate_integer_expr_with_subst(self, expr: Node):
         '''Translate the given integer expression to SMT, and apply the
         current substitution.'''
-        (smt_expr, cs) = self.trans.translate_integer_expr(expr)
-        for c in cs:
-            self._add_constraint(self._apply_subst(c))
+        smt_expr = self.trans.translate_integer_expr(expr)
         return self._apply_subst(smt_expr)
 
     def _translate_logical_expr_with_subst(self, expr: Node):
         '''Translate the given logical expression to SMT, and apply the
         current substitution.'''
-        (smt_expr, cs) = self.trans.translate_logical_expr(expr)
-        for c in cs:
-            self._add_constraint(self._apply_subst(c))
-        return self._apply_subst(smt_expr)
-
-    def _translate_cond_expr_with_subst(self, expr: Node):
-        '''Translate the given conditional expression to SMT, and apply
-        the current substitution. Instead of adding constraints to
-        the constraint set, this function ANDs constraints with the
-        translated expression.'''
-        (smt_expr, cs) = self.trans.translate_logical_expr(expr)
-        smt_expr = z3.And([smt_expr] + cs)
+        smt_expr = self.trans.translate_logical_expr(expr)
         return self._apply_subst(smt_expr)
 
     def _constrain_loop_var(self,
@@ -391,10 +348,6 @@ class ArrayIndexAnalysis:
                      z3.And(var <= var_begin, var >= var_end)))
         self._add_constraint(var == var_begin + i * var_step)
         self._add_constraint(i >= zero)
-        # Prohibit overflow/underflow of "i * var_step"
-        if self.opts.use_bv and self.opts.prohibit_overflow:
-            self._add_constraint(z3.BVMulNoOverflow(i, var_step, True))
-            self._add_constraint(z3.BVMulNoUnderflow(i, var_step))
         return (var_begin, var_end, var_step)
 
     def _get_private_vars(self) -> set[str]:
@@ -495,7 +448,7 @@ class ArrayIndexAnalysis:
                 if if_cond is None:
                     smt_cond = z3.BoolVal(True)
                 else:
-                    smt_cond = self._translate_cond_expr_with_subst(if_cond)
+                    smt_cond = self._translate_logical_expr_with_subst(if_cond)
                     self._add_all_array_accesses(if_cond, cond)
                 # Recursively step into body
                 self._save_subst()
@@ -543,7 +496,7 @@ class ArrayIndexAnalysis:
             # Add array accesses in condition
             self._add_all_array_accesses(stmt.condition, cond)
             # Translate condition to SMT
-            smt_condition = self._translate_cond_expr_with_subst(
+            smt_condition = self._translate_logical_expr_with_subst(
               stmt.condition)
             # Recursively step into loop body
             self._save_subst()
@@ -818,8 +771,7 @@ class BoundsError:
 def _is_scalar_integer(dt: DataType) -> bool:
     '''Check that type is a scalar integer of unspecified precision.'''
     return (isinstance(dt, ScalarType) and
-            dt.intrinsic == ScalarType.Intrinsic.INTEGER and
-            dt.precision == ScalarType.Precision.UNDEFINED)
+            dt.intrinsic == ScalarType.Intrinsic.INTEGER)
 
 
 def _is_scalar_logical(dt: DataType) -> bool:

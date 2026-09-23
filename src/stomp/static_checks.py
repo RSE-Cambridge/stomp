@@ -438,9 +438,6 @@ def check_data_races(psyir: Node,
                 opts.sweep_seed = solver_options.sweep_seed
                 opts.num_sweep_threads = solver_options.sweep_threads
                 opts.smt_timeout_ms = solver_options.solver_timeout_ms
-                opts.use_bv = solver_options.use_bit_vec
-                opts.int_width = solver_options.bit_vec_width
-                opts.prohibit_overflow = opts.use_bv
             analysis = RegionConflictAnalysis(opts)
             conflicts = analysis.get_region_conflicts(
                             d, check_bounds=check_bounds)
@@ -506,9 +503,6 @@ def check_simd_loops(psyir: Node,
                     opts.sweep_seed = solver_options.sweep_seed
                     opts.num_sweep_threads = solver_options.sweep_threads
                     opts.smt_timeout_ms = solver_options.solver_timeout_ms
-                    opts.use_bv = solver_options.use_bit_vec
-                    opts.int_width = solver_options.bit_vec_width
-                    opts.prohibit_overflow = opts.use_bv
                 analysis = LoopConflictAnalysis(opts)
                 for loop in par_loops:
                     conflicts = analysis.get_loop_conflicts(loop,

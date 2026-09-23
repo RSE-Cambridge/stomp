@@ -293,8 +293,7 @@ encounters them. However, it's useful to be aware of the following.
 
 * Support for OpenMP directives is currently incomplete -- see
   [Supported Constructs](#supported-constructs). Notable
-  omissions include `task`, `workshare`, `target data`, and `target update`
-  directives.
+  omissions include `task`, `workshare`, `target data`, and `target update`.
 
 * PSyclone's intermediate representation is incomplete. Some
   Fortran constructs (e.g. `print`, `block`, `associate` statements)

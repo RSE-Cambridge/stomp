@@ -78,9 +78,6 @@ def infer_parallel_loops(psyir: Node,
                 opts.sweep_seed = solver_options.sweep_seed
                 opts.num_sweep_threads = solver_options.sweep_threads
                 opts.smt_timeout_ms = solver_options.solver_timeout_ms
-                opts.use_bv = solver_options.use_bit_vec
-                opts.int_width = solver_options.bit_vec_width
-                opts.prohibit_overflow = opts.use_bv
             analysis = LoopConflictAnalysis(opts)
             conflicts = analysis.get_loop_conflicts(loop)
             if not conflicts:
