@@ -12,7 +12,8 @@ from psyclone.psyir.nodes import Loop, DataNode, Literal, Assignment, \
     Reference, Node, IfBlock, Schedule, Range, WhileLoop, ArrayReference, \
     IntrinsicCall
 from psyclone.core import Signature
-from psyclone.psyir.symbols import DataType, ScalarType, ArrayType, DataSymbol
+from psyclone.psyir.symbols import DataType, ScalarType, ArrayType, \
+    DataSymbol, DataTypeSymbol
 from stomp.misc import if_else_chain, is_stop, is_exit
 from stomp.openmp_directives import OpenMPDirective
 
@@ -195,9 +196,12 @@ class ArrayIndexAnalysis:
         '''Initialise the analysis by setting all the internal state
         variables accordingly.'''
 
-        # The substitution maps integer and logical Fortran variables
-        # to SMT symbols
+        # The substitution maps integer and logical Fortran signatures
+        # to SMT symbols.
         self.subst = {}
+        # The accessors dict maps each Fortran structure variable name
+        # to the set of all structure accessors used on that variable
+        self.accessors = {}
         # We have a stack of these to support save/restore
         self.subst_stack = []
         # The constraint set is represented as a list of boolean SMT formulae
@@ -265,30 +269,43 @@ class ArrayIndexAnalysis:
         smt_var = z3.Bool(var)
         self.subst[smt_var] = fresh_sym
 
+    def _kill_structure(self, var: str):
+        # Kill all known accessors inside given structure
+        base = var.split('%')[0]
+        if base in self.accessors:
+            for (acc, is_bool) in self.accessors[base]:
+                if not acc.startswith(var): continue
+                if is_bool:
+                    self._kill_logical_var(acc)
+                else:
+                    self._kill_integer_var(acc)
+
     def _kill_all_written_vars(self, node: Node):
         '''Kill all scalar integer/logical variables written inside 'node'.'''
         var_accesses = node.reference_accesses()
-        for sig, access_seq in var_accesses.items():
+        for signature, access_seq in var_accesses.items():
             for access_info in access_seq.all_write_accesses:
                 if isinstance(access_info.node, Loop):
-                    self._kill_integer_var(sig.var_name)
+                    self._kill_integer_var(signature.var_name)
                     break
                 elif isinstance(access_info.node, Reference):
-                    if _is_scalar_integer(access_info.node.datatype):
-                        self._kill_integer_var(sig.var_name)
+                    node = access_info.node
+                    dt = node.datatype
+                    (sig, indices) = node.get_signature_and_indices()
+                    any_indices = any([inds != [] for inds in indices])
+                    if any_indices: continue
+                    if _is_scalar_integer(dt):
+                        self._kill_integer_var(str(sig))
                         break
-                    elif _is_scalar_logical(access_info.node.datatype):
-                        self._kill_logical_var(sig.var_name)
+                    elif _is_scalar_logical(dt):
+                        self._kill_logical_var(str(sig))
                         break
-                    elif isinstance(access_info.node.datatype, ArrayType):
-                        node = access_info.node
-                        dt = node.datatype
-                        (sig, inds) = node.get_signature_and_indices()
-                        if (len(sig) == 1 and
-                                len(inds[0]) == 0 and
-                                dt.is_allocatable):
-                            self._kill_array_bounds(sig[0], len(dt.shape))
-                            break
+                    elif isinstance(dt, ArrayType) and dt.is_allocatable:
+                        self._kill_array_bounds(str(sig), len(dt.shape))
+                        break
+                    elif isinstance(dt, DataTypeSymbol):
+                        self._kill_structure(str(sig))
+                        break
 
     def _add_constraint(self, smt_expr: z3.BoolRef):
         '''Add the SMT constraint to the constraint set.'''
@@ -574,11 +591,12 @@ class ArrayIndexAnalysis:
             if not skip:
                 for arg in stmt.arguments:
                     if isinstance(arg, Reference):
-                        (sig, inds) = arg.get_signature_and_indices()
-                        if len(sig) == 1 and len (inds[0]) == 0:
+                        (sig, indices) = arg.get_signature_and_indices()
+                        any_indices = any([inds != [] for inds in indices])
+                        if not any_indices:
                             if isinstance(arg.datatype, ArrayType):
                                 rank = len(arg.datatype.shape)
-                                self._kill_array_bounds(sig[0], rank)
+                                self._kill_array_bounds(str(sig), rank)
                 return
 
         # Stomp directive
@@ -594,9 +612,38 @@ class ArrayIndexAnalysis:
         self._add_all_array_accesses(stmt, cond)
         self._kill_all_written_vars(stmt)
 
+    def _init_accessors(self, node: Node):
+        '''Populate accessors mapping for all references in given node.'''
+        for ref in node.walk(Reference):
+            (sig, indices) = ref.get_signature_and_indices()
+            # Skip over references with no accessors
+            if len(sig) <= 1: continue
+            # Skip over array accesses
+            any_indices = any([inds != [] for inds in indices])
+            if any_indices: continue
+            dt = ref.datatype
+            if sig[0] not in self.accessors: self.accessors[sig[0]] = set()
+            if isinstance(dt, ScalarType):
+                is_bool = _is_scalar_logical(ref.datatype)
+                is_int = _is_scalar_integer(ref.datatype)
+                if not (is_bool or is_int): continue
+                self.accessors[sig[0]].add((str(sig), is_bool))
+            elif isinstance(dt, ArrayType):
+                rank = len(dt.shape)
+                s = self.accessors[sig[0]]
+                s.add((self.trans.size_name(str(sig)), False))
+                for i in range(0, rank):
+                    dim = str(i+1)
+                    s.add((self.trans.lbound_name(str(sig), dim), False))
+                    s.add((self.trans.ubound_name(str(sig), dim), False))
+                    s.add((self.trans.size_name(str(sig), dim), False))
+
     def _init_array_bounds(self, node: Node):
         '''Add constraints representing initial array bounds/sizes for
-           all variables referenced in given node.'''
+           all variables referenced in given node. Currently we do not
+           initialise bounds for structure accesses where the last
+           component has indices, even though such accesses are bounds
+           checked.'''
         # Determine all arrays accessed
         seen = set()
         for ref in node.walk(Reference):
@@ -641,15 +688,22 @@ class ArrayIndexAnalysis:
             List[Tuple[z3.ExprRef, z3.ExprRef, z3.ExprRef]]:
         '''Return SMT variables representing the lower bound, upper bound,
            and size, in each dimension, for the given array access.'''
+        # We return bounds if:
+        #     (1) the first component of the signature contains indices
+        # OR:
+        #     (2) the last component, and only the last component, of
+        #         the signature contains indices
         (sig, indices) = ref.get_signature_and_indices()
-        # We don't handle structure accessors at the moment
-        if len(sig) > 1: return []
-        # There must be indices present
+        if not indices: return None
+        prefix = [i for inds in indices[:-1] for i in inds]
         if indices[0]:
             array_rank = len(indices[0])
             array_name = sig[0]
+        elif indices[-1] and prefix == []:
+            array_rank = len(indices[-1])
+            array_name = str(sig)
         else:
-           return []
+            return []
         # Now return the bounds for this array access
         (dims, _) = self.trans.get_bounds_names(array_name, array_rank)
         smt_dims = []

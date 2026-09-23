@@ -230,6 +230,8 @@ class LoopConflictAnalysis(ArrayIndexAnalysis):
 
         # Initialise array bounds/sizes
         self._init_array_bounds(routine)
+        # Initialise structure accessors
+        self._init_accessors(routine)
 
         # Step through body of the enclosing routine, statement by statement
         for stmt in routine.children:

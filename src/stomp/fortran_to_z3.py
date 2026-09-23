@@ -349,12 +349,12 @@ class FortranToZ3:
     def lbound_name(self, array_name: str, array_dim: str) -> str:
         '''Return name for integer variable representing the lower bound
            in the given dimension of the array with the given name.'''
-        return f"#lbound_{array_name}_{array_dim}"
+        return f"{array_name}_#lbound_{array_dim}"
 
     def ubound_name(self, array_name: str, array_dim: str) -> str:
         '''Return name for integer variable representing the upper bound
            in the given dimension of the array with the given name.'''
-        return f"#ubound_{array_name}_{array_dim}"
+        return f"{array_name}_#ubound_{array_dim}"
 
     def size_name(self,
                   array_name: str,
@@ -362,9 +362,9 @@ class FortranToZ3:
         '''Return name for integer variable representing the size
            of the given dimension of the array with the given name.'''
         if array_dim is None:
-            return f"#size_{array_name}"
+            return f"{array_name}_#size"
         else:
-            return f"#size_{array_name}_{array_dim}"
+            return f"{array_name}_#size_{array_dim}"
 
     def get_bounds_names(
             self,
@@ -398,9 +398,10 @@ class FortranToZ3:
         array = call.children[1]
         if not isinstance(array, Reference):
             return None
-        # We don't handle structure accessors at the moment
+        # We require no indices in the reference
         (sig, indices) = array.get_signature_and_indices()
-        if len(sig) > 1: return None
+        any_indices = any([inds != [] for inds in indices])
+        if any_indices: return None
         name = str(sig)
         # Translate full-size call
         if len(call.children) == 2:

@@ -166,12 +166,12 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
     def _add_array_access(self, access: ArrayAccess):
         '''Override parent method: add an array access to the current
         access dict.'''
-        array_name = str(access.name)
+        base_name = access.name[0]
         # Ignore accesses outside region of interest
         if not self.in_region_of_interest:
             return
         # Ignore accesses to thread-private variables
-        if array_name in self.thread_private_vars:
+        if base_name in self.thread_private_vars:
             return
         # If we are not inside a "parallel" region then constrain the
         # thread id to zero as only the master thread is active
@@ -179,7 +179,7 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
             access.cond = z3.And(access.cond, self.smt_thread_var == 0)
         # For team-private variables, the two threads must be in the same
         # team for there to be a conflict
-        if array_name in self.team_private_vars:
+        if base_name in self.team_private_vars:
             access.cond = z3.And(access.cond,
                                   self.smt_team_var_i == self.smt_team_var_j)
             access.is_team_private = True
@@ -272,6 +272,8 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
 
         # Initialise array bounds/sizes
         self._init_array_bounds(routine)
+        # Initialise structure accessors
+        self._init_accessors(routine)
 
         # Find region of interest
         for stmt in routine.children:

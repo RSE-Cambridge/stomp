@@ -191,3 +191,55 @@ subroutine inc(arr)
 end subroutine
 '''
     stomp_test(code, [Msg.OutOfBounds], check_bounds=True)
+
+def test_bounds_14_ok():
+    code = '''
+module m
+  type :: ty
+    integer :: n
+    integer, allocatable :: arr(:)
+  end type
+
+  contains
+
+  subroutine inc(x)
+    type(ty), intent(inout) :: x
+    integer :: i
+    !$omp parallel do
+    do i = lbound(x%arr, 1), ubound(x%arr, 1)
+      x%arr(i) = x%arr(i) + 1
+    end do
+  end subroutine
+end module
+'''
+    stomp_test(code, [], check_bounds=True)
+
+def test_bounds_14_bad():
+    code = '''
+module m
+  type :: ty
+    integer :: n
+    integer, allocatable :: arr(:)
+  end type
+
+  contains
+
+  subroutine alloc(x)
+    type(ty), intent(inout) :: x
+    allocate(x%arr(1:10))
+  end subroutine
+
+  subroutine inc(x)
+    type(ty), intent(inout) :: x
+    integer :: i, l, u
+    l = lbound(x%arr, 1)
+    u = ubound(x%arr, 1)
+    call alloc(x) ! This changes the bounds
+    !$omp parallel do
+    do i = l, u
+      x%arr(i) = x%arr(i) + 1
+    end do
+  end subroutine
+end module
+'''
+    stomp_test(code, [Msg.OutOfBounds], check_bounds=True)
