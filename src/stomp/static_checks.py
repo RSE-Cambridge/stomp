@@ -434,6 +434,7 @@ def check_data_races(psyir: Node,
 
             # Apply the region conflict analysis
             opts = RegionConflictAnalysisOptions()
+            opts.succeed_on_timeout = True
             if solver_options:
                 opts.sweep_seed = solver_options.sweep_seed
                 opts.num_sweep_threads = solver_options.sweep_threads
@@ -498,6 +499,7 @@ def check_simd_loops(psyir: Node,
 
                 # Analyse loop
                 opts = LoopConflictAnalysisOptions()
+                opts.succeed_on_timeout = True
                 opts.check_scalars = True
                 if solver_options:
                     opts.sweep_seed = solver_options.sweep_seed
