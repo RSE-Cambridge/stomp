@@ -32,11 +32,26 @@ class RegionConflictAnalysisOptions(ArrayIndexAnalysisOptions):
     '''The analysis supports a range of different options, which are all
     captured together in this class.
 
+    :param use_bv: whether to treat Fortran integers as bit vectors or
+       arbitrary-precision integers. If None is specified then the
+       analysis will use a simple heuristic to decide.
+
+    :param int_width: the bit width of Fortran integers. This is 32 by
+       default but it can be useful to reduce it to (say) 8 in particular
+       cases to improve the ability of solver to find a timely solution,
+       provided the user considers it safe to do so. (Note that the analysis
+       currently only gathers information about Fortran integer values of
+       unspecified width.)
+
     :param smt_timeout_ms: the time limit (in milliseconds) given to
        the SMT solver to find a solution. If the solver does not
        return within this time, the analysis will conservatively return
        that a conflict exists even though it has not yet found one.
        This can be set to 'None' to disable the timeout.
+
+    :param prohibit_overflow: if True, the analysis will tell the solver
+       to ignore the possibility of integer overflow. Integer overflow is
+       undefined behaviour in Fortran so this is safe.
 
     :param handle_array_intrins: handle array intrinsics 'size()',
        'lbound()', and 'ubound()' specially. For example, multiple
@@ -59,12 +74,18 @@ class RegionConflictAnalysisOptions(ArrayIndexAnalysisOptions):
 
     '''
     def __init__(self,
+                 int_width: int = 32,
+                 use_bv: bool = None,
                  smt_timeout_ms: Optional[int] = 5000,
+                 prohibit_overflow: bool = False,
                  handle_array_intrins: bool = True,
                  num_sweep_threads: int = 4,
                  sweep_seed: int = 1,
                  succeed_on_timeout: bool = False):
-        super().__init__(handle_array_intrins=handle_array_intrins)
+        super().__init__(int_width=int_width,
+                         use_bv=use_bv,
+                         prohibit_overflow=prohibit_overflow,
+                         handle_array_intrins=handle_array_intrins)
         self.smt_timeout_ms = smt_timeout_ms
         self.num_sweep_threads = num_sweep_threads
         self.sweep_seed = sweep_seed
@@ -227,6 +248,9 @@ class RegionConflictAnalysis(ArrayIndexAnalysis):
 
         # Create Fortran-to-Z3 translator
         self.trans = FortranToZ3(
+                         use_bv=self.opts.use_bv,
+                         int_width=self.opts.int_width,
+                         prohibit_overflow=self.opts.prohibit_overflow,
                          handle_array_intrins=self.opts.handle_array_intrins)
 
         # Initialise array bounds/sizes
