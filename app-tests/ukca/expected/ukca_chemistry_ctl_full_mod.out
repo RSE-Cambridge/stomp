@@ -1,0 +1,8 @@
+Modules loaded: asad_cdrive_mod, asad_mod
+Modules not loaded: asad_bedriv_mod, asad_bimol_mod, asad_chem_flux_diags, asad_diffun_mod, asad_ftoy_mod, asad_hetero_mod, asad_impact_mod, asad_jac_mod, asad_posthet_mod, asad_spmjpdriv_mod, asad_totnud_mod, asad_trimol_mod, ereport_mod, errormessagelength_mod, parkind1, ukca_config_constants_mod, ukca_config_specification_mod, ukca_constants, ukca_cspecies, ukca_drydep_mod, ukca_hetero_mod, ukca_missing_data_mod, ukca_ntp_mod, ukca_photol_mod, ukca_wetdep_mod, umprintmgr, yomhook
+
+Summary
+Directives found: 28
+Issues found: 0
+SMT queries/timeouts: 19/0
+All checks passed!

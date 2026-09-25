@@ -2,7 +2,7 @@
 
 # SPDX-License-Identifier: BSD-3-Clause
 
-echo "Running integration tests (CGYRO)"
+echo "Running application tests (CGYRO)"
 echo "================================="
 
 # Number of Makefile threads to use

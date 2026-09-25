@@ -14,11 +14,15 @@ test:
 	@echo
 	@(cd ../examples && ./run-all.sh)
 	@echo
-	@(cd ../integration-tests/cgyro && ./run.sh)
+	@(cd ../app-tests/cgyro && ./run.sh)
 	@echo
+	@(cd ../app-tests/ukca && ./run.sh)
+	@echo
+
 
 .PHONY: clean
 clean:
 	@make -s -C ../benchmarks clean
 	@make -s -C ../examples clean
-	@make -s -C ../integration-tests/cgyro clean
+	@make -s -C ../app-tests/cgyro clean
+	@(cd ../app-tests/ukca && ./clean.sh)
