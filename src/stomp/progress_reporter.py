@@ -6,13 +6,17 @@ class ProgressReporter:
     # Is progress report enabled?
     enabled: bool = True
 
+    # Count of number of progress messages
+    count: int = 0
+
     @classmethod
     def begin(cls, text: str):
         '''Start a progress region.'''
         if cls.enabled:
-            if len(text) > 70:
-                text = text[:35] + " ... " + text[-35:]
-            print(text + "\r", end="")
+            if len(text) > 60:
+                text = text[:30] + " ... " + text[-30:]
+            print(f"[{cls.count}] " + text + "\r", end="")
+            cls.count += 1
                 
     @classmethod
     def end(cls):

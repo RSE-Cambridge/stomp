@@ -7,6 +7,7 @@ Fortran code developed by Met Office partners) and
 Research). It supports subsets of OpenMP 4.5 and Fortran 2003, and
 solves 140 out of 166 problems from the
 [DataRaceBench](https://github.com/llnl/dataracebench) benchmark suite.
+It also features array bounds checking and parallel loop inference.
 
 ## Contents
 
