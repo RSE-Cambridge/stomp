@@ -131,6 +131,10 @@ def entry():
         action="store",
         default=32)
     arg_parser.add_argument(
+        "--small-check",
+        help="Shorthand for '--smt-use-bit-vec --smt-bit-vec-width 7'",
+        action="store_true")
+    arg_parser.add_argument(
         "--strip-codeblocks",
         help="ignore PSyIR CodeBlock statements",
         action="store_true")
@@ -258,6 +262,9 @@ def entry():
     parse_module_spec_directives(source_code, psyir, mod_manager)
 
     # SMT solver options
+    if args.small_check:
+        args.smt_use_bit_vec = True
+        args.smt_bit_vec_width = 7
     solver_opts = SMTSolverOptions(args.sweep_seed,
                                    args.sweep_threads,
                                    args.smt_timeout,

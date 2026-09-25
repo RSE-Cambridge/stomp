@@ -110,7 +110,7 @@ constructs are currently ignored.
 
 ## Usage
 
-Typical steps:
+### Typical Steps
 
 1. **Check**. Apply the checker to a single source file of interest.  Strictly
 speaking, the user should first ensure that the source file compiles without
@@ -134,6 +134,8 @@ to ensure that the code is indeed safe under these assumptions.
 
 When satisified, Stomp will report `All checks passed!`.
 
+### Optional Features
+
 Additional features can be enabled with command-line flags:
 
 * `--check-bounds` will check for out-of-bounds array accesses in parallel
@@ -141,6 +143,33 @@ Additional features can be enabled with command-line flags:
 
 * `--infer` will report loops that can be safely parallelised, which are not
   aready marked as parallel.
+
+### Solver Options
+
+By default, Stomp places a 5 second timeout on each SMT query that it issues.
+Stomp reports any timeouts as warnings in its summary section but otherwise
+interprets them as successes (in our experience, the solver rarely times out
+when bugs are present). However, there are various solver options that the user
+can play around with:
+
+  * `--sweep-threads <n>` will launch `<n>` SMT solvers in parallel for each
+    SMT query, each one using a different random seed;
+
+  * `--smt-timeout <n>` will set the SMT solver timeout to `<n>` milliseconds
+    per query;
+
+  * `--smt-use-bit-vec` will tell the SMT solver to treat integers as
+    non-overflowable bit vectors rather than unbounded integers;
+
+  * `--smt-bit-vec-width <n>` specifies the bit vector width when bit-vector
+    mode is requested;
+
+  * `--small-check` is a shorthand for `--smt-use-bit-vec` and
+    `--smt-bit-vec-width 7`, i.e. treat all integers as 7-bit signed integers,
+    which simplifies the solver's job at the cost of missing possible bugs
+    that are not reachable due to the limited bit width.
+
+### Full Usage
 
 For more detailed usage information, run `stomp --help`.
 
